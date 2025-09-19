@@ -1,0 +1,87 @@
+graph_generation:
+  type: "sphere"  # "sphere" or "grid"
+  sphere_mesh:
+    num_horizontal: 20
+    num_vertical: 20
+  grid_2d:
+    width: 20
+    height: 20
+  output:
+    file_path: "temp/graph.pkl"  # suffix will be added based on type
+    visualize: true
+    print_stats: true
+
+data_generation:
+  train:
+    num_paths: 300000
+    min_length: 3
+    max_length: 36
+    # Perturbed path generation settings
+    use_perturbed: true  # Set to true to use perturbed shortest paths instead of random walks
+    n_segments_min: 2     # Minimum number of segments to split shortest path
+    n_segments_max: 10     # Maximum number of segments to split shortest path  
+    perturbation_min: 1   # Minimum perturbation steps
+    perturbation_max: 7 # Maximum perturbation steps
+    unique_pairs_ratio: 0.1  # Ratio of unique pairs to total training paths (e.g., 0.1 means 10% unique pairs)
+  test:
+    num_paths: 2000
+  graph_path: ${graph_generation.output.file_path}
+  output_dir: "temp/"
+
+
+model:
+  d_model: 64
+  num_heads: 4
+  num_layers: 2
+  d_ff: 64
+  max_seq_length: 128
+  dropout: 0.1
+  vocab_size: null  # Will be computed as num_horizontal * num_vertical
+
+training:
+  learning_rate: 1e-4
+  batch_size: 125
+  max_epochs: 200
+  weight_decay: 1e-5
+  warmup_steps: 300
+  gradient_clip_val: 1.0
+  optimizer: "adamw"  # "adamw" or "muon"
+  loss: "cross_entropy"  # "cross_entropy" or "prob_weighting"
+
+data:
+  train_file: "train.json"
+  test_file: "test.json"
+  max_path_length: 64
+  num_workers: 4
+
+logging:
+  project_name: "path_prediction"
+  experiment_name: "transformer_baseline"
+  log_every_n_steps: 50
+
+paths:
+  data_dir: "./temp"
+  model_dir: "./model"
+  checkpoint_dir: "./checkpoints"
+
+# Hydra configuration
+defaults:
+  - _self_
+  - override hydra/sweeper: basic
+
+# Optuna sweeper configuration
+hydra:
+  sweeper:
+    # sampler:
+    #   _target_: optuna.samplers.TPESampler
+    #   seed: 123
+    #   n_startup_trials: 1000 
+    params:
+      training.learning_rate: 1e-3
+      #training.loss: "prob_weighting"
+    #direction: minimize
+    # study_name: path_prediction_optimization
+    # storage: null
+    # n_trials: 3
+    # n_jobs: 1
+
