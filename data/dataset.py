@@ -35,7 +35,7 @@ class PathDataset(Dataset):
         # Create input (all tokens except last) and target (all tokens except first)
         input_ids = torch.tensor(path[:-1], dtype=torch.long)
         target_ids = torch.tensor(path[1:], dtype=torch.long)
-        target_ids[:2] = -100 # mask the first two tokens which are the pair of points
+        target_ids[:1] = -100 # mask the first two tokens which are the pair of points
         
         return {
             'input_ids': input_ids,
