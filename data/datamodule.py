@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 from typing import Optional
 import os
 
-from .dataset import create_dataset, collate_fn
+from .dataset import create_dataset, create_curriculum_dataset, collate_fn
 
 
 class PathDataModule(pl.LightningDataModule):
@@ -16,7 +16,8 @@ class PathDataModule(pl.LightningDataModule):
         max_path_length: int = 64,
         vocab_size: int = 10000,
         data_dir: str = "./data",
-        graph_type: str = "sphere"
+        graph_type: str = "sphere",
+        curriculum_length: Optional[int] = None
     ):
         super().__init__()
         self.train_file = os.path.join(data_dir, f"train_{graph_type}.json")
@@ -25,6 +26,8 @@ class PathDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.max_path_length = max_path_length
         self.vocab_size = vocab_size
+        self.pad_token = vocab_size - 2
+        self.curriculum_length = curriculum_length
         
         self.train_dataset = None
         self.val_dataset = None
@@ -32,18 +35,30 @@ class PathDataModule(pl.LightningDataModule):
     
     def setup(self, stage: Optional[str] = None):
         if stage == "fit" or stage is None:
-            self.train_dataset = create_dataset(
-                self.train_file, 
-                self.max_path_length, 
-                self.vocab_size
-            )
-            
-            # Use test file as validation for simplicity
-            self.val_dataset = create_dataset(
-                self.test_file, 
-                self.max_path_length, 
-                self.vocab_size
-            )
+            if self.curriculum_length is not None:
+                self.train_dataset = create_curriculum_dataset(
+                    self.train_file, 
+                    self.curriculum_length,
+                    self.max_path_length, 
+                    self.vocab_size
+                )
+                self.val_dataset = create_curriculum_dataset(
+                    self.test_file, 
+                    self.curriculum_length,
+                    self.max_path_length, 
+                    self.vocab_size
+                )
+            else:
+                self.train_dataset = create_dataset(
+                    self.train_file, 
+                    self.max_path_length, 
+                    self.vocab_size
+                )
+                self.val_dataset = create_dataset(
+                    self.test_file, 
+                    self.max_path_length, 
+                    self.vocab_size
+                )
         
         if stage == "test" or stage is None:
             self.test_dataset = create_dataset(
@@ -51,15 +66,18 @@ class PathDataModule(pl.LightningDataModule):
                 self.max_path_length, 
                 self.vocab_size
             )
-    
+    def collate_fn_with_pad_token(self, batch):
+            return collate_fn(self.pad_token, batch)   
+
     def train_dataloader(self):
+
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
             shuffle=True,
             num_workers=self.num_workers,
             pin_memory=True,
-            collate_fn=collate_fn
+            collate_fn=self.collate_fn_with_pad_token
         )
     
     def val_dataloader(self):
@@ -69,7 +87,7 @@ class PathDataModule(pl.LightningDataModule):
             shuffle=False,
             num_workers=self.num_workers,
             pin_memory=True,
-            collate_fn=collate_fn
+            collate_fn=self.collate_fn_with_pad_token
         )
     
     def test_dataloader(self):
@@ -79,5 +97,5 @@ class PathDataModule(pl.LightningDataModule):
             shuffle=False,
             num_workers=self.num_workers,
             pin_memory=True,
-            collate_fn=collate_fn
+            collate_fn=self.collate_fn_with_pad_token
         )

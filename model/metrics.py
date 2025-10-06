@@ -7,34 +7,49 @@ import networkx as nx
 class NonGenerativeMetrics:
     """Class to compute various metrics for path prediction tasks"""
     
-    def __init__(self, graph: nx.Graph, vocab_size: int):
+    def __init__(self, graph: nx.Graph, vocab_size: int, enabled_metrics: list = None):
         self.graph = graph
         self.vocab_size = vocab_size
         self.eos_token = vocab_size - 1
-    
-    def compute_metrics(self, logits: torch.Tensor, targets: torch.Tensor) -> Dict[str, torch.Tensor]:
-        """Compute all metrics for predictions vs targets"""
-        predictions = torch.argmax(logits, dim=-1)
         
-        # Only compute accuracy on non-padded tokens (targets != -100)
+        # Default to all metrics if none specified
+        if enabled_metrics is None:
+            enabled_metrics = ['accuracy']
+        self.enabled_metrics = enabled_metrics
+        
+        # Map metric names to computation methods
+        self.metric_methods = {
+            'accuracy': self._compute_accuracy,
+            'exact_match_accuracy': self._compute_exact_match_accuracy,
+            'path_validity': self._compute_path_validity,
+            'edge_accuracy': self._compute_edge_accuracy,
+            'path_optimality': self._compute_path_optimality
+        }
+    
+    def compute_metrics(self, logits: torch.Tensor, targets: torch.Tensor, input_ids: torch.Tensor) -> Dict[str, torch.Tensor]:
+        """Compute enabled metrics for predictions vs targets"""
+        predictions = torch.argmax(logits, dim=-1)
         mask = (targets != -100)
+        
+        results = {}
+        for metric_name in self.enabled_metrics:
+            if metric_name in self.metric_methods:
+                if metric_name == 'accuracy':
+                    results[metric_name] = self.metric_methods[metric_name](predictions, targets, mask)
+                elif metric_name == 'exact_match_accuracy':
+                    results[metric_name] = self.metric_methods[metric_name](predictions, targets, mask)
+                elif metric_name in ['path_validity', 'path_optimality']:
+                    results[metric_name] = self.metric_methods[metric_name](predictions, targets, input_ids)
+                else:
+                    results[metric_name] = self.metric_methods[metric_name](predictions, targets)
+        
+        return results
+    
+    def _compute_accuracy(self, predictions: torch.Tensor, targets: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        """Compute token-level accuracy"""
         correct = (predictions == targets) & mask
         total = mask.sum()
-        accuracy = correct.sum().float() / total.float() if total > 0 else torch.tensor(0.0)
-        
-        # Compute exact match accuracy (whole sequence correct)
-        exact_match_accuracy = self._compute_exact_match_accuracy(predictions, targets, mask)
-        
-        # Compute path validity and edge accuracy
-        path_validity = self._compute_path_validity(predictions, targets)
-        edge_accuracy = self._compute_edge_accuracy(predictions, targets)
-        
-        return {
-            'accuracy': accuracy,
-            'exact_match_accuracy': exact_match_accuracy,
-            'path_validity': path_validity,
-            'edge_accuracy': edge_accuracy
-        }
+        return correct.sum().float() / total.float() if total > 0 else torch.tensor(0.0)
     
     def _compute_exact_match_accuracy(self, predictions: torch.Tensor, targets: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """Compute exact match accuracy (whole sequence correct)"""
@@ -51,22 +66,36 @@ class NonGenerativeMetrics:
         
         return torch.tensor(exact_matches / batch_size, dtype=torch.float32, device=predictions.device)
     
-    def _compute_path_validity(self, predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        """Check if predicted paths contain valid edges in the graph"""
+    def _compute_path_validity(self, predictions: torch.Tensor, targets: torch.Tensor, input_ids: torch.Tensor) -> torch.Tensor:
+        """Check if predicted paths is a valid path from start to goal"""
         batch_size = predictions.size(0)
         valid_paths = 0
         
         for i in range(batch_size):
             # Only consider non-padded tokens (where targets != -100)
-            mask = targets[i] != -100
-            path = predictions[i][mask]
+            pred_path = predictions[i][1:]
+            start_node = input_ids[i][1].item()
+            goal_node = input_ids[i][0].item()
             
-            # Convert to list and remove padding tokens (assuming 0 is padding)
-            path_list = path.cpu().tolist()[:-1]  # remove the eos token
-            path_list = [node for node in path_list if node != 0]
+            # Convert to list
+            pred_list = [start_node] + pred_path.cpu().tolist()
+            
+            
+            # Split predicted path at eos token
+            if self.eos_token in pred_list:
+                eos_idx = pred_list.index(self.eos_token)
+                path_list = pred_list[:eos_idx]
+            else:
+                path_list = pred_list
+            
             
             if len(path_list) <= 1:
-                valid_paths += 1  # Single node or empty path is valid
+                # Single node or empty path - valid if it matches goal
+                if len(path_list) == 1 and goal_node is not None:
+                    if path_list[0] == goal_node:
+                        valid_paths += 1
+                elif len(path_list) == 0:
+                    valid_paths += 1  # Empty path is considered valid
                 continue
             
             # Check if consecutive nodes are connected
@@ -76,6 +105,11 @@ class NonGenerativeMetrics:
                 if not self.graph.has_edge(node1, node2):
                     is_valid = False
                     break
+            
+            # Check if path ends at the goal node
+            if is_valid and goal_node is not None:
+                if path_list[-1] != goal_node:
+                    is_valid = False
             
             if is_valid:
                 valid_paths += 1
@@ -117,62 +151,41 @@ class NonGenerativeMetrics:
             return torch.tensor(0.0, dtype=torch.float32, device=predictions.device)
         
         return torch.tensor(total_valid_edges / total_edges, dtype=torch.float32, device=predictions.device)
+    
+    def _compute_path_optimality(self, predictions: torch.Tensor, targets: torch.Tensor, input_ids: torch.Tensor) -> torch.Tensor:
+        """Compute path optimality as abs(optimal_length - predicted_length)"""
+        batch_size = predictions.size(0)
+        optimality_scores = []
+        
+        for i in range(batch_size):
+            # Get mask from targets and compute optimal path length
+            mask = targets[i] != -100
+            optimal_length = mask.sum().item()
+            
+            # Find EOS token in predictions and compute predicted length
+            pred_sequence = predictions[i].cpu().tolist()
+            if self.eos_token in pred_sequence:
+                eos_idx = pred_sequence.index(self.eos_token)
+                predicted_length = eos_idx
+            else:
+                predicted_length = len(pred_sequence)
+            
+            # Compute abs(optimal - predicted)
+            optimality_score = abs(optimal_length - predicted_length)
+            optimality_scores.append(optimality_score)
+        
+        return torch.tensor(sum(optimality_scores) / len(optimality_scores), dtype=torch.float32, device=predictions.device)
 
 
 class GenerativeMetrics:
     """Class to handle generative evaluation metrics"""
     
-    def __init__(self, graph: nx.Graph, vocab_size: int):
+    def __init__(self, graph: nx.Graph, vocab_size: int, enabled_metrics: list = None):
         self.graph = graph
         self.vocab_size = vocab_size
         self.eos_token = vocab_size - 1
-    
-    def generate_path(self, model, goal_state: int, start_state: int, max_length: int = 64, 
-                     temperature: float = 1.0, top_k: int = None) -> list:
-        """Generate a path from start_state to goal_state using autoregressive sampling"""
-        model.eval()
-        device = next(model.parameters()).device
         
-        # Initialize with goal and start state
-        input_sequence = torch.tensor([goal_state, start_state], dtype=torch.long, device=device).unsqueeze(0)
-        
-        with torch.no_grad():
-            for _ in range(max_length):
-                # Get model predictions
-                logits = model(input_sequence)
-                
-                # Get logits for the last position
-                next_token_logits = logits[0, -1, :] / temperature
-                
-                # Apply top-k filtering if specified
-                if top_k is not None:
-                    top_k_logits, top_k_indices = torch.topk(next_token_logits, top_k)
-                    next_token_logits = torch.full_like(next_token_logits, float('-inf'))
-                    next_token_logits[top_k_indices] = top_k_logits
-                
-                # Sample next token
-                probs = F.softmax(next_token_logits, dim=-1)
-                next_token = torch.multinomial(probs, 1)
-                
-                # Add to sequence
-                input_sequence = torch.cat([input_sequence, next_token.unsqueeze(0)], dim=1)
-                
-                # Check if EOS token generated
-                if next_token.item() == self.eos_token:
-                    break
-        
-        # Extract generated path (excluding goal and start tokens, including any EOS)
-        full_sequence = input_sequence[0].cpu().tolist()
-        
-        # Remove goal (first token) and start (second token) 
-        # The remaining should be the continuation of the path
-        generated_tokens = full_sequence[2:]
-        
-        # Remove EOS token if present
-        if generated_tokens and generated_tokens[-1] == self.eos_token:
-            generated_tokens = generated_tokens[:-1]
-        
-        return generated_tokens
+
     
     def validate_generated_path(self, goal_state: int, start_state: int, generated_path: list) -> bool:
         """Validate if generated path is a valid path from start to goal"""
@@ -194,10 +207,9 @@ class GenerativeMetrics:
         
         return True
     
-    def evaluate_generative(self, model, batch: Dict[str, torch.Tensor], num_samples: int = 1, 
+    def evaluate_generative(self, model, input_ids: torch.Tensor, num_samples: int = 1, 
                           max_length: int = 64, temperature: float = 1.0) -> Dict[str, float]:
         """Evaluate model in generative mode on a batch"""
-        input_ids = batch['input_ids']
         batch_size = input_ids.size(0)
         
         total_valid_paths = 0
@@ -211,8 +223,8 @@ class GenerativeMetrics:
             start_state = input_ids[i, 1].item()
             
             for _ in range(num_samples):
-                # Generate path
-                generated_path = self.generate_path(model, goal_state, start_state, max_length, temperature)
+                # Generate path using model's generate_path method
+                generated_path = model.generate_path(goal_state, start_state, max_length, temperature)
                 
                 # Validate path
                 is_valid = self.validate_generated_path(goal_state, start_state, generated_path)
@@ -241,15 +253,11 @@ class GenerativeMetrics:
                 
                 total_samples += 1
         
-        metrics = {
-            'gen_path_validity': total_valid_paths / total_samples if total_samples > 0 else 0.0,
-            'gen_goal_accuracy': total_correct_goals / total_samples if total_samples > 0 else 0.0
-        }
+        # Only compute and return enabled metrics
+        results = {}
+
+        results['gen_path_validity'] = total_valid_paths / total_samples if total_samples > 0 else 0.0
+        results['gen_goal_accuracy'] = total_correct_goals / total_samples if total_samples > 0 else 0.0
+        results['gen_avg_path_length_diff'] = sum(length_differences) / len(length_differences) if length_differences else 0.0
         
-        # Add average path length difference if we have data
-        if length_differences:
-            metrics['gen_avg_path_length_diff'] = sum(length_differences) / len(length_differences)
-        else:
-            metrics['gen_avg_path_length_diff'] = 0.0
-        
-        return metrics
+        return results

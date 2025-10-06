@@ -1,0 +1,19 @@
+# @package model
+_target_: model.architecture.model.TransformerModel
+d_model: 128
+num_heads: 4
+num_layers: 3
+d_ff: 128
+max_seq_length: 128
+dropout: 0.1
+vocab_size: null  # Will be computed automatically
+
+# Configurable metrics - transformer focuses on basic metrics
+enabled_metrics:
+  - accuracy
+  - exact_match_accuracy
+  - path_validity
+
+enabled_gen_metrics:
+  - gen_path_validity
+  - gen_avg_path_length_diff

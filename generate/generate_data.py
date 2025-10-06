@@ -304,7 +304,7 @@ def generate_dataset(cfg: DictConfig) -> None:
         
         # Shuffle and split 80/20
         random.shuffle(all_pairs)
-        split_idx = int(0.2 * len(all_pairs))
+        split_idx = int(cfg.data_generation.train.unique_pairs_ratio * len(all_pairs))
         train_pairs_list = all_pairs[:split_idx]
         test_pairs_list = all_pairs[split_idx:]
         

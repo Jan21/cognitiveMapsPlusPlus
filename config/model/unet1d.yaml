@@ -1,0 +1,19 @@
+# @package model
+_target_: model.architecture.unet1d.UNet1D
+d_model: 128
+num_layers: 4
+kernel_size: 3
+max_seq_length: 128
+dropout: 0.1
+vocab_size: null  # Will be computed automatically
+
+# Configurable metrics - UNet focuses on accuracy and path metrics
+enabled_metrics:
+  - accuracy
+  - exact_match_accuracy
+  - path_validity
+  - edge_accuracy
+
+enabled_gen_metrics:
+  - gen_path_validity
+  - gen_avg_path_length_diff

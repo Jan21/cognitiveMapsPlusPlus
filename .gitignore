@@ -3,6 +3,7 @@ outputs/
 checkpoints/
 wandb/
 multirun/
+685ef95f7943630ab9d4d8b5/
 
 __pycache__/
 *.py[cod]
