@@ -9,8 +9,15 @@ from data.datamodule import PathDataModule
 from data.curriculum import curriculum_training
 from model.lightningmodule import PathPredictionModule, DiffusionPathPredictionModule
 from hydra.core.hydra_config import HydraConfig
-from data.curriculum import curriculum_training
 import wandb
+
+# Conditionally import GNN module
+try:
+    from model.gnn_lightningmodule import GNNPathPredictionModule
+    GNN_AVAILABLE = True
+except ImportError:
+    GNN_AVAILABLE = False
+    GNNPathPredictionModule = None
 
 
 class SimplePruningCallback(Callback):
@@ -52,6 +59,9 @@ def main(cfg: DictConfig) -> None:
 
 
 def standard_training(cfg: DictConfig) -> float:
+    # Check if GNN mode is requested
+    use_gnn = cfg.model.get('use_gnn', False)
+
     # Set up data module
     datamodule = PathDataModule(
         train_file=cfg.data.train_file,
@@ -61,28 +71,46 @@ def standard_training(cfg: DictConfig) -> float:
         max_path_length=cfg.data.max_path_length,
         vocab_size=cfg.model.vocab_size,
         data_dir=cfg.paths.data_dir,
-        graph_type=cfg.graph_generation.type
-    )
-    
-    # Set up model
-    model = DiffusionPathPredictionModule(
-        model_config=cfg.model,
-        vocab_size=cfg.model.vocab_size,
-        learning_rate=cfg.training.learning_rate,
-        weight_decay=cfg.training.weight_decay,
-        warmup_steps=cfg.training.warmup_steps,
-        optimizer=cfg.training.optimizer,
         graph_type=cfg.graph_generation.type,
-        graph_path=cfg.graph_generation.output.file_path,
-        loss=cfg.training.loss
+        use_gnn=use_gnn,
     )
+
+    # Set up model based on architecture type
+    if use_gnn:
+        if not GNN_AVAILABLE:
+            raise ImportError(
+                "GNN model requested but PyTorch Geometric is not available. "
+                "Install it with: pip install torch-geometric"
+            )
+        model = GNNPathPredictionModule(
+            model_config=cfg.model,
+            vocab_size=cfg.model.vocab_size,
+            learning_rate=cfg.training.learning_rate,
+            weight_decay=cfg.training.weight_decay,
+            warmup_steps=cfg.training.warmup_steps,
+            optimizer=cfg.training.optimizer,
+            graph_type=cfg.graph_generation.type,
+            graph_path=cfg.graph_generation.output.file_path,
+        )
+    else:
+        model = DiffusionPathPredictionModule(
+            model_config=cfg.model,
+            vocab_size=cfg.model.vocab_size,
+            learning_rate=cfg.training.learning_rate,
+            weight_decay=cfg.training.weight_decay,
+            warmup_steps=cfg.training.warmup_steps,
+            optimizer=cfg.training.optimizer,
+            graph_type=cfg.graph_generation.type,
+            graph_path=cfg.graph_generation.output.file_path,
+            loss=cfg.training.loss
+        )
     
     # Set up logger
     hydra_cfg = HydraConfig.get()
     job_id = hydra_cfg.job.get('num', 0) if hydra_cfg.job.get('num') is not None else 0
     
 
-    hyperparams = f"d{cfg.model.d_model}_l{cfg.model.num_layers}__lr{cfg.training.learning_rate:.1e}"
+    hyperparams = f"dlr{cfg.training.learning_rate:.1e}"
     experiment_name = f"{cfg.logging.experiment_name}_{hyperparams}_trial{job_id}"
 
     

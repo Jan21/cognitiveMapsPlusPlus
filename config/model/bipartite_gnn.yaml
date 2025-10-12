@@ -1,0 +1,15 @@
+# @package model
+_target_: model.architecture.bipartite_gnn.BipartiteGNN
+d_model: 128
+num_iterations: 6
+dropout: 0.1
+vocab_size: null  # Will be computed automatically
+use_gnn: true
+
+# Configurable metrics
+enabled_metrics:
+  - accuracy
+  - exact_match_accuracy
+  - path_validity
+
+enabled_gen_metrics: []

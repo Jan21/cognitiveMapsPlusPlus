@@ -5,6 +5,16 @@ import os
 
 from .dataset import create_dataset, create_curriculum_dataset, collate_fn
 
+# Conditionally import PyTorch Geometric components
+try:
+    from torch_geometric.loader import DataLoader as GeometricDataLoader
+    from .gnn_dataset import BipartitePathDataset
+    PYTORCH_GEOMETRIC_AVAILABLE = True
+except ImportError:
+    PYTORCH_GEOMETRIC_AVAILABLE = False
+    GeometricDataLoader = None
+    BipartitePathDataset = None
+
 
 class PathDataModule(pl.LightningDataModule):
     def __init__(
@@ -17,7 +27,9 @@ class PathDataModule(pl.LightningDataModule):
         vocab_size: int = 10000,
         data_dir: str = "./data",
         graph_type: str = "sphere",
-        curriculum_length: Optional[int] = None
+        curriculum_length: Optional[int] = None,
+        use_gnn: bool = False,
+        graph_file: Optional[str] = None
     ):
         super().__init__()
         self.train_file = os.path.join(data_dir, f"train_{graph_type}.json")
@@ -28,74 +40,141 @@ class PathDataModule(pl.LightningDataModule):
         self.vocab_size = vocab_size
         self.pad_token = vocab_size - 2
         self.curriculum_length = curriculum_length
-        
+        self.use_gnn = use_gnn
+
+        # Set graph file path for GNN models
+        if graph_file is None:
+            self.graph_file = os.path.join(data_dir, f"graph_{graph_type}.pkl")
+        else:
+            self.graph_file = graph_file
+
         self.train_dataset = None
         self.val_dataset = None
         self.test_dataset = None
-    
+
+        # Validate GNN usage
+        if self.use_gnn and not PYTORCH_GEOMETRIC_AVAILABLE:
+            raise ImportError(
+                "PyTorch Geometric is required for GNN models. "
+                "Install it with: pip install torch-geometric"
+            )
+
     def setup(self, stage: Optional[str] = None):
         if stage == "fit" or stage is None:
-            if self.curriculum_length is not None:
-                self.train_dataset = create_curriculum_dataset(
-                    self.train_file, 
-                    self.curriculum_length,
-                    self.max_path_length, 
-                    self.vocab_size
+            if self.use_gnn:
+                # Use GNN dataset (no curriculum support yet for GNN)
+                self.train_dataset = BipartitePathDataset(
+                    json_file=self.train_file,
+                    graph_file=self.graph_file,
+                    max_path_length=self.max_path_length,
+                    vocab_size=self.vocab_size
                 )
-                self.val_dataset = create_curriculum_dataset(
-                    self.test_file, 
-                    self.curriculum_length,
-                    self.max_path_length, 
-                    self.vocab_size
+                self.val_dataset = BipartitePathDataset(
+                    json_file=self.test_file,
+                    graph_file=self.graph_file,
+                    max_path_length=self.max_path_length,
+                    vocab_size=self.vocab_size
                 )
             else:
-                self.train_dataset = create_dataset(
-                    self.train_file, 
-                    self.max_path_length, 
-                    self.vocab_size
-                )
-                self.val_dataset = create_dataset(
-                    self.test_file, 
-                    self.max_path_length, 
-                    self.vocab_size
-                )
-        
+                # Use standard dataset
+                if self.curriculum_length is not None:
+                    self.train_dataset = create_curriculum_dataset(
+                        self.train_file,
+                        self.curriculum_length,
+                        self.max_path_length,
+                        self.vocab_size
+                    )
+                    self.val_dataset = create_curriculum_dataset(
+                        self.test_file,
+                        self.curriculum_length,
+                        self.max_path_length,
+                        self.vocab_size
+                    )
+                else:
+                    self.train_dataset = create_dataset(
+                        self.train_file,
+                        self.max_path_length,
+                        self.vocab_size
+                    )
+                    self.val_dataset = create_dataset(
+                        self.test_file,
+                        self.max_path_length,
+                        self.vocab_size
+                    )
+
         if stage == "test" or stage is None:
-            self.test_dataset = create_dataset(
-                self.test_file, 
-                self.max_path_length, 
-                self.vocab_size
-            )
+            if self.use_gnn:
+                self.test_dataset = BipartitePathDataset(
+                    json_file=self.test_file,
+                    graph_file=self.graph_file,
+                    max_path_length=self.max_path_length,
+                    vocab_size=self.vocab_size
+                )
+            else:
+                self.test_dataset = create_dataset(
+                    self.test_file,
+                    self.max_path_length,
+                    self.vocab_size
+                )
     def collate_fn_with_pad_token(self, batch):
-            return collate_fn(self.pad_token, batch)   
+            return collate_fn(self.pad_token, batch)
 
     def train_dataloader(self):
+        if self.use_gnn:
+            return GeometricDataLoader(
+                self.train_dataset,
+                batch_size=self.batch_size,
+                shuffle=True,
+                num_workers=self.num_workers,
+                pin_memory=True,
+                follow_batch=['x_v', 'x_e']
+            )
+        else:
+            return DataLoader(
+                self.train_dataset,
+                batch_size=self.batch_size,
+                shuffle=True,
+                num_workers=self.num_workers,
+                pin_memory=True,
+                collate_fn=self.collate_fn_with_pad_token
+            )
 
-        return DataLoader(
-            self.train_dataset,
-            batch_size=self.batch_size,
-            shuffle=True,
-            num_workers=self.num_workers,
-            pin_memory=True,
-            collate_fn=self.collate_fn_with_pad_token
-        )
-    
     def val_dataloader(self):
-        return DataLoader(
-            self.val_dataset,
-            batch_size=self.batch_size,
-            shuffle=False,
-            num_workers=self.num_workers,
-            pin_memory=True,
-            collate_fn=self.collate_fn_with_pad_token
-        )
-    
+        if self.use_gnn:
+            return GeometricDataLoader(
+                self.val_dataset,
+                batch_size=self.batch_size,
+                shuffle=False,
+                num_workers=self.num_workers,
+                pin_memory=True,
+                follow_batch=['x_v', 'x_e']
+            )
+        else:
+            return DataLoader(
+                self.val_dataset,
+                batch_size=self.batch_size,
+                shuffle=False,
+                num_workers=self.num_workers,
+                pin_memory=True,
+                collate_fn=self.collate_fn_with_pad_token
+            )
+
     def test_dataloader(self):
-        return DataLoader(
-            self.test_dataset,
-            batch_size=self.batch_size,
-            shuffle=False,
-            num_workers=self.num_workers,
-            pin_memory=True,
-            collate_fn=self.collate_fn_with_pad_token
-        )
+        if self.use_gnn:
+            return GeometricDataLoader(
+                self.test_dataset,
+                batch_size=self.batch_size,
+                shuffle=False,
+                num_workers=self.num_workers,
+                pin_memory=True,
+                follow_batch=['x_v', 'x_e']
+            )
+        else:
+            return DataLoader(
+                self.test_dataset,
+                batch_size=self.batch_size,
+                shuffle=False,
+                num_workers=self.num_workers,
+                pin_memory=True,
+                collate_fn=self.collate_fn_with_pad_token
+            )

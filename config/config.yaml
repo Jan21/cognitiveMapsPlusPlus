@@ -1,5 +1,5 @@
 defaults:
-  - model: iterative_conv
+  - model: bipartite_gnn
   - training: default  
   - data: sphere
   - _self_
@@ -23,7 +23,7 @@ data_generation:
   output_dir: "temp/"
 
 curriculum_learning:
-  enabled: true
+  enabled: false
   min_accuracy_threshold: 0.5  # Accuracy threshold for shortest paths
   max_accuracy_threshold: 0.7  # Accuracy threshold for longest paths
   max_epochs_per_length: 200   # Maximum epochs per length before moving on
