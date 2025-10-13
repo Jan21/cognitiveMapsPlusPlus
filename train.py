@@ -19,6 +19,14 @@ except ImportError:
     GNN_AVAILABLE = False
     GNNPathPredictionModule = None
 
+# Import RNN module
+try:
+    from model.rnn_lightningmodule import RNNMiddleNodeModule
+    RNN_AVAILABLE = True
+except ImportError:
+    RNN_AVAILABLE = False
+    RNNMiddleNodeModule = None
+
 
 class SimplePruningCallback(Callback):
     def __init__(self, patience=3, min_delta=0.0):
@@ -48,9 +56,14 @@ class SimplePruningCallback(Callback):
 
 @hydra.main(version_base=None, config_path="config", config_name="config")
 def main(cfg: DictConfig) -> None:
-    # Compute vocab_size dynamically
+    # Compute vocab_size dynamically based on graph type
     if cfg.model.vocab_size is None:
-        cfg.model.vocab_size = cfg.graph_generation.sphere_mesh.num_horizontal * cfg.graph_generation.sphere_mesh.num_vertical + 2
+        if cfg.graph_generation.type == "sphere":
+            cfg.model.vocab_size = cfg.graph_generation.sphere_mesh.num_horizontal * cfg.graph_generation.sphere_mesh.num_vertical + 2
+        elif cfg.graph_generation.type == "grid":
+            cfg.model.vocab_size = cfg.graph_generation.grid_2d.width * cfg.graph_generation.grid_2d.height + 2
+        else:
+            raise ValueError(f"Unknown graph type: {cfg.graph_generation.type}. Expected 'sphere' or 'grid'.")
     
     if cfg.curriculum_learning.enabled:
         return curriculum_training(cfg)
@@ -59,8 +72,9 @@ def main(cfg: DictConfig) -> None:
 
 
 def standard_training(cfg: DictConfig) -> float:
-    # Check if GNN mode is requested
+    # Check which model type is requested
     use_gnn = cfg.model.get('use_gnn', False)
+    use_rnn = cfg.model.get('use_rnn', False)
 
     # Set up data module
     datamodule = PathDataModule(
@@ -73,10 +87,24 @@ def standard_training(cfg: DictConfig) -> float:
         data_dir=cfg.paths.data_dir,
         graph_type=cfg.graph_generation.type,
         use_gnn=use_gnn,
+        use_rnn=use_rnn,
     )
 
     # Set up model based on architecture type
-    if use_gnn:
+    if use_rnn:
+        if not RNN_AVAILABLE:
+            raise ImportError("RNN model requested but module is not available.")
+        model = RNNMiddleNodeModule(
+            model_config=cfg.model,
+            vocab_size=cfg.model.vocab_size,
+            learning_rate=cfg.training.learning_rate,
+            weight_decay=cfg.training.weight_decay,
+            warmup_steps=cfg.training.warmup_steps,
+            optimizer=cfg.training.optimizer,
+            graph_type=cfg.graph_generation.type,
+            graph_path=cfg.graph_generation.output.file_path,
+        )
+    elif use_gnn:
         if not GNN_AVAILABLE:
             raise ImportError(
                 "GNN model requested but PyTorch Geometric is not available. "

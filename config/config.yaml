@@ -1,7 +1,7 @@
 defaults:
-  - model: bipartite_gnn
-  - training: default  
-  - data: sphere
+  - model: rnn_middle_predictor
+  - training: default
+  - data: grid
   - _self_
   - override hydra/sweeper: basic
 
@@ -14,8 +14,8 @@ data_generation:
     use_perturbed: true  # Set to true to use perturbed shortest paths instead of random walks
     n_segments_min: 2     # Minimum number of segments to split shortest path
     n_segments_max: 10     # Maximum number of segments to split shortest path  
-    perturbation_min: 1   # Minimum perturbation steps
-    perturbation_max: 1 # Maximum perturbation steps
+    perturbation_min: 0   # Minimum perturbation steps
+    perturbation_max: 0 # Maximum perturbation steps
     unique_pairs_ratio: 0.8  # Ratio of unique pairs to total training paths (e.g., 0.1 means 10% unique pairs)
   test:
     num_paths: 2000

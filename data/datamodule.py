@@ -15,6 +15,9 @@ except ImportError:
     GeometricDataLoader = None
     BipartitePathDataset = None
 
+# Import RNN dataset
+from .rnn_dataset import RNNMiddleNodeDataset
+
 
 class PathDataModule(pl.LightningDataModule):
     def __init__(
@@ -29,6 +32,7 @@ class PathDataModule(pl.LightningDataModule):
         graph_type: str = "sphere",
         curriculum_length: Optional[int] = None,
         use_gnn: bool = False,
+        use_rnn: bool = False,
         graph_file: Optional[str] = None
     ):
         super().__init__()
@@ -41,8 +45,9 @@ class PathDataModule(pl.LightningDataModule):
         self.pad_token = vocab_size - 2
         self.curriculum_length = curriculum_length
         self.use_gnn = use_gnn
+        self.use_rnn = use_rnn
 
-        # Set graph file path for GNN models
+        # Set graph file path for GNN/RNN models
         if graph_file is None:
             self.graph_file = os.path.join(data_dir, f"graph_{graph_type}.pkl")
         else:
@@ -61,7 +66,21 @@ class PathDataModule(pl.LightningDataModule):
 
     def setup(self, stage: Optional[str] = None):
         if stage == "fit" or stage is None:
-            if self.use_gnn:
+            if self.use_rnn:
+                # Use RNN dataset for middle-node prediction
+                self.train_dataset = RNNMiddleNodeDataset(
+                    json_file=self.train_file,
+                    graph_file=self.graph_file,
+                    max_path_length=self.max_path_length,
+                    vocab_size=self.vocab_size
+                )
+                self.val_dataset = RNNMiddleNodeDataset(
+                    json_file=self.test_file,
+                    graph_file=self.graph_file,
+                    max_path_length=self.max_path_length,
+                    vocab_size=self.vocab_size
+                )
+            elif self.use_gnn:
                 # Use GNN dataset (no curriculum support yet for GNN)
                 self.train_dataset = BipartitePathDataset(
                     json_file=self.train_file,
@@ -103,7 +122,14 @@ class PathDataModule(pl.LightningDataModule):
                     )
 
         if stage == "test" or stage is None:
-            if self.use_gnn:
+            if self.use_rnn:
+                self.test_dataset = RNNMiddleNodeDataset(
+                    json_file=self.test_file,
+                    graph_file=self.graph_file,
+                    max_path_length=self.max_path_length,
+                    vocab_size=self.vocab_size
+                )
+            elif self.use_gnn:
                 self.test_dataset = BipartitePathDataset(
                     json_file=self.test_file,
                     graph_file=self.graph_file,
@@ -129,6 +155,15 @@ class PathDataModule(pl.LightningDataModule):
                 pin_memory=True,
                 follow_batch=['x_v', 'x_e']
             )
+        elif self.use_rnn:
+            # RNN dataset returns simple dict, no special collation needed
+            return DataLoader(
+                self.train_dataset,
+                batch_size=self.batch_size,
+                shuffle=True,
+                num_workers=self.num_workers,
+                pin_memory=True
+            )
         else:
             return DataLoader(
                 self.train_dataset,
@@ -149,6 +184,14 @@ class PathDataModule(pl.LightningDataModule):
                 pin_memory=True,
                 follow_batch=['x_v', 'x_e']
             )
+        elif self.use_rnn:
+            return DataLoader(
+                self.val_dataset,
+                batch_size=self.batch_size,
+                shuffle=False,
+                num_workers=self.num_workers,
+                pin_memory=True
+            )
         else:
             return DataLoader(
                 self.val_dataset,
@@ -168,6 +211,14 @@ class PathDataModule(pl.LightningDataModule):
                 num_workers=self.num_workers,
                 pin_memory=True,
                 follow_batch=['x_v', 'x_e']
+            )
+        elif self.use_rnn:
+            return DataLoader(
+                self.test_dataset,
+                batch_size=self.batch_size,
+                shuffle=False,
+                num_workers=self.num_workers,
+                pin_memory=True
             )
         else:
             return DataLoader(

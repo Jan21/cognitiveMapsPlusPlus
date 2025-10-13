@@ -107,3 +107,71 @@ class BasePathPredictionModule(pl.LightningModule):
                 return False
 
         return True
+
+    def _compute_graph_distance(self, node1: int, node2: int) -> float:
+        """
+        Compute the shortest path distance between two nodes in the graph.
+
+        Args:
+            node1: First node ID
+            node2: Second node ID
+
+        Returns:
+            Shortest path distance (number of edges). Returns float('inf') if no path exists.
+        """
+        try:
+            return nx.shortest_path_length(self.graph, node1, node2)
+        except nx.NetworkXNoPath:
+            return float('inf')
+
+    def _find_middle_point(self, start: int, end: int, pred: int) -> int:
+        """
+        Find the middle point along the shortest path between start and end nodes.
+
+        Args:
+            start: Start node ID
+            end: End node ID
+
+        Returns:
+            The node ID at the middle of the shortest path. If path length is even,
+            returns the node just after the midpoint.
+        """
+        try:
+            # Get all shortest paths between start and end
+            all_paths = list(nx.all_shortest_paths(self.graph, start, end))
+            if not all_paths:
+                return start
+
+            # For all shortest paths, collect all nodes that appear at a "middle" index
+            candidate_set = set()
+            for path in all_paths:
+                mid_idx = len(path) // 2
+                if not path:
+                    continue
+                candidate_set.add(path[mid_idx])
+                if len(path) % 2 == 0 and mid_idx > 0:
+                    candidate_set.add(path[mid_idx - 1])
+
+            if not candidate_set:
+                return start
+
+            # Choose the candidate closest to pred
+            min_dist = float('inf')
+            closest_mid = None
+            for node in candidate_set:
+                try:
+                    dist = nx.shortest_path_length(self.graph, node, pred)
+                except nx.NetworkXNoPath:
+                    dist = float('inf')
+                if dist < min_dist:
+                    min_dist = dist
+                    closest_mid = node
+
+            # Fallback if something went wrong (should not happen)
+            if closest_mid is None:
+                return start
+
+            return closest_mid
+        except nx.NetworkXNoPath:
+            # If no path exists, return the start node
+            return start

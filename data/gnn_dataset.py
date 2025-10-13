@@ -10,7 +10,9 @@ class PathInstance(Data):
     """
     Data object for a single path instance in the bipartite graph.
 
-    Similar to SATInstance - handles adjacency matrix creation in __init__.
+    New structure for middle-node prediction:
+    - 3 vertex nodes: start, middle (to predict), end
+    - 1 constraint node: connects all 3 vertices
     """
 
     def __init__(
@@ -40,18 +42,20 @@ class PathInstance(Data):
         """
         Create sparse adjacency matrix [num_edges, num_vertices].
 
-        Each edge connects to exactly 2 consecutive vertices.
-        Edge i connects to vertices i and i+1.
+        For the new bipartite structure:
+        - num_vertices = 3 (start, middle, end)
+        - num_edges = 1 (constraint node)
+        - The constraint node connects to all 3 vertices
         """
         row_indices = []
         col_indices = []
         values = []
 
-        for edge_idx in range(self.num_edges):
-            # Edge connects to two consecutive vertices
-            row_indices.extend([edge_idx, edge_idx])
-            col_indices.extend([edge_idx, edge_idx + 1])
-            values.extend([1.0, 1.0])
+        # Single constraint edge connects to all 3 vertices
+        for vertex_idx in range(self.num_vertices):
+            row_indices.append(0)  # Only one edge (constraint node)
+            col_indices.append(vertex_idx)
+            values.append(1.0)
 
         self.adj_t = SparseTensor(
             row=torch.tensor(row_indices, dtype=torch.long),
@@ -76,13 +80,12 @@ class PathInstance(Data):
 
 class BipartitePathDataset(Dataset):
     """
-    Dataset for GNN-based shortest path prediction.
+    Dataset for GNN-based middle-node prediction.
 
     Creates bipartite graphs where:
-    - Vertex nodes represent waypoints in the path
-    - Edge nodes represent connections between consecutive vertices
-    - First and last vertex values are given (boundary conditions)
-    - Intermediate vertex values need to be predicted
+    - Vertex nodes: [start, middle, end] (3 nodes)
+    - Constraint node: connects all 3 vertices (1 node)
+    - Task: Predict the middle node given start and end
 
     Follows the pattern from cnf_data.py for proper PyTorch Geometric integration.
     """
@@ -110,12 +113,13 @@ class BipartitePathDataset(Dataset):
         self.paths = self._extract_paths()
 
     def _extract_paths(self) -> List[List[int]]:
-        """Extract valid paths from the data."""
+        """Extract valid paths from the data. Need at least 3 nodes for middle-node prediction."""
         paths = []
         for item in self.data:
             if 'output' in item and isinstance(item['output'], list):
                 path = item['output']
-                if 2 <= len(path) <= self.max_path_length:
+                # Need at least 3 nodes: start, middle, end
+                if 3 <= len(path) <= self.max_path_length:
                     paths.append(path)
         return paths
 
@@ -126,35 +130,55 @@ class BipartitePathDataset(Dataset):
         """
         Get a single path instance as a bipartite graph.
 
+        New format: Predict middle node given start and end nodes.
+        - Vertices: [start, middle, end] (3 nodes)
+        - Edges: [constraint] (1 node connecting all 3)
+
         Returns:
             PathInstance with:
-                - x_v: vertex features [num_vertices, 1]
-                - x_e: edge features [num_edges, 2]
-                - adj_t: sparse adjacency matrix [num_edges, num_vertices]
-                - targets: ground truth vertex IDs [num_vertices]
-                - target_mask: which vertices to predict [num_vertices]
+                - x_v: vertex features [3, 1] - IDs of start, middle, end
+                - x_e: edge features [1, 1] - single constraint node
+                - adj_t: sparse adjacency matrix [1, 3] - constraint connects to all vertices
+                - targets: ground truth vertex IDs [3]
+                - target_mask: which vertices to predict [3] - only middle is True
         """
         path = self.paths[idx]
-        num_vertices = len(path)
-        num_edges = num_vertices - 1
 
-        # Vertex features: all set to actual node IDs
-        # (masking happens in the Lightning module during training)
-        x_v = torch.tensor(path, dtype=torch.long).unsqueeze(1)
+        # We need at least 3 nodes (start, middle, end)
+        if len(path) < 3:
+            # For paths with only 2 nodes, we can't predict a middle
+            # Skip these or handle differently
+            raise ValueError(f"Path {idx} has only {len(path)} nodes, need at least 3")
 
-        # Edge features: store the two vertices each edge connects
-        x_e = torch.zeros((num_edges, 2), dtype=torch.long)
-        # for i in range(num_edges):
-        #     x_e[i, 0] = path[i]
-        #     x_e[i, 1] = path[i + 1]
+        # Extract start, middle, and end nodes
+        # For paths longer than 3, we pick a random middle node
+        start_node = path[0]
+        end_node = path[-1]
 
-        # Target mask: predict all intermediate vertices (not first/last)
+        if len(path) == 3:
+            middle_node = path[1]
+        else:
+            # Pick the (rounded down) middle intermediate node as the middle
+            middle_idx = (len(path) - 1) // 2
+            if middle_idx == 0 or middle_idx == len(path) - 1:
+                raise ValueError(f"Cannot pick a true middle node for path of length {len(path)}")
+            middle_node = path[middle_idx]
+
+        # Create vertex features: 3 vertices [start, middle, end]
+        # During training, middle will be masked
+        num_vertices = 3
+        x_v = torch.tensor([start_node, middle_node, end_node], dtype=torch.long).unsqueeze(1)
+
+        # Create edge features: 1 constraint node (can be a dummy feature)
+        num_edges = 1
+        x_e = torch.zeros((num_edges, 1), dtype=torch.long)
+
+        # Target mask: only predict the middle vertex (index 1)
         target_mask = torch.zeros(num_vertices, dtype=torch.bool)
-        if num_vertices > 2:
-            target_mask[1:-1] = True
+        target_mask[1] = True  # Only middle node
 
         # Ground truth targets
-        targets = torch.tensor(path, dtype=torch.long)
+        targets = torch.tensor([start_node, middle_node, end_node], dtype=torch.long)
 
         return PathInstance(
             x_v=x_v,

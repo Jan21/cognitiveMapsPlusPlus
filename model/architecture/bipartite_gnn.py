@@ -6,61 +6,144 @@ from typing import Dict, Any
 
 
 class VertexToEdgeLayer(nn.Module):
-    """Message passing from vertex nodes to edge nodes"""
+    """
+    Message passing from vertex nodes to edge nodes.
+
+    For middle-node prediction:
+    - Each constraint node aggregates from exactly 3 vertices (start, middle, end)
+    - Uses concatenation to preserve positional information
+    - Input: 3 vertices of d_model each
+    - Output: constraint embedding from 3*d_model concatenated input
+    """
 
     def __init__(self, d_model: int):
         super().__init__()
         self.d_model = d_model
-        self.updater = nn.LSTM(d_model, d_model)
+        # LSTM input is now 3*d_model (concatenated start, middle, end)
+        self.updater = nn.LSTM(3 * d_model, d_model)
 
-    def forward(self, adj_t, x_v, hidden):
+    def forward(self, adj_t, x_v, hidden, v_batch):
         """
         Args:
             adj_t: Sparse adjacency matrix [num_edges, num_vertices]
             x_v: Vertex embeddings [num_vertices, d_model]
             hidden: Tuple of (h_e, c_e) for edge hidden states
+            v_batch: Batch assignment for vertices
 
         Returns:
             Updated [h_e, c_e]
         """
-        # Aggregate messages from vertices to edges
-        msg = matmul(adj_t, x_v)  # [num_edges, d_model]
+        # For each constraint node, concatenate its 3 connected vertices
+        # Each constraint connects to vertices at positions [3*graph_idx, 3*graph_idx+1, 3*graph_idx+2]
+
+        num_edges = hidden[0].size(0)
+        batch_size = num_edges  # One constraint per graph
+
+        # Reshape vertices: [batch_size, 3, d_model]
+        x_v_reshaped = x_v.view(batch_size, 3, self.d_model)
+
+        # Concatenate along position dimension: [batch_size, 3*d_model]
+        msg = x_v_reshaped.view(batch_size, 3 * self.d_model)
 
         # Update with LSTM
-        hidden = (hidden[0].unsqueeze(0), hidden[1].unsqueeze(0))
-        msg, new_hidden = self.updater(msg.unsqueeze(0), hidden)
+        hidden_input = (hidden[0].unsqueeze(0), hidden[1].unsqueeze(0))
+        msg_output, new_hidden = self.updater(msg.unsqueeze(0), hidden_input)
         return [new_hidden[0].squeeze(0), new_hidden[1].squeeze(0)]
 
 
 class EdgeToVertexLayer(nn.Module):
-    """Message passing from edge nodes to vertex nodes"""
+    """
+    Message passing from edge nodes to vertex nodes.
+
+    For middle-node prediction:
+    - Each constraint broadcasts to 3 specific vertices with positional awareness
+    - LSTM takes the edge embedding directly as input
+    - Separate LSTMs for each position to maintain position-specific processing
+    """
 
     def __init__(self, d_model: int):
         super().__init__()
         self.d_model = d_model
-        self.updater = nn.LSTM(d_model, d_model)
 
-    def forward(self, adj_t, x_e, hidden, v_batch):
+        # Separate LSTMs for each position
+        self.updater_start = nn.LSTM(d_model, d_model)
+        self.updater_middle = nn.LSTM(d_model, d_model)
+        self.updater_end = nn.LSTM(d_model, d_model)
+
+    def forward(self, adj_t, x_e, hidden, v_batch, target_mask=None):
         """
         Args:
             adj_t: Sparse adjacency matrix [num_edges, num_vertices]
             x_e: Edge embeddings [num_edges, d_model]
             hidden: Tuple of (h_v, c_v) for vertex hidden states
             v_batch: Batch assignment for vertices
+            target_mask: Which vertices to update (if None, update all)
 
         Returns:
             Updated [h_v, c_v]
         """
-        # Aggregate messages from edges to vertices
-        msg = matmul(adj_t.t(), x_e)  # [num_vertices, d_model]
+        batch_size = x_e.size(0)  # Number of constraints (= number of graphs)
 
-        # Current vertex hidden state
-        x_v = hidden[0]
+        # Reshape hidden states: [batch_size, 3, d_model]
+        h_v = hidden[0].view(batch_size, 3, self.d_model)
+        c_v = hidden[1].view(batch_size, 3, self.d_model)
 
-        # Update with LSTM
-        hidden = (x_v.unsqueeze(0), hidden[1].unsqueeze(0))
-        msg, new_hidden = self.updater(msg.unsqueeze(0), hidden)
-        return [new_hidden[0].squeeze(0), new_hidden[1].squeeze(0)]
+        # Extract position-specific hidden states
+        h_start, h_middle, h_end = h_v[:, 0], h_v[:, 1], h_v[:, 2]
+        c_start, c_middle, c_end = c_v[:, 0], c_v[:, 1], c_v[:, 2]
+
+        # Update each position with edge embedding as input
+        # x_e has shape [batch_size, d_model]
+
+        # Update start vertices
+        _, (h_start_new, c_start_new) = self.updater_start(
+            x_e.unsqueeze(0),
+            (h_start.unsqueeze(0), c_start.unsqueeze(0))
+        )
+
+        # Update middle vertices
+        _, (h_middle_new, c_middle_new) = self.updater_middle(
+            x_e.unsqueeze(0),
+            (h_middle.unsqueeze(0), c_middle.unsqueeze(0))
+        )
+
+        # Update end vertices
+        _, (h_end_new, c_end_new) = self.updater_end(
+            x_e.unsqueeze(0),
+            (h_end.unsqueeze(0), c_end.unsqueeze(0))
+        )
+
+        # Stack updated hidden states back together
+        h_v_new = torch.stack([
+            h_start_new.squeeze(0),
+            h_middle_new.squeeze(0),
+            h_end_new.squeeze(0)
+        ], dim=1)  # [batch_size, 3, d_model]
+
+        c_v_new = torch.stack([
+            c_start_new.squeeze(0),
+            c_middle_new.squeeze(0),
+            c_end_new.squeeze(0)
+        ], dim=1)  # [batch_size, 3, d_model]
+
+        # Flatten back to [num_vertices, d_model]
+        h_v_new = h_v_new.view(batch_size * 3, self.d_model)
+        c_v_new = c_v_new.view(batch_size * 3, self.d_model)
+
+        # If target_mask is provided, only update masked vertices
+        if target_mask is not None:
+            h_v_new = torch.where(
+                target_mask.unsqueeze(-1),
+                h_v_new,
+                hidden[0]  # Keep original for non-masked vertices
+            )
+            c_v_new = torch.where(
+                target_mask.unsqueeze(-1),
+                c_v_new,
+                hidden[1]  # Keep original for non-masked vertices
+            )
+
+        return [h_v_new, c_v_new]
 
 
 class BipartiteGNN(nn.Module):
@@ -150,7 +233,7 @@ class BipartiteGNN(nn.Module):
                 - x_e_batch: Batch assignment for edges
                 - adj_t: Sparse adjacency matrix [total_edges, total_vertices]
                 - targets: Ground truth vertex IDs
-                - target_mask: Which vertices to predict
+                - target_mask: Which vertices to predict (and update during message passing)
 
         Returns:
             Dictionary with 'logits' and 'loss'
@@ -165,14 +248,17 @@ class BipartiteGNN(nn.Module):
         v_batch = data.x_v_batch
         adj_t = data.adj_t
 
+        # Get target mask (which vertices should evolve)
+        target_mask = data.target_mask if hasattr(data, 'target_mask') else None
+
         # Iterative message passing
         for _ in range(num_iters):
-            # Vertex -> Edge
-            edge_hidden = self.vertex_to_edge(adj_t, vertex_hidden[0], edge_hidden)
+            # Vertex -> Edge (with positional awareness via concatenation)
+            edge_hidden = self.vertex_to_edge(adj_t, vertex_hidden[0], edge_hidden, v_batch)
             edge_hidden[0] = self.dropout(edge_hidden[0])
 
-            # Edge -> Vertex
-            vertex_hidden = self.edge_to_vertex(adj_t, edge_hidden[0], vertex_hidden, v_batch)
+            # Edge -> Vertex (only update vertices where target_mask is True)
+            vertex_hidden = self.edge_to_vertex(adj_t, edge_hidden[0], vertex_hidden, v_batch, target_mask)
             vertex_hidden[0] = self.dropout(vertex_hidden[0])
 
         # Predict vertex IDs

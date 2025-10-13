@@ -1,0 +1,14 @@
+# @package model
+_target_: model.architecture.rnn_middle_predictor.RNNMiddleNodePredictor
+d_model: 128
+num_iterations: 6
+dropout: 0.1
+vocab_size: null  # Will be computed automatically
+use_rnn: true
+
+# Configurable metrics
+enabled_metrics:
+  - accuracy
+  - exact_match_accuracy
+
+enabled_gen_metrics: []
