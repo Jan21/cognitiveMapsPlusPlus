@@ -79,15 +79,15 @@ class RNNMiddleNodePredictor(nn.Module):
 
         # Concatenate embeddings to form input
         input_emb = (start_emb + end_emb) / 2  # [batch_size, d_model]
-
+        h = input_emb
         # Initialize hidden and cell states
-        h = torch.zeros(batch_size, self.d_model, device=device)
+        #h = torch.zeros(batch_size, self.d_model, device=device)
         c = torch.zeros(batch_size, self.d_model, device=device)
 
         # Run recurrent updates
         for _ in range(1):
-            h, c = self.rnn_cell(input_emb, (h, c))
-            h = self.dropout(h)
+             h, c = self.rnn_cell(input_emb, (h, c))
+             h = self.dropout(h)
 
         # Project to logits
         logits = self.output_projection(h)  # [batch_size, vocab_size]

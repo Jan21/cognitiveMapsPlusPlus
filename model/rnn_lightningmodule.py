@@ -108,7 +108,7 @@ class RNNMiddleNodeModule(BasePathPredictionModule):
             pred_id = predictions[i].item()
 
             # Find the actual middle point and compute distance
-            actual_middle = self._find_middle_point(start_id, end_id, pred_id)
+            actual_middle = self._find_middle_point2(start_id, end_id, pred_id)
             distance = self._compute_graph_distance(pred_id, actual_middle)
             total_distance += distance
 

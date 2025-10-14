@@ -175,3 +175,25 @@ class BasePathPredictionModule(pl.LightningModule):
         except nx.NetworkXNoPath:
             # If no path exists, return the start node
             return start
+
+
+    def _find_middle_point2(self, start: int, end: int, pred: int) -> int:
+        """
+        Find the middle point on the shortest path between start and end nodes.
+
+        Args:
+            start: Start node ID
+            end: End node ID
+
+        Returns:
+            The node ID at the middle of the shortest path (rounded down).
+            If the path is length 1 or 2, returns start or end appropriately.
+        """
+        try:
+            path = nx.shortest_path(self.graph, start, end)
+            if not path:
+                return start
+            mid_idx = len(path) // 2
+            return path[mid_idx]
+        except nx.NetworkXNoPath:
+            return start
