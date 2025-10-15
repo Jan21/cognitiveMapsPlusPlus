@@ -3,6 +3,7 @@ import torch
 from torch.utils.data import Dataset
 from typing import List, Dict, Any
 import os
+import numpy as np
 
 
 class PathDataset(Dataset):
@@ -47,12 +48,12 @@ class DiffusionPathDataset(Dataset):
     def __init__(self, json_file: str, max_path_length: int = 64, vocab_size: int = 10000):
         self.max_path_length = max_path_length
         self.vocab_size = vocab_size
-        
+
         with open(json_file, 'r') as f:
             self.data = json.load(f)
-        
+
         self.paths = self._extract_paths()
-    
+
     def _extract_paths(self) -> List[List[int]]:
         paths = []
         for item in self.data:
@@ -65,19 +66,132 @@ class DiffusionPathDataset(Dataset):
 
     def __len__(self) -> int:
         return len(self.paths)
-    
+
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         path = self.paths[idx]
-    
+
         # Create input (all tokens except last) and target (all tokens except first)
         input_ids = torch.tensor(path, dtype=torch.long)
         target_ids = input_ids
 
-        
+
         return {
             'input_ids': input_ids,
             'target_ids': target_ids,
         }
+
+
+class SpreadPathDataset(Dataset):
+    """
+    Dataset that spreads paths evenly into a fixed-length tensor.
+
+    The path elements are distributed evenly across the tensor:
+    - First element at position 0
+    - Last element at position -1
+    - Middle elements spread evenly in between
+    - Empty positions filled with vocab_size - 1
+    """
+
+    
+    def __init__(self, json_file: str, tensor_length: int = 32, max_path_length: int = 33, vocab_size: int = 10000):
+        self.tensor_length = tensor_length
+        self.max_path_length = max_path_length
+        self.vocab_size = vocab_size
+        self.pad_token = vocab_size - 1
+
+        with open(json_file, 'r') as f:
+            self.data = json.load(f)
+
+        self.paths = self._extract_paths()
+        self.max_tensor_length = tensor_length
+        self.position_dicts = {}
+        self.create_position_dicts()
+
+    def create_position_dicts(self):
+
+        # recursively divides the tensor and chooses the middle point of each segment as a position for a given token
+        def get_midpoints(path, tensor, increment=0):
+            if len(path) == 0:
+                return []
+            mid_tensor = (len(tensor)) // 2
+            mid_path = (len(path)) // 2
+            left_tensor = tensor[:mid_tensor]
+            right_tensor = tensor[mid_tensor+1:]
+            left_path = path[:mid_path]
+            right_path = path[mid_path+1:]
+            left_midpoints = []
+            if len(left_path) > 0:
+                left_midpoints = get_midpoints(left_path, left_tensor)
+            else:
+                left_midpoints = []
+            right_midpoints = []
+            if len(right_path) > 0:
+                right_midpoints = get_midpoints(right_path, right_tensor)
+            else:
+                right_midpoints = []
+            return left_midpoints + [int(tensor[mid_tensor])] + right_midpoints
+
+        for path_len in range(2,34):   
+            tensor = torch.tensor(list(range(1,self.max_tensor_length)))
+            midpoints = [0] + get_midpoints(list(range(path_len-2)), tensor, 0) + [self.max_tensor_length]
+            self.position_dicts[path_len] = midpoints
+     
+
+
+    def _extract_paths(self) -> List[List[int]]:
+        paths = []
+        for item in self.data:
+            if 'output' in item and isinstance(item['output'], list):
+                path = item['output']
+                if len(path) <= self.max_path_length:
+                    paths.append(path)
+        return paths
+
+    def _spread_path_evenly(self, path: List[int]) -> torch.Tensor:
+        """
+        Spread path elements evenly into a tensor of length self.tensor_length.
+
+        Args:
+            path: List of node IDs in the path
+
+        Returns:
+            Tensor of shape (self.tensor_length,) with path spread evenly,
+            remaining positions filled with self.pad_token
+        """
+        # Initialize tensor with pad tokens
+        tensor = torch.full((self.max_tensor_length+1,), self.pad_token, dtype=torch.long)
+
+        path_len = len(path)
+
+        if path_len == 0:
+            return tensor
+
+        if path_len == 1:
+            # Single element goes to first position
+            tensor[0] = path[0]
+            return tensor
+
+        # Calculate evenly spaced indices in the tensor for path elements
+        # We want to place path elements at indices that are evenly distributed
+        
+        indices = self.position_dicts[path_len]
+
+        # Place path elements at calculated indices
+        for path_idx, tensor_idx in enumerate(indices):
+            tensor[tensor_idx] = path[path_idx]
+
+        return tensor
+
+    def __len__(self) -> int:
+        return len(self.paths)
+
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+        path = self.paths[idx]
+
+        # Spread the path evenly into the tensor
+        spread_tensor = self._spread_path_evenly(path)
+
+        return spread_tensor
 
 
 

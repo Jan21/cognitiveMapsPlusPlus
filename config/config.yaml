@@ -33,7 +33,7 @@ curriculum_learning:
 data:
   train_file: "train.json"
   test_file: "test.json"
-  max_path_length: 64
+  max_path_length: 33
   num_workers: 4
 
 logging:

@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 from typing import Optional
 import os
 
-from .dataset import create_dataset, create_curriculum_dataset, collate_fn
+from .dataset import create_dataset, create_curriculum_dataset, collate_fn, SpreadPathDataset
 
 # Conditionally import PyTorch Geometric components
 try:
@@ -26,7 +26,7 @@ class PathDataModule(pl.LightningDataModule):
         test_file: str,
         batch_size: int = 32,
         num_workers: int = 4,
-        max_path_length: int = 64,
+        max_path_length: int = 33,
         vocab_size: int = 10000,
         data_dir: str = "./data",
         graph_type: str = "sphere",
@@ -46,6 +46,7 @@ class PathDataModule(pl.LightningDataModule):
         self.curriculum_length = curriculum_length
         self.use_gnn = use_gnn
         self.use_rnn = use_rnn
+        self.tensor_length = max_path_length - 1
 
         # Set graph file path for GNN/RNN models
         if graph_file is None:
@@ -68,15 +69,15 @@ class PathDataModule(pl.LightningDataModule):
         if stage == "fit" or stage is None:
             if self.use_rnn:
                 # Use RNN dataset for middle-node prediction
-                self.train_dataset = RNNMiddleNodeDataset(
+                self.train_dataset = SpreadPathDataset(
                     json_file=self.train_file,
-                    graph_file=self.graph_file,
+                    tensor_length=self.tensor_length,
                     max_path_length=self.max_path_length,
                     vocab_size=self.vocab_size
                 )
-                self.val_dataset = RNNMiddleNodeDataset(
+                self.val_dataset = SpreadPathDataset(
                     json_file=self.test_file,
-                    graph_file=self.graph_file,
+                    tensor_length=self.tensor_length,
                     max_path_length=self.max_path_length,
                     vocab_size=self.vocab_size
                 )
@@ -123,9 +124,9 @@ class PathDataModule(pl.LightningDataModule):
 
         if stage == "test" or stage is None:
             if self.use_rnn:
-                self.test_dataset = RNNMiddleNodeDataset(
+                self.test_dataset = SpreadPathDataset(
                     json_file=self.test_file,
-                    graph_file=self.graph_file,
+                    tensor_length=self.tensor_length,
                     max_path_length=self.max_path_length,
                     vocab_size=self.vocab_size
                 )
