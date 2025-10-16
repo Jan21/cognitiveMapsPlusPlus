@@ -5,6 +5,7 @@ num_iterations: 6
 dropout: 0.1
 vocab_size: null  # Will be computed automatically
 use_rnn: true
+variant: v1_residual
 
 # Configurable metrics
 enabled_metrics:

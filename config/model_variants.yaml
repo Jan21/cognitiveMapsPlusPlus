@@ -1,0 +1,57 @@
+# Configuration examples for different model variants
+# Copy the variant you want to test into your main config
+
+# Variant 1: Residual Upsampling with LayerNorm
+# Good for: Stable training, proper gradient flow
+v1_residual:
+  variant: v1_residual
+  d_model: 128
+  num_iterations: 3
+  upscale_depth: 5
+  dropout: 0.1
+
+# Variant 2: Transformer-based
+# Good for: Modeling long-range dependencies
+v2_transformer:
+  variant: v2_transformer
+  d_model: 128
+  num_iterations: 2
+  upscale_depth: 5
+  nhead: 4
+  dropout: 0.1
+
+# Variant 3: U-Net style with skip connections
+# Good for: Preserving fine-grained information across levels
+v3_unet:
+  variant: v3_unet
+  d_model: 128
+  num_iterations: 3
+  upscale_depth: 5
+  dropout: 0.1
+
+# Variant 4: Simple progressive with shared parameters
+# Good for: Parameter efficiency, easier training
+# Recommended starting point - often the most reliable
+v4_simple:
+  variant: v4_simple
+  d_model: 256  # Larger model to compensate for parameter sharing
+  num_iterations: 2
+  upscale_depth: 5
+  dropout: 0.15
+
+# Variant 5: GRU-based with attention
+# Good for: Sequential modeling with attention
+v5_gru:
+  variant: v5_gru
+  d_model: 128
+  num_iterations: 2
+  upscale_depth: 5
+  dropout: 0.1
+
+# Training recommendations per variant:
+#
+# V1 (Residual): Use default learning rate (3e-3), stable training expected
+# V2 (Transformer): Start with lower LR (1e-3), may need warmup
+# V3 (U-Net): Use default LR, watch for overfitting with skip connections
+# V4 (Simple): Best starting point - use LR 3e-3, very stable
+# V5 (GRU): Use LR 2e-3, GRU can be sensitive to initialization

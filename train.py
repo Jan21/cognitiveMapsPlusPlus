@@ -191,8 +191,5 @@ def standard_training(cfg: DictConfig) -> float:
     # Return the validation loss for Optuna optimization
     return trainer.callback_metrics.get("val_loss", float("inf"))
 
-
-
-
 if __name__ == "__main__":
     main()

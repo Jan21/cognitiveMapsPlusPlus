@@ -105,9 +105,29 @@ class SpreadPathDataset(Dataset):
         self.paths = self._extract_paths()
         self.max_tensor_length = tensor_length
         self.position_dicts = {}
+        self.indices_per_level = {}
         self.create_position_dicts()
 
     def create_position_dicts(self):
+
+        def generate_sequence(min_val, max_val):
+            """Generate sequence of form 2^n + 1 between min_val and max_val"""
+            sequence = []
+            n = 1
+            while True:
+                term = 2**n + 1
+                if term > max_val:
+                    break
+                if term >= min_val:
+                    sequence.append(term)
+                n += 1
+            return sequence
+
+        # Usage:
+        num_els_per_level = generate_sequence(3, 33)
+        for level, num_els in enumerate(num_els_per_level):
+            indices = torch.linspace(0, self.max_path_length-1, steps=num_els).round().long()
+            self.indices_per_level[level] = indices
 
         # recursively divides the tensor and chooses the middle point of each segment as a position for a given token
         def get_midpoints(path, tensor, increment=0):
@@ -189,9 +209,16 @@ class SpreadPathDataset(Dataset):
         path = self.paths[idx]
 
         # Spread the path evenly into the tensor
+        ret_dic = {}
         spread_tensor = self._spread_path_evenly(path)
-
-        return spread_tensor
+        for level, indices in self.indices_per_level.items():
+            labels = spread_tensor[indices].clone()
+            labels[0] = -100
+            labels[-1] = -100
+            ret_dic[level] = labels
+        ret_dic['input'] = spread_tensor
+        ret_dic['len'] = len(path)
+        return ret_dic
 
 
 
