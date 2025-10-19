@@ -338,7 +338,7 @@ def main():
     parser.add_argument(
         "--checkpoint",
         type=str,
-        default="checkpoints/epoch=311-val_loss=0.40.ckpt",
+        default="checkpoints/epoch=19-val_loss=0.47.ckpt",
         help="Path to model checkpoint (.ckpt file)"
     )
     parser.add_argument(
@@ -394,7 +394,7 @@ def main():
     model = load_model_from_checkpoint(args.checkpoint, args.model_type)
 
     # Extract embeddings
-    embeddings = extract_node_embeddings(model, args.model_type)
+    embeddings = extract_node_embeddings(model, args.model_type)[:381,:]
 
     # Load graph metadata
     try:
