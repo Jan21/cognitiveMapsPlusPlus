@@ -338,7 +338,7 @@ def main():
     parser.add_argument(
         "--checkpoint",
         type=str,
-        default="checkpoints/epoch=104-val_loss=0.31.ckpt",
+        default="checkpoints/epoch=311-val_loss=0.40.ckpt",
         help="Path to model checkpoint (.ckpt file)"
     )
     parser.add_argument(

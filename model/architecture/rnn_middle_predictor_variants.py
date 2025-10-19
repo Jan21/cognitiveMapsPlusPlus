@@ -137,7 +137,7 @@ class VariantV1_ResidualUpsample(nn.Module):
             input_emb_transposed = input_emb.transpose(1, 2)
 
             # Apply output projection: [batch, seq_len, d_model] -> [batch, seq_len, vocab_size]
-            logits = self.output_projections[level](input_emb_transposed)
+            logits = self.output_projections[0](input_emb_transposed)
 
             # Transpose to [batch, vocab_size, seq_len]
             logits = logits.transpose(1, 2)
