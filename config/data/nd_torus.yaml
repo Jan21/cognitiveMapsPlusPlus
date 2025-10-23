@@ -1,0 +1,11 @@
+# @package graph_generation
+type: "torus"
+nd_torus:
+  dimensions: [20, 20]  # List of grid points per dimension
+                        # [10, 10] = 2D torus (donut)
+                        # [8, 8, 8] = 3D torus
+                        # [5, 5, 5, 5] = 4D torus, etc.
+output:
+  file_path: "temp/graph.pkl"
+  visualize: true
+  print_stats: true

@@ -8,71 +8,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Dict
-import pickle
-import numpy as np
-from pathlib import Path
-
-
-def create_sphere_embeddings(graph_path: str, d_model: int, vocab_size: int) -> torch.Tensor:
-    """
-    Load sphere graph and create fixed embeddings for each node.
-
-    Args:
-        graph_path: Path to the pickled NetworkX graph file
-        d_model: Dimension of the embedding space
-        vocab_size: Number of nodes in the vocabulary
-
-    Returns:
-        torch.Tensor of shape (vocab_size, d_model) with fixed sphere embeddings
-    """
-    # Load the graph
-    with open(graph_path, 'rb') as f:
-        graph = pickle.load(f)
-
-    # Extract 3D positions for all nodes
-    positions_3d = []
-    for node_id in range(vocab_size):
-        if node_id in graph.nodes:
-            pos = graph.nodes[node_id]['pos']
-            # Convert to numpy array (handle both tuple and np.float64 types)
-            pos_array = np.array([float(pos[0]), float(pos[1]), float(pos[2])])
-            positions_3d.append(pos_array)
-        else:
-            # If node doesn't exist in graph, use zero vector
-            positions_3d.append(np.zeros(3))
-
-    positions_3d = np.array(positions_3d)  # Shape: (vocab_size, 3)
-
-    # Normalize to ensure they're on unit sphere
-    norms = np.linalg.norm(positions_3d, axis=1, keepdims=True)
-    norms = np.where(norms == 0, 1, norms)  # Avoid division by zero
-    positions_3d = positions_3d / norms
-
-    # Embed 3D positions into d_model dimensions using random projection
-    # Use a fixed random seed for reproducibility
-    rng = np.random.RandomState(42)
-    projection_matrix = rng.randn(3, d_model)
-
-    # Orthogonalize the projection matrix using QR decomposition
-    # This preserves angles better than random projection
-    if d_model >= 3:
-        # For d_model >= 3, we can orthogonalize properly
-        q, r = np.linalg.qr(projection_matrix.T)
-        projection_matrix = q.T[:3, :]
-    else:
-        # For d_model < 3, just normalize
-        projection_matrix = projection_matrix / np.linalg.norm(projection_matrix, axis=0, keepdims=True)
-
-    # Project to higher dimensions
-    embeddings = positions_3d @ projection_matrix  # Shape: (vocab_size, d_model)
-
-    # Normalize embeddings to lie on unit sphere in d_model dimensions
-    embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
-
-    # Convert to torch tensor
-    embeddings_tensor = torch.from_numpy(embeddings).float()
-
-    return embeddings_tensor
 
 
 class VariantV1_ResidualUpsample(nn.Module):
@@ -80,8 +15,6 @@ class VariantV1_ResidualUpsample(nn.Module):
     Variant 1: Proper residual connections with layer normalization
 
     Key improvements:
-    - Fixed sphere embeddings: nodes are embedded as their 3D positions on the sphere,
-      projected to d_model dimensions using orthogonal projection
     - LayerNorm before each conv for training stability
     - Proper residual connections with projection when needed
     - Separate prediction heads for each level
@@ -95,7 +28,6 @@ class VariantV1_ResidualUpsample(nn.Module):
         num_iterations: int = 3,
         upscale_depth: int = 5,
         dropout: float = 0.1,
-        graph_path: str = "temp/graph_sphere.pkl",
         **kwargs
     ):
         super().__init__()
@@ -105,9 +37,8 @@ class VariantV1_ResidualUpsample(nn.Module):
         self.num_iterations = num_iterations
         self.upscale_depth = upscale_depth
 
-        # Fixed sphere embeddings
-        sphere_embeddings = create_sphere_embeddings(graph_path, d_model, vocab_size)
-        self.node_embedding = nn.Embedding.from_pretrained(sphere_embeddings, freeze=True)
+        # Embeddings
+        self.node_embedding = nn.Embedding(vocab_size, d_model)
 
         # Convolutional layers - separate norm and conv for dimension handling
         self.layer_norms = nn.ModuleList([
@@ -129,12 +60,16 @@ class VariantV1_ResidualUpsample(nn.Module):
 
         # Separate output projection for each upscale level
         self.output_projections = nn.ModuleList([
-            nn.Linear(d_model, vocab_size, bias=False)
+            nn.Sequential(
+                nn.LayerNorm(d_model),
+                nn.Linear(d_model, d_model),
+                nn.GELU(),
+                nn.Dropout(dropout),
+                nn.Linear(d_model, vocab_size)
+            )
             for _ in range(upscale_depth)
         ])
 
-        self.output_projections.weight = self.node_embedding.weight
-        self.output_projections.weight.requires_grad = False
         self.dropout = nn.Dropout(dropout)
         self._init_weights()
 
@@ -146,9 +81,7 @@ class VariantV1_ResidualUpsample(nn.Module):
                 if module.bias is not None:
                     nn.init.zeros_(module.bias)
             elif isinstance(module, nn.Embedding):
-                # Skip initialization for frozen embeddings
-                if module.weight.requires_grad:
-                    nn.init.xavier_uniform_(module.weight)
+                nn.init.xavier_uniform_(module.weight)
             elif isinstance(module, nn.Conv1d):
                 nn.init.xavier_uniform_(module.weight)
                 if module.bias is not None:
@@ -184,10 +117,10 @@ class VariantV1_ResidualUpsample(nn.Module):
             # Apply conv layers with residual connections
             for i in range(self.num_iterations):
                 # Apply LayerNorm: [batch, d_model, seq] -> [batch, seq, d_model] -> norm -> [batch, d_model, seq]
-                normed = self.layer_norms[level][i](input_emb.transpose(1, 2)).transpose(1, 2)
+                normed = self.layer_norms[0][i](input_emb.transpose(1, 2)).transpose(1, 2)
 
                 # Apply conv - note it reduces sequence length by 2
-                conv_out = self.conv_layers[level][i](normed)
+                conv_out = self.conv_layers[0][i](normed)
 
                 # Residual connection: add to the middle part of the input
                 input_emb = conv_out + input_emb[:, :, 1:-1]
@@ -221,12 +154,14 @@ class VariantV1_ResidualUpsample(nn.Module):
             weights = [0.5 ** (self.upscale_depth - i - 1) for i in range(self.upscale_depth)]
             weights = [w / sum(weights) for w in weights]  # Normalize
 
-            for i in range(self.upscale_depth):
-                labels = data[i]
-                logits = intermediate_preds[i]
-                loss = F.cross_entropy(logits, labels, ignore_index=-100)
-                total_loss += weights[i] * loss
-
+            # for i in range(self.upscale_depth):
+            #     labels = data[i]
+            #     logits = intermediate_preds[i]
+            #     loss = F.cross_entropy(logits, labels, ignore_index=-100)
+            #     total_loss += weights[i] * loss
+            labels = data[4]
+            logits = intermediate_preds[4]
+            total_loss = F.cross_entropy(logits, labels, ignore_index=-100)
             result["loss"] = total_loss
 
         return result

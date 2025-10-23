@@ -1,0 +1,11 @@
+# @package graph_generation
+type: "watts_strogatz"
+watts_strogatz:
+  n_nodes: 100
+  k_neighbors: 6    # Each node connected to k nearest neighbors in ring topology
+  rewire_prob: 0.3  # Probability of rewiring each edge
+  seed: 42          # Random seed for reproducibility
+output:
+  file_path: "temp/graph.pkl"
+  visualize: true
+  print_stats: true

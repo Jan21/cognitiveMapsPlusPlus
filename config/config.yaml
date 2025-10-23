@@ -1,7 +1,7 @@
 defaults:
   - model: rnn_middle_predictor
   - training: default
-  - data: sphere
+  - data: nd_torus
   - _self_
   - override hydra/sweeper: basic
 
