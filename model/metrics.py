@@ -20,26 +20,29 @@ class NonGenerativeMetrics:
         # Map metric names to computation methods
         self.metric_methods = {
             'accuracy': self._compute_accuracy,
-            'exact_match_accuracy': self._compute_exact_match_accuracy,
+            'exact_match': self._compute_exact_match_accuracy,
             'path_validity': self._compute_path_validity,
             'edge_accuracy': self._compute_edge_accuracy,
-            'path_optimality': self._compute_path_optimality
+            'path_optimality': self._compute_path_optimality,
+            'path_validity_diff': self._compute_path_validity_diff,
         }
     
-    def compute_metrics(self, logits: torch.Tensor, targets: torch.Tensor, input_ids: torch.Tensor) -> Dict[str, torch.Tensor]:
+    def compute_metrics(self, logits: torch.Tensor, batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """Compute enabled metrics for predictions vs targets"""
         predictions = torch.argmax(logits, dim=-1)
+        targets = batch['target_ids']
+        input_ids = batch['input_ids']
         mask = (targets != -100)
         
         results = {}
         for metric_name in self.enabled_metrics:
             if metric_name in self.metric_methods:
-                if metric_name == 'accuracy':
-                    results[metric_name] = self.metric_methods[metric_name](predictions, targets, mask)
-                elif metric_name == 'exact_match_accuracy':
+                if metric_name in ['accuracy', 'exact_match']:
                     results[metric_name] = self.metric_methods[metric_name](predictions, targets, mask)
                 elif metric_name in ['path_validity', 'path_optimality']:
                     results[metric_name] = self.metric_methods[metric_name](predictions, targets, input_ids)
+                elif metric_name in ['path_validity_diff']:
+                    results['path_validity_diff'], results['path_optimality_diff'] = self.metric_methods[metric_name](predictions, batch)
                 else:
                     results[metric_name] = self.metric_methods[metric_name](predictions, targets)
         
@@ -49,7 +52,8 @@ class NonGenerativeMetrics:
         """Compute token-level accuracy"""
         correct = (predictions == targets) & mask
         total = mask.sum()
-        return correct.sum().float() / total.float() if total > 0 else torch.tensor(0.0)
+        batch_size = predictions.size(0)
+        return (correct.sum().float() / total.float() if total > 0 else torch.tensor(0.0), batch_size)
     
     def _compute_exact_match_accuracy(self, predictions: torch.Tensor, targets: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """Compute exact match accuracy (whole sequence correct)"""
@@ -64,7 +68,7 @@ class NonGenerativeMetrics:
                 if example_correct.sum() == example_mask.sum():
                     exact_matches += 1
         
-        return torch.tensor(exact_matches / batch_size, dtype=torch.float32, device=predictions.device)
+        return (torch.tensor(exact_matches / batch_size, dtype=torch.float32, device=predictions.device), batch_size)
     
     def _compute_path_validity(self, predictions: torch.Tensor, targets: torch.Tensor, input_ids: torch.Tensor) -> torch.Tensor:
         """Check if predicted paths is a valid path from start to goal"""
@@ -114,7 +118,7 @@ class NonGenerativeMetrics:
             if is_valid:
                 valid_paths += 1
         
-        return torch.tensor(valid_paths / batch_size, dtype=torch.float32, device=predictions.device)
+        return (torch.tensor(valid_paths / batch_size, dtype=torch.float32, device=predictions.device), batch_size)
     
     def _compute_edge_accuracy(self, predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         """Compute the proportion of predicted edges that are valid (exist in the graph)"""
@@ -150,7 +154,7 @@ class NonGenerativeMetrics:
         if total_edges == 0:
             return torch.tensor(0.0, dtype=torch.float32, device=predictions.device)
         
-        return torch.tensor(total_valid_edges / total_edges, dtype=torch.float32, device=predictions.device)
+        return (torch.tensor(total_valid_edges / total_edges, dtype=torch.float32, device=predictions.device), batch_size)
     
     def _compute_path_optimality(self, predictions: torch.Tensor, targets: torch.Tensor, input_ids: torch.Tensor) -> torch.Tensor:
         """Compute path optimality as abs(optimal_length - predicted_length)"""
@@ -174,7 +178,99 @@ class NonGenerativeMetrics:
             optimality_score = abs(optimal_length - predicted_length)
             optimality_scores.append(optimality_score)
         
-        return torch.tensor(sum(optimality_scores) / len(optimality_scores), dtype=torch.float32, device=predictions.device)
+        return (torch.tensor(sum(optimality_scores) / len(optimality_scores), dtype=torch.float32, device=predictions.device), batch_size)
+
+    def _validate_path(self, path: list) -> bool:
+        """
+        Validate if a path is valid in the graph.
+
+        Args:
+            path: List of vertex IDs
+
+        Returns:
+            True if all consecutive vertices are connected in the graph
+        """
+        if len(path) <= 1:
+            return True
+
+        for i in range(len(path) - 1):
+            if not self.graph.has_edge(path[i], path[i + 1]):
+                return False
+
+        return True
+
+    def _compute_graph_distance(self, node1: int, node2: int) -> float:
+        """
+        Compute the shortest path distance between two nodes in the graph.
+
+        Args:
+            node1: First node ID
+            node2: Second node ID
+
+        Returns:
+            Shortest path distance (number of edges). Returns float('inf') if no path exists.
+        """
+        try:
+            return nx.shortest_path_length(self.graph, node1, node2)
+        except nx.NetworkXNoPath:
+            return float('inf')
+
+    def _construct_and_validate_paths(self, predictions: torch.Tensor) -> tuple[list[list[int]], list[bool]]:
+        """
+        Construct paths from predictions by removing padding tokens and validate them.
+
+        Args:
+            predictions: Tensor of shape [batch_size, sequence_length] containing predicted node IDs
+                        The padding token ID is vocab_size - 1
+
+        Returns:
+            tuple containing:
+                - paths: List of paths, where each path is a list of node IDs (with padding removed)
+                - is_valid: List of boolean values indicating whether each path is valid
+        """
+        pad_token_id = self.vocab_size - 1 # TODO fix this
+        batch_size = predictions.size(0)
+
+        paths = []
+        is_valid = []
+
+        for i in range(batch_size):
+            # Get the prediction sequence for this example
+            pred_seq = predictions[i]  # [sequence_length]
+
+            # Remove padding tokens
+            # Convert to list and filter out padding tokens
+            path = [node_id.item() for node_id in pred_seq if node_id.item() != pad_token_id]
+
+            # Validate the path using the graph
+            valid = self._validate_path(path)
+
+            paths.append(path)
+            is_valid.append(valid)
+
+        return paths, is_valid
+
+    def _compute_path_validity_diff(self, predictions: torch.Tensor, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
+        """Compute the difference in path validity between predicted and target paths"""
+        predictions[:,0] = batch['input_ids'][:,0]
+        predictions[:,-1] = batch['input_ids'][:,-1]
+        batch_size = predictions.size(0)
+        paths,validity = self._construct_and_validate_paths(predictions)
+        lengths_gt = batch['len']
+        total_diff = 0
+        valid_count = 0.00000001
+        for i in range(batch_size):
+            if validity[i]:
+                valid_count += 1
+                path_length = len(paths[i])
+                diff = abs(path_length - lengths_gt[i])
+                total_diff += diff
+        avg_diff = total_diff / valid_count
+        validity_accuracy = sum(validity) / batch_size
+        return  (validity_accuracy, batch_size), (avg_diff, valid_count)
+
+
+
 
 
 class GenerativeMetrics:
@@ -256,8 +352,8 @@ class GenerativeMetrics:
         # Only compute and return enabled metrics
         results = {}
 
-        results['gen_path_validity'] = total_valid_paths / total_samples if total_samples > 0 else 0.0
-        results['gen_goal_accuracy'] = total_correct_goals / total_samples if total_samples > 0 else 0.0
-        results['gen_avg_path_length_diff'] = sum(length_differences) / len(length_differences) if length_differences else 0.0
+        results['gen_path_validity'] = (total_valid_paths / total_samples if total_samples > 0 else 0.0, batch_size )
+        results['gen_goal_accuracy'] = (total_correct_goals / total_samples if total_samples > 0 else 0.0, batch_size)
+        results['gen_avg_path_length_diff'] = (sum(length_differences) / len(length_differences) if length_differences else 0.0, batch_size)
         
         return results

@@ -1,0 +1,6 @@
+# @package graph_generation
+type: "klein_bottle"
+klein_bottle:
+  u_points: 20  # Discretization in u parameter direction [0, 2π]
+  v_points: 20  # Discretization in v parameter direction [0, 2π]
+

@@ -1,6 +1,6 @@
 defaults:
-  - model: iterative_conv
-  - training: default  
+  - model: diffusion_upsample
+  - training: default
   - data: sphere
   - _self_
   - override hydra/sweeper: basic
@@ -14,16 +14,15 @@ data_generation:
     use_perturbed: true  # Set to true to use perturbed shortest paths instead of random walks
     n_segments_min: 2     # Minimum number of segments to split shortest path
     n_segments_max: 10     # Maximum number of segments to split shortest path  
-    perturbation_min: 1   # Minimum perturbation steps
-    perturbation_max: 1 # Maximum perturbation steps
+    perturbation_min: 0   # Minimum perturbation steps
+    perturbation_max: 0 # Maximum perturbation steps
     unique_pairs_ratio: 0.8  # Ratio of unique pairs to total training paths (e.g., 0.1 means 10% unique pairs)
   test:
     num_paths: 2000
-  graph_path: ${graph_generation.output.file_path}
   output_dir: "temp/"
 
 curriculum_learning:
-  enabled: true
+  enabled: false
   min_accuracy_threshold: 0.5  # Accuracy threshold for shortest paths
   max_accuracy_threshold: 0.7  # Accuracy threshold for longest paths
   max_epochs_per_length: 200   # Maximum epochs per length before moving on
@@ -33,12 +32,13 @@ curriculum_learning:
 data:
   train_file: "train.json"
   test_file: "test.json"
-  max_path_length: 64
+  max_path_length: 33
   num_workers: 4
+  
 
 logging:
   project_name: "path_prediction"
-  experiment_name: "transformer_baseline"
+  experiment_name: "PathPrediction"
   log_every_n_steps: 50
 
 paths:

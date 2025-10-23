@@ -1,0 +1,16 @@
+# @package model
+_target_: model.architecture.diffusion_upsample.Diffusion_ResidualUpsample
+lightning_module: path  # Options: "rnn" or "path"
+d_model: 128
+num_iterations: 3
+upscale_depth: 5
+dropout: 0.1
+vocab_size: null 
+dataset_type: "spread"  # Options: "path" (PathDataset with collate_fn) or "spread" (SpreadPathDataset without collate_fn)
+# Configurable metrics
+enabled_metrics:
+  - accuracy
+  - exact_match
+  - path_validity_diff
+
+enabled_gen_metrics: []

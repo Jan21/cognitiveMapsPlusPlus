@@ -273,13 +273,9 @@ def generate_dataset(cfg: DictConfig) -> None:
     """Main function to generate training and test datasets"""
     
     # Construct the correct graph path with suffix based on graph type
-    base_path = cfg.graph_generation.output.file_path
     graph_type = cfg.graph_generation.type
-    
-    if base_path.endswith('.pkl'):
-        graph_path = base_path.replace('.pkl', f'_{graph_type}.pkl')
-    else:
-        graph_path = f"{base_path}_{graph_type}.pkl"
+    graph_path = cfg.data_generation.output_dir + f"/graph_{graph_type}.pkl"
+
     
     # Load graph
     print(f"Loading graph from {graph_path}")
@@ -337,15 +333,15 @@ def generate_dataset(cfg: DictConfig) -> None:
             cfg.data_generation.train.min_length,
             cfg.data_generation.train.max_length
         )
-        
+
         # Extract training pairs for test set filtering
         train_pairs = set()
         for example in train_data:
             start, end = example["input"]
             train_pairs.add((start, end))
-        
+
         # Generate test data
-        print(f"Generating {len(test_pairs_list)} test examples...")
+        print(f"Generating {cfg.data_generation.test.num_paths} test examples...")
         test_data = generate_test_data_legacy(
             graph,
             cfg.data_generation.test.num_paths,

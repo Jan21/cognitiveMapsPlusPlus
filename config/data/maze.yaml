@@ -1,0 +1,8 @@
+# @package graph_generation
+type: "maze"
+maze:
+  width: 30         # Width of the maze (number of cells)
+  height: 30        # Height of the maze (number of cells)
+  algorithm: "dfs"  # Algorithm: "dfs" (depth-first search), "prim", "kruskal", "wilson"
+  seed: 42          # Random seed for reproducibility
+

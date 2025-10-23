@@ -65,10 +65,11 @@ class TransformerModel(nn.Module):
             elif isinstance(module, nn.Embedding):
                 torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
     
-    def forward(self, input_ids, target_ids, attention_mask=None):
+    def forward(self, batch, attention_mask=None):
         # input_ids: (batch_size, seq_len)
         # attention_mask: (batch_size, seq_len)
-        
+        input_ids = batch['input_ids']
+        target_ids = batch['target_ids']
         x = self.embedding(input_ids) * math.sqrt(self.d_model)
         x = self.pos_encoding(x.transpose(0, 1)).transpose(0, 1)
         x = self.dropout(x)
@@ -129,7 +130,7 @@ class TransformerModel(nn.Module):
         with torch.no_grad():
             for _ in range(max_length):
                 # Get model predictions
-                output = self(input_sequence, None)
+                output = self({'input_ids': input_sequence, 'target_ids': None})
                 logits = output["logits"]
                 
                 # Get logits for the last position

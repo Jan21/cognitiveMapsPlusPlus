@@ -1,112 +1,53 @@
 # CognitiveMaps++
+This repository contains experiments testing different architectures for prediction of shortest paths on a graph given starting and a goal state. The goal is to provide insights of how different architectures embed state in complex state-spaces into a high-dimensional space in order to enable effective navigation. 
 
-A comprehensive framework for experimenting with transformer-based models on graph navigation tasks to analyze latent geometries of world models.
+To reproduce the results in this repository, set the parameters in `config/config.yaml` and follow these steps:
 
-## Overview
 
-This repository implements a configurable framework for training and evaluating neural network models on graph navigation problems. The project explores how neural networks learn spatial representations by training models to predict optimal paths through different graph topologies.
+1. **Generate the graph**:
+   ```
+   python generate/generate_graph.py
+   ```
 
-## Directory Structure
+2. **Sample training and validation data**:    
+   ```
+   python generate/generate_graph.py data=maze
+   ```
 
-```
-cognitiveMapsPlusPlus/
-├── config/               # Hydra configuration files
-│   └── config.yaml      # Main configuration file
-├── data/                # Data handling modules
-│   ├── datamodule.py    # PyTorch Lightning data module
-│   └── dataset.py       # Custom dataset classes and collation
-├── generate/            # Graph and data generation scripts
-│   ├── generate_data.py # Training/test data generation
-│   └── generate_graph.py # Graph structure generation
-├── model/               # Neural network components
-│   ├── lightningmodule.py # PyTorch Lightning training module
-│   ├── metrics.py       # Evaluation metrics
-│   └── model.py         # Transformer architecture
-├── train.py            # Main training script
-└── requirements.txt    # Python dependencies
-```
+3. **Train the model**: 
+   ```
+   python train.py
+   ```
 
-## Quick Start
+4. **Visualize the embeddings**: 
+   ```
+   python visualize/visualize_embeddings.py --checkpoint="PATH_TO_A_CHECKPOINT"
+   ```
 
-### 1. Installation
-```bash
-# Clone the repository
-git clone <repository-url>
-cd cognitiveMapsPlusPlus
 
-# Install dependencies
-pip install -r requirements.txt
-```
+## 1. Graph Generation
+There are multiple graph with configurable parameters. The graph type can be set in `config/config.yaml` in the variable `data`. The parametrs of the corresponding file can be set in `config/data/$GRAPH_TYPE$.yaml`.
 
-### 2. Generate a Graph
-```bash
-# Generate a sphere graph (default configuration)
-python generate/generate_graph.py
+### Available Graph Types
 
-# Generate a grid graph
-python generate/generate_graph.py graph_generation.type=grid
-```
+| Graph Type | Config string |
+|------------|---------|
+| 2D Grid | `grid` |
+| Sphere Wire Mesh | `sphere` |
+| n-Dimensional Torus | `nd_torus` |
+| Klein Bottle | `klein_bottle` |
+| Maze | `maze` |
+| Erdős-Rényi Random | `erdos_renyi` |
+| Barabási-Albert Scale-Free | `barabasi_albert` |
+| Watts-Strogatz Small-World | `watts_strogatz` |
 
-### 3. Generate Training Data
-```bash
-# Generate training and test datasets
-python generate/generate_data.py
-```
 
-### 4. Train a Model
-```bash
-# Single training run
-python train.py
+## 2. Data Generation
+From the graph generated in step 1, we can generate training and testing data. The `config.yaml` file contains parameters to determine minimum and maximum path lenght and also its suboptimality. The suboptimal paths are generated from the optimal ones by subdividing them to multiple segments and then perturbing each segment. The resulting paths will be saves in json format in the `temp` directory.
 
-# Hyperparameter sweep
-python train.py --multirun training.learning_rate=1e-3,1e-4,1e-5
-```
+## 3. Model training
+The model to train can be set in the `config/congig.yaml` file. Currently, there are two choices: `transformer` (a simple autoregressive transformer) and `diffusion_upsample` (a custom diffusion model which is upscaling the output during generation).
 
-## Configuration
 
-The framework uses Hydra for configuration management. Key configuration sections:
-
-### Graph Generation
-```yaml
-graph_generation:
-  type: "sphere"  # "sphere" or "grid"
-  sphere_mesh:
-    num_horizontal: 20  # Latitude circles
-    num_vertical: 20    # Longitude circles
-  grid_2d:
-    width: 20
-    height: 20
-```
-
-### Model Architecture
-```yaml
-model:
-  d_model: 64        # Hidden dimension
-  num_heads: 4       # Attention heads
-  num_layers: 2      # Transformer layers
-  d_ff: 64          # Feed-forward dimension
-  max_seq_length: 128
-  dropout: 0.1
-```
-
-### Training Parameters
-```yaml
-training:
-  learning_rate: 1e-4
-  batch_size: 125
-  max_epochs: 200
-  optimizer: "adamw"  # "adamw" or "muon"
-  loss: "cross_entropy"
-```
-
-### Data Generation
-```yaml
-data_generation:
-  train:
-    num_paths: 300000
-    use_perturbed: true    # Use perturbed shortest paths
-    perturbation_max: 7    # Maximum perturbation steps
-  test:
-    num_paths: 2000
-```
-
+## 4. Visualizing the trained node embeddings
+To visualize the the embeddings of a given model, the checkpoint needs to be specified and the proper architecture needs to be set in `config/congig.yaml`. Other arguments enable to set the projection method (UMAP vs PCA) and dimension (2D vs 3D).

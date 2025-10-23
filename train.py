@@ -6,11 +6,11 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, Callback
 import os
 from datetime import datetime
 from data.datamodule import PathDataModule
-from data.curriculum import curriculum_training
-from model.lightningmodule import PathPredictionModule, DiffusionPathPredictionModule
+from model import lightning_module_class
 from hydra.core.hydra_config import HydraConfig
-from data.curriculum import curriculum_training
 import wandb
+import pickle
+
 
 
 class SimplePruningCallback(Callback):
@@ -41,17 +41,22 @@ class SimplePruningCallback(Callback):
 
 @hydra.main(version_base=None, config_path="config", config_name="config")
 def main(cfg: DictConfig) -> None:
-    # Compute vocab_size dynamically
-    if cfg.model.vocab_size is None:
-        cfg.model.vocab_size = cfg.graph_generation.sphere_mesh.num_horizontal * cfg.graph_generation.sphere_mesh.num_vertical + 2
+
+    # Construct the graph file path based on graph type
+    graph_type = cfg.graph_generation.type
+    graph_path = cfg.data_generation.output_dir + f"/graph_{graph_type}.pkl"
+    # Load the graph and count vertices
+    with open(graph_path, 'rb') as f:
+        graph = pickle.load(f)
+
+    num_vertices = graph.number_of_nodes()
+    cfg.model.vocab_size = num_vertices + 10 # 10 special tokens
     
-    if cfg.curriculum_learning.enabled:
-        return curriculum_training(cfg)
-    else:
-        return standard_training(cfg)
+    return standard_training(cfg, graph)
 
 
-def standard_training(cfg: DictConfig) -> float:
+def standard_training(cfg: DictConfig, graph) -> float:
+
     # Set up data module
     datamodule = PathDataModule(
         train_file=cfg.data.train_file,
@@ -60,29 +65,32 @@ def standard_training(cfg: DictConfig) -> float:
         num_workers=cfg.data.num_workers,
         max_path_length=cfg.data.max_path_length,
         vocab_size=cfg.model.vocab_size,
-        data_dir=cfg.paths.data_dir,
-        graph_type=cfg.graph_generation.type
-    )
-    
-    # Set up model
-    model = DiffusionPathPredictionModule(
-        model_config=cfg.model,
-        vocab_size=cfg.model.vocab_size,
-        learning_rate=cfg.training.learning_rate,
-        weight_decay=cfg.training.weight_decay,
-        warmup_steps=cfg.training.warmup_steps,
-        optimizer=cfg.training.optimizer,
         graph_type=cfg.graph_generation.type,
-        graph_path=cfg.graph_generation.output.file_path,
-        loss=cfg.training.loss
+        data_dir=cfg.paths.data_dir,
+        dataset_type=cfg.model.dataset_type,
     )
+
+    # Select Lightning module based on configuration
+    lightning_module_type = cfg.model.get('lightning_module', 'path')
+    lightning_module = lightning_module_class[lightning_module_type]
+
+    model = lightning_module(
+            model_config=cfg.model,
+            vocab_size=cfg.model.vocab_size,
+            learning_rate=cfg.training.learning_rate,
+            weight_decay=cfg.training.weight_decay,
+            warmup_steps=cfg.training.warmup_steps,
+            optimizer=cfg.training.optimizer,
+            graph_type=cfg.graph_generation.type,
+            graph=graph
+        )
     
     # Set up logger
     hydra_cfg = HydraConfig.get()
     job_id = hydra_cfg.job.get('num', 0) if hydra_cfg.job.get('num') is not None else 0
     
 
-    hyperparams = f"d{cfg.model.d_model}_l{cfg.model.num_layers}__lr{cfg.training.learning_rate:.1e}"
+    hyperparams = f"graph_{cfg.graph_generation.type}"
     experiment_name = f"{cfg.logging.experiment_name}_{hyperparams}_trial{job_id}"
 
     
@@ -134,9 +142,6 @@ def standard_training(cfg: DictConfig) -> float:
     wandb.finish()
     # Return the validation loss for Optuna optimization
     return trainer.callback_metrics.get("val_loss", float("inf"))
-
-
-
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,7 @@
+# @package graph_generation
+type: "erdos_renyi"
+erdos_renyi:
+  n_nodes: 100
+  edge_prob: 0.1  # Probability of edge between any two nodes
+  seed: 42        # Random seed for reproducibility
+
