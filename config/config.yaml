@@ -1,9 +1,9 @@
 defaults:
   - model: diffusion_upsample
   - training: default
-  - data: sphere
+  - data: nd_torus
   - _self_
-  - override hydra/sweeper: basic
+  #- override hydra/sweeper: basic
 
 data_generation:
   train:
@@ -34,6 +34,8 @@ data:
   test_file: "test.json"
   max_path_length: 33
   num_workers: 4
+  percentage_of_train_samples: 5000  # Set to a number to limit training samples (null = use all)
+  num_val_samples: 2000    # Set to a number to limit validation samples (null = use all)
   
 
 logging:
@@ -46,18 +48,18 @@ paths:
   model_dir: "./model"
   checkpoint_dir: "./checkpoints"
 
-# Optuna sweeper configuration
-hydra:
-  sweeper:
-    # sampler:
-    #   _target_: optuna.samplers.TPESampler
-    #   seed: 123
-    #   n_startup_trials: 1000 
-    params:
-      training.learning_rate: 1e-3
-      #training.loss: "prob_weighting"
-    #direction: minimize
-    # study_name: path_prediction_optimization
-    # storage: null
-    # n_trials: 3
-    # n_jobs: 1
+# # Optuna sweeper configuration
+# hydra:
+#   sweeper:
+#     # sampler:
+#     #   _target_: optuna.samplers.TPESampler
+#     #   seed: 123
+#     #   n_startup_trials: 1000 
+#     params:
+#       training.learning_rate: 1e-3
+#       #training.loss: "prob_weighting"
+#     #direction: minimize
+#     # study_name: path_prediction_optimization
+#     # storage: null
+#     # n_trials: 3
+#     # n_jobs: 1

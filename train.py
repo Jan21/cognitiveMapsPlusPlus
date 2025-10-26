@@ -7,6 +7,7 @@ import os
 from datetime import datetime
 from data.datamodule import PathDataModule
 from model import lightning_module_class
+from model.results_logger import ResultsLogger
 from hydra.core.hydra_config import HydraConfig
 import wandb
 import pickle
@@ -68,6 +69,8 @@ def standard_training(cfg: DictConfig, graph) -> float:
         graph_type=cfg.graph_generation.type,
         data_dir=cfg.paths.data_dir,
         dataset_type=cfg.model.dataset_type,
+        percentage_of_train_samples=cfg.data.get('percentage_of_train_samples', 1.0),
+        num_val_samples=cfg.data.get('num_val_samples', None),
     )
 
     # Select Lightning module based on configuration
@@ -125,17 +128,32 @@ def standard_training(cfg: DictConfig, graph) -> float:
     if hydra_cfg.mode == hydra_cfg.mode.MULTIRUN:
         pruning_callback = SimplePruningCallback(patience=7)
         callbacks.append(pruning_callback)
-    
+
+        # Add results logger to save results to CSV
+        results_logger = ResultsLogger(
+            csv_path=f"temp/{cfg.logging.experiment_name}_{cfg.graph_generation.type}.csv",
+            config=dict(cfg)
+        )
+        callbacks.append(results_logger)
+
     # Set up trainer
-    trainer = pl.Trainer(
-        max_epochs=cfg.training.max_epochs,
-        logger=logger,
-        callbacks=callbacks,
-        gradient_clip_val=cfg.training.gradient_clip_val,
-        log_every_n_steps=cfg.logging.log_every_n_steps,
-        enable_checkpointing=True,
-        enable_progress_bar=True
-    )
+    # Use max_steps if specified, otherwise use max_epochs
+    trainer_kwargs = {
+        'logger': logger,
+        'callbacks': callbacks,
+        'gradient_clip_val': cfg.training.gradient_clip_val,
+        'log_every_n_steps': cfg.logging.log_every_n_steps,
+        'enable_checkpointing': True,
+        'enable_progress_bar': True
+    }
+
+    # Add max_steps or max_epochs based on config
+    if cfg.training.get('max_steps', -1) > 0:
+        trainer_kwargs['max_steps'] = cfg.training.max_steps
+    else:
+        trainer_kwargs['max_epochs'] = cfg.training.max_epochs
+
+    trainer = pl.Trainer(**trainer_kwargs)
     
     # Train the model
     trainer.fit(model, datamodule)

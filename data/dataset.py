@@ -4,19 +4,25 @@ from torch.utils.data import Dataset
 from typing import List, Dict, Any
 import os
 import numpy as np
+import random
 
 
 class PathDataset(Dataset):
-    def __init__(self, json_file: str, max_path_length: int = 64, vocab_size: int = 10000, **kwargs):
+    def __init__(self, json_file: str, max_path_length: int = 64, vocab_size: int = 10000, percentage_of_samples: float = 1.0, **kwargs):
         self.max_path_length = max_path_length
         self.vocab_size = vocab_size
         self.eos_token = vocab_size - 1
-        
+
+
         with open(json_file, 'r') as f:
             self.data = json.load(f)
-        
-        self.paths = self._extract_paths()
-    
+
+        if num_samples is None:
+            self.num_samples = int(percentage_of_samples * len(self.data))
+        else:
+            self.num_samples = num_samples
+        self.paths = self._extract_paths(num_samples)
+
     def _extract_paths(self) -> List[List[int]]:
         paths = []
         for item in self.data:
@@ -24,6 +30,12 @@ class PathDataset(Dataset):
                 path = item['output']
                 if len(path) <= self.max_path_length:
                     paths.append(path)
+
+        # Limit number of samples if specified
+        random.shuffle(paths)
+        if self.num_samples is not None and self.num_samples > 0:
+            paths = paths[:self.num_samples]
+
         return paths
 
 
@@ -56,17 +68,21 @@ class SpreadPathDataset(Dataset):
     - Empty positions filled with vocab_size - 1
     """
 
-    
-    def __init__(self, json_file: str, max_path_length: int = 33, vocab_size: int = 10000, **kwargs):
+
+    def __init__(self, json_file: str, max_path_length: int = 33, vocab_size: int = 10000, percentage_of_samples: float = 1.0, num_samples: int = None, **kwargs):
         self.tensor_length = kwargs.get('tensor_length', max_path_length - 1)
         self.max_path_length = max_path_length
         self.vocab_size = vocab_size
         self.pad_token = vocab_size - 1
         
 
+
         with open(json_file, 'r') as f:
             self.data = json.load(f)
-
+        if num_samples is None:
+            self.num_samples = int(percentage_of_samples * len(self.data))
+        else:
+            self.num_samples = num_samples
         self.paths = self._extract_paths()
         self.max_tensor_length = kwargs.get('tensor_length', max_path_length - 1)
         self.position_dicts = {}
@@ -120,7 +136,7 @@ class SpreadPathDataset(Dataset):
             tensor = torch.tensor(list(range(1,self.max_tensor_length)))
             midpoints = [0] + get_midpoints(list(range(path_len-2)), tensor, 0) + [self.max_tensor_length]
             self.position_dicts[path_len] = midpoints
-     
+
 
 
     def _extract_paths(self) -> List[List[int]]:
@@ -130,6 +146,12 @@ class SpreadPathDataset(Dataset):
                 path = item['output']
                 if len(path) <= self.max_path_length:
                     paths.append(path)
+
+        # Limit number of samples if specified
+        random.shuffle(paths)
+        if self.num_samples is not None and self.num_samples > 0:
+            paths = paths[:self.num_samples]
+
         return paths
 
     def _spread_path_evenly(self, path: List[int]) -> torch.Tensor:

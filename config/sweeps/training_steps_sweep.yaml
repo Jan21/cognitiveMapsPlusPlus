@@ -1,0 +1,19 @@
+# @package _global_
+
+# Training steps sweep configuration
+# Tests training with different maximum number of steps (batches)
+# Usage: python train.py +sweeps=training_steps_sweep --multirun
+
+# Hydra sweep configuration
+hydra:
+  sweep:
+    dir: multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}_training_steps
+    subdir: ${hydra.job.num}_steps_${training.max_steps}
+  sweeper:
+    params:
+      training.max_steps: 1000,5000,10000,20000,50000
+
+# Override default config if needed
+training:
+  max_steps: -1  # Will be overridden by sweep
+  max_epochs: -1  # Ignored when max_steps is set

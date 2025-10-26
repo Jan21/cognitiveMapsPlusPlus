@@ -28,6 +28,8 @@ class PathDataModule(pl.LightningDataModule):
         dataset_type: str = "spread",
         graph_type: str = "sphere",
         data_dir: str = "temp",
+        percentage_of_train_samples: float = 1.0,
+        num_val_samples: int = None,
     ):
         super().__init__()
         self.train_file = os.path.join(data_dir, f"train_{graph_type}.json")
@@ -39,6 +41,8 @@ class PathDataModule(pl.LightningDataModule):
         self.pad_token = vocab_size - 2
         self.tensor_length = max_path_length - 1
         self.dataset_type = dataset_type  # "path" or "spread"
+        self.percentage_of_train_samples = percentage_of_train_samples
+        self.num_val_samples = num_val_samples
 
 
         self.train_dataset = None
@@ -53,19 +57,22 @@ class PathDataModule(pl.LightningDataModule):
             json_file=self.train_file,
             tensor_length=self.tensor_length,
             max_path_length=self.max_path_length,
-            vocab_size=self.vocab_size
+            vocab_size=self.vocab_size,
+            percentage_of_samples=self.percentage_of_train_samples
         )
         self.val_dataset = self.dataset_class(
             json_file=self.test_file,
             tensor_length=self.tensor_length,
             max_path_length=self.max_path_length,
-            vocab_size=self.vocab_size
+            vocab_size=self.vocab_size,
+            num_samples=self.num_val_samples
         )
         self.test_dataset = self.dataset_class(
             json_file=self.test_file,
             tensor_length=self.tensor_length,
             max_path_length=self.max_path_length,
-            vocab_size=self.vocab_size
+            vocab_size=self.vocab_size,
+            num_samples=self.num_val_samples
         )
        
 

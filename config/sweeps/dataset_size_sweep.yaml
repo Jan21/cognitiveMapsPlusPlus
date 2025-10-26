@@ -1,0 +1,27 @@
+# @package _global_
+
+# Dataset size sweep configuration (basic sweeper - no Optuna)
+# Tests training with different numbers of training samples
+# Usage: python train.py +sweeps=dataset_size_sweep --multirun
+
+# Hydra sweep configuration
+hydra:
+  
+  sweep:
+    
+    dir: multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}_dataset_size
+    subdir: ${hydra.job.num}_samples_${data.num_train_samples}
+  sweeper:
+    params:
+      data.num_train_samples: 10000,20000,30000,40000,50000
+
+# Override default config if needed
+data:
+  num_train_samples: null  # Will be overridden by sweep
+  num_val_samples: null    # Use all validation samples
+
+training:
+  max_epochs: -1  # Adjust as needed
+  max_steps: 30000  # Set to positive number to use steps instead of epochs (-1 = use max_epochs)
+logging:
+  experiment_name: dataset_size_sweep

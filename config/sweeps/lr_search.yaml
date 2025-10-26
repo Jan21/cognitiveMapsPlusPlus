@@ -1,0 +1,26 @@
+# @package _global_
+
+# Simple learning rate search configuration for Hydra multirun
+# Usage: python train.py --config-name config --config-path config/sweeps -cn lr_search --multirun
+
+defaults:
+  - override /hydra/launcher: basic
+
+# Hydra sweep configuration
+hydra:
+  mode: MULTIRUN
+  sweep:
+    dir: multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.num}_lr_${training.learning_rate}
+  launcher:
+    _target_: hydra._internal.core_plugins.basic_launcher.BasicLauncher
+  sweeper:
+    _target_: hydra._internal.core_plugins.basic_sweeper.BasicSweeper
+    max_batch_size: null
+    params:
+      # Test different learning rates (you can add more values)
+      training.learning_rate: 1e-4,3e-4,1e-3,3e-3,1e-2
+
+# Override default config if needed
+training:
+  max_epochs: 100  # You might want fewer epochs for the sweep

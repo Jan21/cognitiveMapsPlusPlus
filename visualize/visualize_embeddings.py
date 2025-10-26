@@ -23,8 +23,8 @@ except ImportError:
     UMAP_AVAILABLE = False
 
 from sklearn.decomposition import PCA
-from model.rnn_lightningmodule import RNNMiddleNodeModule
-from model.gnn_lightningmodule import GNNPathPredictionModule
+from model.lightningmodule import PathPredictionModule
+
 
 
 def load_model_from_checkpoint(checkpoint_path: str, model_type: str = "rnn"):
@@ -40,12 +40,8 @@ def load_model_from_checkpoint(checkpoint_path: str, model_type: str = "rnn"):
     """
     print(f"Loading {model_type.upper()} model from {checkpoint_path}")
 
-    if model_type == "rnn":
-        model = RNNMiddleNodeModule.load_from_checkpoint(checkpoint_path)
-    elif model_type == "gnn":
-        model = GNNPathPredictionModule.load_from_checkpoint(checkpoint_path)
-    else:
-        raise ValueError(f"Unknown model type: {model_type}. Expected 'rnn' or 'gnn'")
+
+    model = PathPredictionModule.load_from_checkpoint(checkpoint_path)
 
     model.eval()
     return model
@@ -338,7 +334,7 @@ def main():
     parser.add_argument(
         "--checkpoint",
         type=str,
-        default="checkpoints/epoch=19-val_loss=0.47.ckpt",
+        default="checkpoints/epoch=35-val_loss=0.01.ckpt",
         help="Path to model checkpoint (.ckpt file)"
     )
     parser.add_argument(
@@ -351,14 +347,14 @@ def main():
     parser.add_argument(
         "--graph-path",
         type=str,
-        default="temp/graph_sphere.pkl",
+        default="temp/graph_torus.pkl",
         help="Path to graph pickle file"
     )
     parser.add_argument(
         "--graph-type",
         type=str,
-        choices=["sphere", "grid"],
-        default="sphere",
+        choices=["sphere", "grid", "torus"],
+        default="torus",
         help="Type of graph (sphere or grid)"
     )
     parser.add_argument(
@@ -394,7 +390,7 @@ def main():
     model = load_model_from_checkpoint(args.checkpoint, args.model_type)
 
     # Extract embeddings
-    embeddings = extract_node_embeddings(model, args.model_type)[:381,:]
+    embeddings = extract_node_embeddings(model, args.model_type)
 
     # Load graph metadata
     try:
