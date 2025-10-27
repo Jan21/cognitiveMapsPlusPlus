@@ -1,5 +1,5 @@
 # @package graph_generation
 type: "sphere"
 sphere_mesh:
-  num_horizontal: 20
-  num_vertical: 20
+  num_horizontal: 30
+  num_vertical: 30

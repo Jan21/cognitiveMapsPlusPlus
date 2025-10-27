@@ -16,6 +16,6 @@ enabled_metrics:
   - exact_match
   - path_validity
 
-enabled_gen_metrics:
-  - gen_path_validity
-  - gen_avg_path_length_diff
+# enabled_gen_metrics:
+#   - gen_path_validity
+#   - gen_avg_path_length_diff

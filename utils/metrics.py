@@ -240,7 +240,16 @@ class NonGenerativeMetrics:
 
             # Remove padding tokens
             # Convert to list and filter out padding tokens
-            path = [node_id.item() for node_id in pred_seq if node_id.item() != pad_token_id]
+            # INSERT_YOUR_CODE
+            # Remove consecutive duplicate elements in pred_seq
+            path = []
+            prev = None
+            for node_id in pred_seq:
+                node_val = node_id.item()
+                if node_val != prev:
+                    path.append(node_val)
+                prev = node_val
+            #path = [node_id.item() for node_id in pred_seq if node_id.item() != pad_token_id]
 
             # Validate the path using the graph
             valid = self._validate_path(path)

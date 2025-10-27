@@ -8,7 +8,7 @@ import random
 
 
 class PathDataset(Dataset):
-    def __init__(self, json_file: str, max_path_length: int = 64, vocab_size: int = 10000, percentage_of_samples: float = 1.0, **kwargs):
+    def __init__(self, json_file: str, max_path_length: int = 64, vocab_size: int = 10000, percentage_of_samples: float = 1.0, num_samples: int = None, **kwargs):
         self.max_path_length = max_path_length
         self.vocab_size = vocab_size
         self.eos_token = vocab_size - 1
@@ -21,7 +21,7 @@ class PathDataset(Dataset):
             self.num_samples = int(percentage_of_samples * len(self.data))
         else:
             self.num_samples = num_samples
-        self.paths = self._extract_paths(num_samples)
+        self.paths = self._extract_paths()
 
     def _extract_paths(self) -> List[List[int]]:
         paths = []
@@ -182,11 +182,16 @@ class SpreadPathDataset(Dataset):
         # We want to place path elements at indices that are evenly distributed
         
         indices = self.position_dicts[path_len]
-
+        tensor[indices] = torch.tensor(path, dtype=torch.long)
+        next_non_pad_token_idx = 1
         # Place path elements at calculated indices
-        for path_idx, tensor_idx in enumerate(indices):
-            tensor[tensor_idx] = path[path_idx]
-
+        n = tensor.shape[0]
+        for i in range(n):
+            if tensor[i] == path[next_non_pad_token_idx]:
+                next_non_pad_token_idx += 1
+                continue
+            if tensor[i] == self.pad_token:
+                tensor[i] = path[next_non_pad_token_idx]
         return tensor
 
     def __len__(self) -> int:

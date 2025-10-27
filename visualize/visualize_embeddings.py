@@ -61,19 +61,12 @@ def extract_node_embeddings(model, model_type: str = "rnn"):
     print(f"Extracting embeddings from {model_type.upper()} model")
 
     with torch.no_grad():
-        if model_type == "rnn":
-            # RNN model: extract from node_embedding
-            embeddings = model.model.node_embedding.weight.cpu().numpy()
-        elif model_type == "gnn":
-            # GNN model: extract from vertex_embedding
-            embeddings = model.model.vertex_embedding.weight.cpu().numpy()
-            # Remove padding embedding (last one)
-            embeddings = embeddings[:-1]
-        else:
-            raise ValueError(f"Unknown model type: {model_type}")
+
+        embeddings = model.model.node_embedding.weight.cpu().numpy()
+
 
     print(f"Extracted embeddings shape: {embeddings.shape}")
-    return embeddings
+    return embeddings[:-1,:]
 
 
 def load_graph_metadata(graph_path: str, graph_type: str = "sphere"):
@@ -125,8 +118,9 @@ def reduce_dimensions(embeddings, method='umap', n_components=2):
             raise ImportError("UMAP not installed. Install with: pip install umap-learn")
         print("Running UMAP dimensionality reduction...")
         reducer = umap.UMAP(
-            n_neighbors=15,
-            min_dist=0.1,
+            n_neighbors=100,
+            min_dist=2.0,
+            spread=2.0,
             n_components=n_components,
             metric='cosine',
             random_state=42
@@ -334,7 +328,7 @@ def main():
     parser.add_argument(
         "--checkpoint",
         type=str,
-        default="checkpoints/epoch=35-val_loss=0.01.ckpt",
+        default="/home/jan/projects/CIIRC/cognitiveMapsPlusPlus/temp/checkpoints/PathPrediction_graph_torus_trial0/last.ckpt",
         help="Path to model checkpoint (.ckpt file)"
     )
     parser.add_argument(
@@ -361,7 +355,7 @@ def main():
         "--method",
         type=str,
         choices=["umap", "pca"],
-        default="pca",
+        default="umap",
         help="Dimensionality reduction method (umap or pca)"
     )
     parser.add_argument(

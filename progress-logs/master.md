@@ -1,0 +1,1 @@
+27.10.2025 - speed up, refactoring, loss, visualization [27_10_25](logs/27_10_25.md)

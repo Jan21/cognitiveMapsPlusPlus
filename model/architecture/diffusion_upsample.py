@@ -93,15 +93,16 @@ class Diffusion_ResidualUpsample(nn.Module):
         x = seq_orig
         b, c, s = x.shape
         means = (x[..., :-1] + x[..., 1:]) / 2
-        stacked = torch.stack([x[..., :-1], means], dim=-1)
+        stacked = torch.stack([x[..., :-1], means], dim=-1).contiguous()
         interleaved = stacked.reshape(b, c, -1)
-        new_seq = torch.cat([interleaved, x[..., -1:]], dim=-1)
+        new_seq = torch.cat([interleaved, x[..., -1:]], dim=-1).contiguous()
         return new_seq
 
     def forward(self, batch) -> Dict[str, torch.Tensor]:
         data = batch
         batch_tensor = data['input_ids']
         batch_size = batch_tensor.size(0)
+ 
 
         # Embed start and end nodes
         start_emb = self.node_embedding(batch_tensor[:, 0])
@@ -117,13 +118,16 @@ class Diffusion_ResidualUpsample(nn.Module):
             # Apply conv layers with residual connections
             for i in range(self.num_iterations):
                 # Apply LayerNorm: [batch, d_model, seq] -> [batch, seq, d_model] -> norm -> [batch, d_model, seq]
-                normed = self.layer_norms[0][i](input_emb.transpose(1, 2)).transpose(1, 2)
+                input_emb_for_norm = input_emb.transpose(1, 2)
+                normed_output = self.layer_norms[0][i](input_emb_for_norm)
+                normed = normed_output.transpose(1, 2)
 
                 # Apply conv - note it reduces sequence length by 2
                 conv_out = self.conv_layers[0][i](normed)
 
                 # Residual connection: add to the middle part of the input
-                input_emb = conv_out + input_emb[:, :, 1:-1]
+                input_emb_slice = input_emb[:, :, 1:-1]
+                input_emb = (conv_out + input_emb_slice)
 
                 # Re-attach start and end embeddings
                 input_emb = torch.cat([
@@ -136,17 +140,24 @@ class Diffusion_ResidualUpsample(nn.Module):
             # Reshape: [batch, d_model, seq_len] -> [batch, seq_len, d_model]
             input_emb_transposed = input_emb.transpose(1, 2)
 
-            # Apply output projection: [batch, seq_len, d_model] -> [batch, seq_len, vocab_size]
-            logits = self.output_projections[0](input_emb_transposed)
+            # Apply output projection: [batch, seq_len, d_model] -> [batch, seq_len, .contiguous()
 
-            # Transpose to [batch, vocab_size, seq_len]
-            logits = logits.transpose(1, 2)
-
+            # Transpose to [batch, vocab_size, seq_len].contiguous()
+            logits = self.output_projections[0](input_emb_transposed).transpose(1, 2)
             intermediate_preds.append(logits)
 
-        # Use last level predictions as final output
+        diffs = input_emb_transposed[:,:-1,:]-input_emb_transposed[:,1:,:]
+        norm_diffs = diffs.norm(dim=-1)
+        sum_norm_diffs = norm_diffs.sum(dim=-1)
         result = {"logits": intermediate_preds[-1].transpose(1, 2)}
+        result["sum_norm_diffs"] = sum_norm_diffs
+        return result
 
+
+    def get_loss(self, result, data):
+        lens = data['len']
+        logits = result['logits'].transpose(1, 2)
+        sum_norm_diffs = result['sum_norm_diffs']
         # Compute hierarchical loss with proper weighting
         if all(key in data for key in range(self.upscale_depth)):
             total_loss = 0
@@ -159,10 +170,13 @@ class Diffusion_ResidualUpsample(nn.Module):
             #     logits = intermediate_preds[i]
             #     loss = F.cross_entropy(logits, labels, ignore_index=-100)
             #     total_loss += weights[i] * loss
-            labels = data[4]
-            logits = intermediate_preds[4]
+            labels = data[4].contiguous()
             total_loss = F.cross_entropy(logits, labels, ignore_index=-100)
-            result["loss"] = total_loss
+            lens = data['len'].float()
+            mse_sum_norm_diffs = F.mse_loss(sum_norm_diffs.float(), lens.float())
+
+            result["loss"] = total_loss + mse_sum_norm_diffs*0.3
+            result["mse_sum_norm_diffs"] = mse_sum_norm_diffs
 
         return result
 

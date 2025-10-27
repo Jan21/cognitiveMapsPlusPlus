@@ -8,7 +8,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig
 from model.architecture.transformer import TransformerModel
 from model.architecture.diffusion_upsample import Diffusion_ResidualUpsample
-from .metrics import NonGenerativeMetrics, GenerativeMetrics
+from utils.metrics import NonGenerativeMetrics, GenerativeMetrics
 
 def create_model(model_config: DictConfig, vocab_size: int):
     """Factory function to create models based on configuration."""
@@ -42,6 +42,7 @@ class PathPredictionModule(pl.LightningModule):
 
         # Model configuration
         self.model = create_model(model_config, vocab_size)
+        self.model = torch.compile(self.model, mode='reduce-overhead')
         self.vocab_size = vocab_size
 
         # Optimizer configuration
@@ -75,6 +76,7 @@ class PathPredictionModule(pl.LightningModule):
 
 
         output = self.model(batch)
+        output = self.model.get_loss(output, batch)
         loss = output["loss"]
 
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
@@ -85,12 +87,15 @@ class PathPredictionModule(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
 
         output = self.model(batch)
+        output = self.model.get_loss(output, batch)
         logits = output["logits"]
         loss = output["loss"]
 
         metrics = self.compute_metrics(logits, batch)
 
         self.log('val_loss', loss, on_epoch=True, prog_bar=True)
+        if "mse_sum_norm_diffs" in output:
+            self.log('val_mse_sum_norm_diffs', output["mse_sum_norm_diffs"], on_epoch=True, prog_bar=True)
 
         for metric_name, (metric_value, batch_size) in metrics.items():
             self.log(f'val_{metric_name}', metric_value, on_epoch=True, prog_bar=True, batch_size=batch_size)

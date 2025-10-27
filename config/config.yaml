@@ -33,8 +33,8 @@ data:
   train_file: "train.json"
   test_file: "test.json"
   max_path_length: 33
-  num_workers: 4
-  percentage_of_train_samples: 5000  # Set to a number to limit training samples (null = use all)
+  num_workers: 16
+  percentage_of_train_samples: 0.5  # Set to a number to limit training samples (null = use all)
   num_val_samples: 2000    # Set to a number to limit validation samples (null = use all)
   
 

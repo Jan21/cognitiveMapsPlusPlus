@@ -38,7 +38,7 @@ class TransformerModel(nn.Module):
         self.d_model = d_model
         self.vocab_size = vocab_size
         
-        self.embedding = nn.Embedding(vocab_size, d_model)
+        self.node_embedding = nn.Embedding(vocab_size, d_model)
         self.pos_encoding = PositionalEncoding(d_model, max_seq_length)
         
         encoder_layer = nn.TransformerEncoderLayer(
@@ -69,8 +69,7 @@ class TransformerModel(nn.Module):
         # input_ids: (batch_size, seq_len)
         # attention_mask: (batch_size, seq_len)
         input_ids = batch['input_ids']
-        target_ids = batch['target_ids']
-        x = self.embedding(input_ids) * math.sqrt(self.d_model)
+        x = self.node_embedding(input_ids) * math.sqrt(self.d_model)
         x = self.pos_encoding(x.transpose(0, 1)).transpose(0, 1)
         x = self.dropout(x)
         
@@ -96,16 +95,14 @@ class TransformerModel(nn.Module):
         logits = self.output_projection(x)
         
         # Only compute loss if target_ids is provided
-        if target_ids is not None:
-            loss = self.get_loss(logits, target_ids)
-            return {"logits": logits, "loss": loss}
-        else:
-            return {"logits": logits}
+
+        return {"logits": logits}
     
-    def get_loss(self, logits, targets):
+    def get_loss(self, result, batch):
         # logits: (batch_size, seq_len, vocab_size)
         # targets: (batch_size, seq_len) with -100 for padding tokens
-        
+        targets = batch['target_ids']
+        logits = result['logits']
         # Reshape for loss computation
         shift_logits = logits.view(-1, logits.size(-1))
         shift_labels = targets.view(-1)
@@ -115,7 +112,8 @@ class TransformerModel(nn.Module):
             shift_labels,
             ignore_index=-100
         )
-        return loss
+        result["loss"] = loss
+        return result
     
     def generate_path(self, goal_state: int, start_state: int, max_length: int = 64, 
                      temperature: float = 1.0, top_k: int = None) -> list:
