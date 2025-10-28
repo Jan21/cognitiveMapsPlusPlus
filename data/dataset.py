@@ -5,6 +5,7 @@ from typing import List, Dict, Any
 import os
 import numpy as np
 import random
+import gc
 
 
 class PathDataset(Dataset):
@@ -22,6 +23,8 @@ class PathDataset(Dataset):
         else:
             self.num_samples = num_samples
         self.paths = self._extract_paths()
+        del self.data
+        gc.collect()
 
     def _extract_paths(self) -> List[List[int]]:
         paths = []
@@ -84,6 +87,8 @@ class SpreadPathDataset(Dataset):
         else:
             self.num_samples = num_samples
         self.paths = self._extract_paths()
+        del self.data
+        gc.collect()
         self.max_tensor_length = kwargs.get('tensor_length', max_path_length - 1)
         self.position_dicts = {}
         self.indices_per_level = {}

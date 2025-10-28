@@ -76,7 +76,7 @@ def print_summary(df):
     print("=" * 80)
 
     # Select key columns to display
-    display_cols = ['num_train_samples', 'val_loss', 'val_exact_match', 'actual_epochs', 'learning_rate', 'batch_size']
+    display_cols = ['num_train_samples', 'val_loss', 'val_path_validity', 'val_path_validity_diff', 'actual_epochs', 'learning_rate', 'batch_size']
     display_cols = [col for col in display_cols if col in df.columns]
 
     print(df[display_cols].to_string(index=False))
@@ -204,7 +204,7 @@ def analyze_efficiency(df):
                 print(f"  ⚠️  Warning: Loss increased!")
 
 def main():
-    csv_path = sys.argv[1] if len(sys.argv) > 1 else "temp/sweep_results/data_sizes.csv"
+    csv_path = sys.argv[1] if len(sys.argv) > 1 else "temp/dataset_size_sweep_torus.csv"
 
     # Load results
     df = load_results(csv_path)

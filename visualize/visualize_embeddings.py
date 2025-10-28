@@ -328,7 +328,7 @@ def main():
     parser.add_argument(
         "--checkpoint",
         type=str,
-        default="/home/jan/projects/CIIRC/cognitiveMapsPlusPlus/temp/checkpoints/PathPrediction_graph_torus_trial0/last.ckpt",
+        default="/home/jan/projects/CIIRC/cognitiveMapsPlusPlus/checkpoints/epoch=40-val_loss=0.50.ckpt",
         help="Path to model checkpoint (.ckpt file)"
     )
     parser.add_argument(

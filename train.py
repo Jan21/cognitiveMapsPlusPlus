@@ -29,6 +29,7 @@ def main(cfg: DictConfig) -> None:
         graph = pickle.load(f)
 
     num_vertices = graph.number_of_nodes()
+    cfg.training.max_steps = int((num_vertices ** 2)*0.8 // cfg.training.batch_size * 20)
     cfg.model.vocab_size = num_vertices + 1 # 10 special tokens
     
     # Set up data module
@@ -94,10 +95,11 @@ def main(cfg: DictConfig) -> None:
     }
 
     # Add max_steps or max_epochs based on config
-    if cfg.training.get('max_steps', -1) > 0:
-        trainer_kwargs['max_steps'] = cfg.training.max_steps
-    else:
+    if cfg.training.get('max_epochs', -1) > 0:
         trainer_kwargs['max_epochs'] = cfg.training.max_epochs
+    else:
+        print(f"Using max_steps: {cfg.training.max_steps}")
+        trainer_kwargs['max_steps'] = cfg.training.max_steps
 
     trainer = pl.Trainer(**trainer_kwargs)
     

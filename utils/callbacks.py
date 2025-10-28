@@ -42,7 +42,7 @@ class ResultsLogger(Callback):
         # Prepare row data
         row_data = {
             'timestamp': datetime.now().isoformat(),
-            'num_train_samples': self.config.get('data', {}).get('num_train_samples', 'N/A'),
+            'percentage_of_train_samples': self.config.get('data', {}).get('percentage_of_train_samples', 'N/A'),
             'num_val_samples': self.config.get('data', {}).get('num_val_samples', 'N/A'),
             'learning_rate': self.config.get('training', {}).get('learning_rate', 'N/A'),
             'batch_size': self.config.get('training', {}).get('batch_size', 'N/A'),
@@ -51,6 +51,8 @@ class ResultsLogger(Callback):
             'val_loss': metrics.get('val_loss', float('inf')).item() if 'val_loss' in metrics else 'N/A',
             'val_accuracy': metrics.get('val_accuracy', 'N/A'),
             'val_exact_match': metrics.get('val_exact_match', 'N/A'),
+            'val_path_validity': metrics.get('val_path_validity', 'N/A'),
+            'val_path_validity_diff': metrics.get('val_path_validity_diff', 'N/A'),
             'train_loss': metrics.get('train_loss_epoch', 'N/A'),
             'graph_type': self.config.get('graph_generation', {}).get('type', 'N/A'),
             'model_type': self.config.get('model', {}).get('_target_', 'N/A'),
@@ -156,7 +158,7 @@ def setup_callbacks(cfg, experiment_name, hydra_cfg):
 
     # Early stopping callback
     early_stopping = EarlyStopping(
-        monitor='val_exact_match',
+        monitor='val_accuracy',
         patience=500,
         mode='max'
     )
@@ -168,9 +170,8 @@ def setup_callbacks(cfg, experiment_name, hydra_cfg):
         callbacks.append(pruning_callback)
 
         # Import and add results logger to save results to CSV
-        from model.results_logger import ResultsLogger
         results_logger = ResultsLogger(
-            csv_path=f"temp/{cfg.logging.experiment_name}_{cfg.graph_generation.type}.csv",
+            csv_path=f"temp/sweep_results/{cfg.logging.experiment_name}_{cfg.graph_generation.type}.csv",
             config=dict(cfg)
         )
         callbacks.append(results_logger)

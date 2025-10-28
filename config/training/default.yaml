@@ -8,4 +8,4 @@ warmup_steps: 300
 gradient_clip_val: 1.0
 optimizer: "adamw"  # "adamw" or "muon"
 loss: "cross_entropy"  # "cross_entropy" or "prob_weighting"
-save_every_epoch: True  # Set to true to save checkpoints after every epoch in temp folder
+save_every_epoch: false  # Set to true to save checkpoints after every epoch in temp folder
