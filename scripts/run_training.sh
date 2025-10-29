@@ -20,7 +20,7 @@ module load apptainer
 unset SINGULARITY_BINDPATH
 
 SCRIPT_DIR="${SLURM_SUBMIT_DIR}"
-SIF_FILE="${SCRIPT_DIR}/cognitiveMapsPlusPlus.sif"
+SIF_FILE="${SCRIPT_DIR}/scripts/cognitiveMapsPlusPlus.sif"
 
 cd "$SCRIPT_DIR"
 
