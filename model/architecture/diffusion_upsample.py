@@ -172,10 +172,10 @@ class Diffusion_ResidualUpsample(nn.Module):
             #     total_loss += weights[i] * loss
             labels = data[4].contiguous()
             total_loss = F.cross_entropy(logits, labels, ignore_index=-100)
-            #lens = data['len'].float()
-            #mse_sum_norm_diffs = F.mse_loss(sum_norm_diffs.float(), lens.float())
+            lens = data['len'].float()
+            mse_sum_norm_diffs = F.mse_loss(sum_norm_diffs.float(), lens.float())
             mse_sum_norm_diffs = 0
-            result["loss"] = total_loss #+ mse_sum_norm_diffs*0.3
+            result["loss"] = total_loss #+ mse_sum_norm_diffs
             result["mse_sum_norm_diffs"] = mse_sum_norm_diffs
 
         return result
