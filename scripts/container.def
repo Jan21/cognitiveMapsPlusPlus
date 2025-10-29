@@ -3,7 +3,7 @@ From: nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
 
 %files
     # Copy requirements.txt from project root into the container
-    requirements.txt /opt/requirements.txt
+    ../requirements.txt /opt/requirements.txt
 
 %post
     export DEBIAN_FRONTEND=noninteractive
