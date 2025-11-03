@@ -23,7 +23,8 @@ class PathDataModule(pl.LightningDataModule):
         test_file: str,
         batch_size: int = 32,
         num_workers: int = 4,
-        max_path_length: int = 33,
+        max_path_length_train: int = 33,
+        max_path_length_val: int = 33,
         vocab_size: int = 10000,
         dataset_type: str = "spread",
         graph_type: str = "sphere",
@@ -36,10 +37,11 @@ class PathDataModule(pl.LightningDataModule):
         self.test_file = os.path.join(data_dir, f"test_{graph_type}.json")
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.max_path_length = max_path_length
+        self.max_path_length_train = max_path_length_train
+        self.max_path_length_val = max_path_length_val
         self.vocab_size = vocab_size
         self.pad_token = vocab_size - 2
-        self.tensor_length = max_path_length - 1
+        self.tensor_length = max_path_length_val - 1
         self.dataset_type = dataset_type  # "path" or "spread"
         self.percentage_of_train_samples = percentage_of_train_samples
         self.num_val_samples = num_val_samples
@@ -56,21 +58,21 @@ class PathDataModule(pl.LightningDataModule):
         self.train_dataset = self.dataset_class(
             json_file=self.train_file,
             tensor_length=self.tensor_length,
-            max_path_length=self.max_path_length,
+            max_path_length=self.max_path_length_train,
             vocab_size=self.vocab_size,
             percentage_of_samples=self.percentage_of_train_samples
         )
         self.val_dataset = self.dataset_class(
             json_file=self.test_file,
             tensor_length=self.tensor_length,
-            max_path_length=self.max_path_length,
+            max_path_length=self.max_path_length_val,
             vocab_size=self.vocab_size,
             num_samples=self.num_val_samples
         )
         self.test_dataset = self.dataset_class(
             json_file=self.test_file,
             tensor_length=self.tensor_length,
-            max_path_length=self.max_path_length,
+            max_path_length=self.max_path_length_val,
             vocab_size=self.vocab_size,
             num_samples=self.num_val_samples
         )
