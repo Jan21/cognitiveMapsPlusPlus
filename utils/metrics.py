@@ -13,8 +13,6 @@ class NonGenerativeMetrics:
         self.eos_token = vocab_size - 1
         
         # Default to all metrics if none specified
-        if enabled_metrics is None:
-            enabled_metrics = ['accuracy']
         self.enabled_metrics = enabled_metrics
         
         # Map metric names to computation methods
@@ -29,12 +27,15 @@ class NonGenerativeMetrics:
     
     def compute_metrics(self, logits: torch.Tensor, batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """Compute enabled metrics for predictions vs targets"""
+        results = {}
+        if logits is None:
+            return results
         predictions = torch.argmax(logits, dim=-1)
         targets = batch['target_ids']
         input_ids = batch['input_ids']
         mask = (targets != -100)
         
-        results = {}
+        
         for metric_name in self.enabled_metrics:
             if metric_name in self.metric_methods:
                 if metric_name in ['accuracy', 'exact_match']:

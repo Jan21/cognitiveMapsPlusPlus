@@ -2,18 +2,20 @@ import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 from typing import Optional
 import os
-
-from .dataset import PathDataset, collate_fn, SpreadPathDataset
+import networkx as nx
+from .dataset import PathDataset, collate_fn, SpreadPathDataset, QuasimetricEmbeddingsDataset
 
 
 dataset_type_to_dataset = {
     "path": PathDataset,
-    "spread": SpreadPathDataset
+    "spread": SpreadPathDataset,
+    "quasimetric_embeddings": QuasimetricEmbeddingsDataset
 }
 
 dataset_type_to_collate_fn = {
     "path": lambda pad_token: lambda batch: collate_fn(pad_token, batch), 
     "spread": lambda pad_token: None,
+    "quasimetric_embeddings": lambda pad_token: None,
 }
 
 class PathDataModule(pl.LightningDataModule):
@@ -31,6 +33,7 @@ class PathDataModule(pl.LightningDataModule):
         data_dir: str = "temp",
         percentage_of_train_samples: float = 1.0,
         num_val_samples: int = None,
+        graph: nx.Graph = None,
     ):
         super().__init__()
         self.train_file = os.path.join(data_dir, f"train_{graph_type}.json")
@@ -45,7 +48,7 @@ class PathDataModule(pl.LightningDataModule):
         self.dataset_type = dataset_type  # "path" or "spread"
         self.percentage_of_train_samples = percentage_of_train_samples
         self.num_val_samples = num_val_samples
-
+        self.graph = graph
 
         self.train_dataset = None
         self.val_dataset = None
@@ -60,21 +63,24 @@ class PathDataModule(pl.LightningDataModule):
             tensor_length=self.tensor_length,
             max_path_length=self.max_path_length_train,
             vocab_size=self.vocab_size,
-            percentage_of_samples=self.percentage_of_train_samples
+            percentage_of_samples=self.percentage_of_train_samples,
+            graph=self.graph
         )
         self.val_dataset = self.dataset_class(
             json_file=self.test_file,
             tensor_length=self.tensor_length,
             max_path_length=self.max_path_length_val,
             vocab_size=self.vocab_size,
-            num_samples=self.num_val_samples
+            num_samples=self.num_val_samples,
+            graph=self.graph
         )
         self.test_dataset = self.dataset_class(
             json_file=self.test_file,
             tensor_length=self.tensor_length,
             max_path_length=self.max_path_length_val,
             vocab_size=self.vocab_size,
-            num_samples=self.num_val_samples
+            num_samples=self.num_val_samples,
+            graph=self.graph
         )
        
 

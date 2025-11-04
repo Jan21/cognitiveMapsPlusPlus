@@ -4,6 +4,7 @@ warnings.filterwarnings('ignore', message="'has_cudnn' is deprecated")
 warnings.filterwarnings('ignore', message="'has_mps' is deprecated")
 warnings.filterwarnings('ignore', message="'has_mkldnn' is deprecated")
 
+
 import hydra
 from omegaconf import DictConfig
 import pytorch_lightning as pl
@@ -16,7 +17,6 @@ from hydra.core.hydra_config import HydraConfig
 from utils.callbacks import setup_callbacks
 import wandb
 import pickle
-
 
 
 @hydra.main(version_base=None, config_path="config", config_name="config")
@@ -46,6 +46,7 @@ def main(cfg: DictConfig) -> None:
         dataset_type=cfg.model.dataset_type,
         percentage_of_train_samples=cfg.data.get('percentage_of_train_samples', 1.0),
         num_val_samples=cfg.data.get('num_val_samples', None),
+        graph=graph
     )
 
     # Select Lightning module based on configuration
@@ -92,7 +93,7 @@ def main(cfg: DictConfig) -> None:
         'log_every_n_steps': cfg.logging.log_every_n_steps,
         'enable_checkpointing': True,
         'enable_progress_bar': True,
-        'precision': 'bf16-mixed'
+        'precision': '16-mixed',
     }
 
     # Add max_steps or max_epochs based on config

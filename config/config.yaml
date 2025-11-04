@@ -1,5 +1,5 @@
 defaults:
-  - model: diffusion_upsample
+  - model: quasimetric_embeddings
   - training: default
   - data: nd_torus
   - _self_
@@ -34,7 +34,7 @@ data:
   test_file: "test.json"
   max_path_length_train: 24
   max_path_length_val: 33
-  num_workers: 16
+  num_workers: 4
   percentage_of_train_samples: 0.5  # Set to a number to limit training samples (null = use all)
   num_val_samples: 2000    # Set to a number to limit validation samples (null = use all)
   

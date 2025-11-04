@@ -1,11 +1,12 @@
 import json
 import torch
 from torch.utils.data import Dataset
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import os
 import numpy as np
 import random
 import gc
+import networkx as nx
 
 
 class PathDataset(Dataset):
@@ -249,5 +250,38 @@ def collate_fn(pad_token: int, batch: List[Dict[str, torch.Tensor]]) -> Dict[str
         'input_ids': torch.stack(input_ids),
         'target_ids': torch.stack(target_ids),
     }
+
+
+class QuasimetricEmbeddingsDataset(Dataset):
+    """
+    Dataset that contains all pairs of nodes in the graph which share an edge.
+    Each example is a dict with keys: x, y, action.
+    - x: vertex on one side of the edge
+    - y: vertex on the other side of the edge
+    - action: None (for all examples)
+    """
+
+    def __init__(self, graph: nx.Graph, **kwargs):
+        self.graph = graph
+        self.edge_pairs = self._extract_edge_pairs()
+
+    def _extract_edge_pairs(self) -> List[tuple]:
+        """Extract all edge pairs from the graph."""
+        edge_pairs = []
+        for u, v in self.graph.edges():
+            edge_pairs.append((torch.tensor(u, dtype=torch.long), torch.tensor(v, dtype=torch.long)))
+        random.shuffle(edge_pairs)
+        return edge_pairs
+
+    def __len__(self) -> int:
+        return len(self.edge_pairs)
+
+    def __getitem__(self, idx: int) -> Dict[str, Optional[Any]]:
+        x, y = self.edge_pairs[idx]
+        return {
+            'x': x,
+            'y': y,
+            'action': torch.tensor(0, dtype=torch.long)
+        }
 
 

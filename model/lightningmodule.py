@@ -42,7 +42,7 @@ class PathPredictionModule(pl.LightningModule):
 
         # Model configuration
         self.model = create_model(model_config, vocab_size)
-        self.model = torch.compile(self.model, mode='reduce-overhead')
+        #self.model = torch.compile(self.model, mode='reduce-overhead')
         self.vocab_size = vocab_size
 
         # Optimizer configuration
@@ -99,18 +99,18 @@ class PathPredictionModule(pl.LightningModule):
 
         for metric_name, (metric_value, batch_size) in metrics.items():
             self.log(f'val_{metric_name}', metric_value, on_epoch=True, prog_bar=True, batch_size=batch_size)
-
+        if len(metrics) == 0:
+            self.log('val_accuracy', loss, on_epoch=True, prog_bar=True)
         return loss
 
     def configure_optimizers(self):
         """Configure optimizer and learning rate scheduler"""
 
-        # Default to AdamW
-        optimizer = AdamW(
-            self.parameters(),
-            lr=self.learning_rate,
-            weight_decay=self.weight_decay
-        )
+        # Create parameter groups with different learning rates
+        param_groups = self.model.get_param_groups()
+
+        # Default to AdamW with parameter groups
+        optimizer = AdamW(param_groups)
 
         # Warmup + cosine annealing scheduler
         def lr_lambda(step):
