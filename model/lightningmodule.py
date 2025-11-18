@@ -1,5 +1,6 @@
 import torch
-import torch
+import os
+import numpy as np
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LambdaLR
 from typing import Dict, Any, Optional
@@ -9,6 +10,7 @@ from omegaconf import DictConfig
 from model.architecture.transformer import TransformerModel
 from model.architecture.diffusion_upsample import Diffusion_ResidualUpsample
 from utils.metrics import NonGenerativeMetrics, GenerativeMetrics
+from visualize.visualize_utils import visualize_embeddings_3d
 
 def create_model(model_config: DictConfig, vocab_size: int):
     """Factory function to create models based on configuration."""
@@ -36,6 +38,10 @@ class PathPredictionModule(pl.LightningModule):
         optimizer: str = "adamw",
         graph_type: str = "sphere",
         graph = None,
+        save_embeddings: bool = True,
+        embedding_save_interval: int = 10,
+        embedding_save_dir: str = "temp/embs",
+        visualize_embeddings: bool = True,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -52,6 +58,12 @@ class PathPredictionModule(pl.LightningModule):
         self.optimizer_name = optimizer
 
         self.graph = graph
+
+        # Embedding visualization configuration
+        self.save_embeddings = save_embeddings
+        self.embedding_save_interval = embedding_save_interval
+        self.embedding_save_dir = embedding_save_dir
+        self.visualize_embeddings = visualize_embeddings
 
         # Initialize metrics
         self.path_metrics = NonGenerativeMetrics(self.graph, vocab_size, model_config.enabled_metrics)
@@ -110,7 +122,7 @@ class PathPredictionModule(pl.LightningModule):
         param_groups = self.model.get_param_groups()
 
         # Default to AdamW with parameter groups
-        optimizer = AdamW(param_groups)
+        optimizer = AdamW(param_groups, lr=self.learning_rate)
 
         # Warmup + cosine annealing scheduler
         def lr_lambda(step):
@@ -131,7 +143,7 @@ class PathPredictionModule(pl.LightningModule):
             'optimizer': optimizer,
             'lr_scheduler': {
                 'scheduler': scheduler,
-                'interval': 'step',
+                'interval': 'epoch',
                 'frequency': 1
             }
         }
@@ -141,6 +153,34 @@ class PathPredictionModule(pl.LightningModule):
         current_lr = self.optimizers().param_groups[0]['lr']
         self.log('learning_rate', current_lr, on_step=True, on_epoch=False, prog_bar=False)
 
+    def on_validation_epoch_end(self):
+        """Called at the end of validation epoch"""
+        # Check if we should save/visualize embeddings this epoch
+        if (self.current_epoch + 1) % self.embedding_save_interval == 0 and (self.save_embeddings or self.visualize_embeddings):
+            if hasattr(self.model, 'get_embeddings'):
+                embeddings = self.model.get_embeddings(self.graph, len(self.graph.nodes()))
 
- 
+                # Save embeddings as numpy array if enabled
+                if self.save_embeddings:
+                    os.makedirs(self.embedding_save_dir, exist_ok=True)
+                    save_path = os.path.join(self.embedding_save_dir, f'embeddings_epoch_{self.current_epoch+1}.npy')
+                    np.save(save_path, embeddings)
+                    print(f"Saved embeddings to {save_path}")
+
+                # Visualize embeddings in 3D if enabled
+                if self.visualize_embeddings and self.graph is not None:
+                    try:
+                        output_file = visualize_embeddings_3d(
+                            embeddings=embeddings,
+                            graph=self.graph,
+                            epoch=self.current_epoch,
+                            num_vertices=self.vocab_size - 1,  # Exclude padding token
+                            save_dir=f"{self.embedding_save_dir}/visualizations"
+                        )
+                        print(f"Saved embedding visualization to {output_file}")
+                    except Exception as e:
+                        print(f"Warning: Failed to visualize embeddings: {e}")
+
+
+
 

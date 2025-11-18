@@ -255,21 +255,25 @@ def collate_fn(pad_token: int, batch: List[Dict[str, torch.Tensor]]) -> Dict[str
 class QuasimetricEmbeddingsDataset(Dataset):
     """
     Dataset that contains all pairs of nodes in the graph which share an edge.
-    Each example is a dict with keys: x, y, action.
-    - x: vertex on one side of the edge
-    - y: vertex on the other side of the edge
-    - action: None (for all examples)
     """
 
     def __init__(self, graph: nx.Graph, **kwargs):
         self.graph = graph
+        # INSERT_YOUR_CODE
+        # Rename all nodes to integers from 0 to num_nodes-1
+        # Build mapping from old IDs to new integer IDs
+        old_nodes = list(self.graph.nodes())
+        mapping = {old_id: new_id for new_id, old_id in enumerate(old_nodes)}
+        self.graph = nx.relabel_nodes(self.graph, mapping, copy=True)
         self.edge_pairs = self._extract_edge_pairs()
 
     def _extract_edge_pairs(self) -> List[tuple]:
         """Extract all edge pairs from the graph."""
         edge_pairs = []
         for u, v in self.graph.edges():
-            edge_pairs.append((torch.tensor(u, dtype=torch.long), torch.tensor(v, dtype=torch.long)))
+            #u_arr, v_arr = self.graph.nodes[u]['array'], self.graph.nodes[v]['array']
+            edge_pairs.append((torch.tensor(u), torch.tensor(v)))
+            #edge_pairs.append((torch.tensor(u, dtype=torch.long), torch.tensor(v, dtype=torch.long)))
         random.shuffle(edge_pairs)
         return edge_pairs
 
@@ -279,9 +283,7 @@ class QuasimetricEmbeddingsDataset(Dataset):
     def __getitem__(self, idx: int) -> Dict[str, Optional[Any]]:
         x, y = self.edge_pairs[idx]
         return {
-            'x': x,
-            'y': y,
-            'action': torch.tensor(0, dtype=torch.long)
+            'input_ids': torch.stack([x, y], dim=0)
         }
 
 

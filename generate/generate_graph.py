@@ -75,6 +75,32 @@ def generate_graph(cfg: DictConfig) -> None:
             "algorithm": cfg.graph_generation.maze.algorithm,
             "seed": cfg.graph_generation.maze.seed
         }
+    elif graph_type == "polyhedral_sphere":
+        sphere_subtype = cfg.graph_generation.polyhedral_sphere.get("sphere_type", "icosphere")
+        subdivisions = cfg.graph_generation.polyhedral_sphere.get("subdivisions", 2)
+        num_latitude = cfg.graph_generation.polyhedral_sphere.get("num_latitude", 20)
+        num_longitude = cfg.graph_generation.polyhedral_sphere.get("num_longitude", 20)
+        print(f"Generating {sphere_subtype} polyhedral sphere with subdivisions={subdivisions}")
+        gen_params = {
+            "sphere_type": sphere_subtype,
+            "subdivisions": subdivisions,
+            "num_latitude": num_latitude,
+            "num_longitude": num_longitude
+        }
+    elif graph_type == "touching_tori":
+        major_radius = cfg.graph_generation.touching_tori.get("major_radius", 3)
+        minor_radius = cfg.graph_generation.touching_tori.get("minor_radius", 1)
+        num_major = cfg.graph_generation.touching_tori.get("num_major", 20)
+        num_minor = cfg.graph_generation.touching_tori.get("num_minor", 12)
+        array_size = cfg.graph_generation.touching_tori.get("array_size", 20)
+        print(f"Generating two touching tori (R={major_radius}, r={minor_radius}, {num_major}×{num_minor} mesh)")
+        gen_params = {
+            "major_radius": major_radius,
+            "minor_radius": minor_radius,
+            "num_major": num_major,
+            "num_minor": num_minor,
+            "array_size": array_size
+        }
     else:
         # This should be caught by the loader, but kept here for clarity
         raise ValueError(f"Unknown graph type: {graph_type}")

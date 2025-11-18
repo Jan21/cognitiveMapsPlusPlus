@@ -1,0 +1,7 @@
+# @package graph_generation
+type: "polyhedral_sphere"
+polyhedral_sphere:
+  sphere_type: "icosphere"  # Options: "icosphere", "uv_sphere", "cube_sphere", "octahedron"
+  subdivisions: 2  # Number of subdivisions (for icosphere, cube_sphere, octahedron)
+  num_latitude: 20  # Number of latitude circles (for uv_sphere only)
+  num_longitude: 20  # Number of longitude circles (for uv_sphere only)

@@ -180,4 +180,11 @@ class Diffusion_ResidualUpsample(nn.Module):
 
         return result
 
+    def get_param_groups(self):
+        """Return a single parameter group with all model parameters."""
+        param_groups = [{
+            'params': list(self.parameters()),
+        }]
+        return param_groups
+
 

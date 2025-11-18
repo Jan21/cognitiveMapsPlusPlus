@@ -1,5 +1,5 @@
 # @package training
-learning_rate: 0.0025
+learning_rate: 0.5 #0025
 batch_size: 512
 max_epochs: 500
 max_steps: -1  # Set to positive number to use steps instead of epochs (-1 = use max_epochs)
@@ -9,3 +9,9 @@ gradient_clip_val: 1.0
 optimizer: "adamw"  # "adamw" or "muon"
 loss: "cross_entropy"  # "cross_entropy" or "prob_weighting"
 save_every_epoch: false  # Set to true to save checkpoints after every epoch in temp folder
+
+# Embedding visualization settings
+save_embeddings: true  # Enable saving embeddings during training
+embedding_save_interval: 10  # Save embeddings every N epochs
+embedding_save_dir: "temp/embs"  # Directory to save embeddings
+visualize_embeddings: true  # Enable 3D visualization of embeddings

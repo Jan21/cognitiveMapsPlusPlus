@@ -1,0 +1,14 @@
+# @package model
+_target_: model.architecture.contrastive_embeddings.ContrastiveEmbeddingsModel
+lightning_module: path  # Options: "rnn" or "path"
+vocab_size: null  # Will be computed automatically
+latent_size: 8
+softplus_beta: 0.01
+softplus_offset: 20
+mult: 0.1
+dataset_type: "quasimetric_embeddings"  # Options: "path" (PathDataset with collate_fn) or "spread" (SpreadPathDataset without collate_fn) or "quasimetric_embeddings" (QuasimetricEmbeddingsDataset without collate_fn)
+
+# Configurable metrics
+enabled_metrics: []
+
+enabled_gen_metrics: []

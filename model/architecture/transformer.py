@@ -114,7 +114,14 @@ class TransformerModel(nn.Module):
         )
         result["loss"] = loss
         return result
-    
+
+    def get_param_groups(self):
+        """Return a single parameter group with all model parameters."""
+        param_groups = [{
+            'params': list(self.parameters()),
+        }]
+        return param_groups
+
     def generate_path(self, goal_state: int, start_state: int, max_length: int = 64, 
                      temperature: float = 1.0, top_k: int = None) -> list:
         """Generate a path from start_state to goal_state using autoregressive sampling"""

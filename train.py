@@ -61,7 +61,11 @@ def main(cfg: DictConfig) -> None:
             warmup_steps=cfg.training.warmup_steps,
             optimizer=cfg.training.optimizer,
             graph_type=cfg.graph_generation.type,
-            graph=graph
+            graph=graph,
+            save_embeddings=cfg.training.get('save_embeddings', True),
+            embedding_save_interval=cfg.training.get('embedding_save_interval', 10),
+            embedding_save_dir=cfg.training.get('embedding_save_dir', 'temp/embs'),
+            visualize_embeddings=cfg.training.get('visualize_embeddings', True),
         )
     
     # Set up logger

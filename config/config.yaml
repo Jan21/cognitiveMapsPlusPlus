@@ -1,7 +1,7 @@
 defaults:
-  - model: quasimetric_embeddings
+  - model: contrastive_embeddings
   - training: default
-  - data: nd_torus
+  - data: touching_tori
   - _self_
   #- override hydra/sweeper: basic
 

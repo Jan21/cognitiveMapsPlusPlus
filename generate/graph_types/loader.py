@@ -13,6 +13,8 @@ GRAPH_TYPE_MODULES = {
     "erdos_renyi": ".erdos_renyi",
     "barabasi_albert": ".barabasi_albert",
     "watts_strogatz": ".watts_strogatz",
+    "polyhedral_sphere": ".polyhedral_sphere",
+    "touching_tori": ".touching_tori",
 }
 
 

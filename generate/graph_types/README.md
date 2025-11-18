@@ -15,7 +15,9 @@ graph_types/
 ├── maze.py               # Maze graphs (DFS, Prim, Kruskal, Wilson)
 ├── erdos_renyi.py        # Erdős-Rényi random graph
 ├── barabasi_albert.py    # Barabási-Albert scale-free graph
-└── watts_strogatz.py     # Watts-Strogatz small-world graph
+├── watts_strogatz.py     # Watts-Strogatz small-world graph
+├── polyhedral_sphere.py  # Polyhedral sphere (icosphere, cube, octahedron)
+└── touching_tori.py      # Two tori touching at one vertex
 ```
 
 ## Usage
@@ -107,3 +109,23 @@ To add a new graph type:
 **File:** `watts_strogatz.py`
 **Parameters:** `n_nodes`, `k_neighbors`, `rewire_prob`, `seed`
 **Description:** Small-world network with rewiring
+
+### Polyhedral Sphere
+**File:** `polyhedral_sphere.py`
+**Parameters:** `sphere_type`, `subdivisions`, `num_latitude`, `num_longitude`
+**Sphere Types:** `icosphere`, `uv_sphere`, `cube_sphere`, `octahedron`
+**Description:** Polyhedral sphere meshes with various generation methods
+- **icosphere**: Subdivided icosahedron (most uniform distribution)
+- **uv_sphere**: UV sphere with latitude/longitude lines
+- **cube_sphere**: Subdivided cube projected onto sphere
+- **octahedron**: Subdivided octahedron
+
+### Touching Tori
+**File:** `touching_tori.py`
+**Parameters:** `major_radius`, `minor_radius`, `num_major`, `num_minor`, `separation_distance`, `array_size`
+**Description:** Two torus wireframes that touch at exactly one vertex
+- Each vertex stores a numpy array with special values marking grid positions
+- Torus 1: zeros everywhere except value 2 at grid position
+- Torus 2: ones everywhere except value 2 at grid position
+- Touching vertex: all values are 2
+- Useful for testing graph algorithms on connected components
