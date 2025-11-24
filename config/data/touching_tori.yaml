@@ -3,7 +3,8 @@ type: "touching_tori"
 touching_tori:
   major_radius: 3  # Distance from center of torus to center of tube
   minor_radius: 1  # Radius of the tube
-  num_major: 20  # Number of segments around the major circle
-  num_minor: 12  # Number of segments around the minor circle
+  num_major: 30  # Number of segments around the major circle
+  num_minor: 30  # Number of segments around the minor circle
   separation_distance: null  # Distance between centers (null = auto-calculate to make them touch)
-  array_size: 20  # Size of the square numpy array stored at each vertex
+  array_size: ${graph_generation.touching_tori.num_major}  # Size of the square numpy array stored at each vertex
+

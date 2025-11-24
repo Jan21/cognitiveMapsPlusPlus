@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 from sklearn.decomposition import PCA
+import umap
 
 
 def generate_node_colors(graph, num_vertices):
@@ -22,7 +23,8 @@ def generate_node_colors(graph, num_vertices):
     """
     # Simple coloring based on node index
     # You can customize this based on graph properties
-    colors = np.arange(num_vertices)
+    colors = np.zeros(num_vertices)
+    colors[num_vertices // 2:] = 1  # First half 0, second half 1
     return colors
 
 
@@ -46,8 +48,9 @@ def visualize_embeddings_3d(embeddings, graph, epoch, num_vertices, save_dir):
         embeddings = embeddings[:-1, :]
 
     # Apply PCA to reduce to 3D
-    pca = PCA(n_components=3, random_state=42)
-    embeddings_3d = pca.fit_transform(embeddings)
+    #reducer = PCA(n_components=3, random_state=42)
+    reducer = umap.UMAP(n_components=3, random_state=42)
+    embeddings_3d = reducer.fit_transform(embeddings)
 
     # Create figure
     fig = plt.figure(figsize=(8, 6))

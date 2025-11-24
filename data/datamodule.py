@@ -34,6 +34,7 @@ class PathDataModule(pl.LightningDataModule):
         percentage_of_train_samples: float = 1.0,
         num_val_samples: int = None,
         graph: nx.Graph = None,
+        use_array: bool = False,
     ):
         super().__init__()
         self.train_file = os.path.join(data_dir, f"train_{graph_type}.json")
@@ -55,7 +56,7 @@ class PathDataModule(pl.LightningDataModule):
         self.test_dataset = None
         self.dataset_class = dataset_type_to_dataset[self.dataset_type]
         self.collate_fn = dataset_type_to_collate_fn[self.dataset_type](self.pad_token)
-
+        self.use_array = use_array
 
     def setup(self, stage: Optional[str] = None):
         self.train_dataset = self.dataset_class(
@@ -64,7 +65,8 @@ class PathDataModule(pl.LightningDataModule):
             max_path_length=self.max_path_length_train,
             vocab_size=self.vocab_size,
             percentage_of_samples=self.percentage_of_train_samples,
-            graph=self.graph
+            graph=self.graph,
+            use_array=self.use_array
         )
         self.val_dataset = self.dataset_class(
             json_file=self.test_file,
@@ -72,7 +74,8 @@ class PathDataModule(pl.LightningDataModule):
             max_path_length=self.max_path_length_val,
             vocab_size=self.vocab_size,
             num_samples=self.num_val_samples,
-            graph=self.graph
+            graph=self.graph,
+            use_array=self.use_array
         )
         self.test_dataset = self.dataset_class(
             json_file=self.test_file,
@@ -80,7 +83,8 @@ class PathDataModule(pl.LightningDataModule):
             max_path_length=self.max_path_length_val,
             vocab_size=self.vocab_size,
             num_samples=self.num_val_samples,
-            graph=self.graph
+            graph=self.graph,
+            use_array=self.use_array
         )
        
 

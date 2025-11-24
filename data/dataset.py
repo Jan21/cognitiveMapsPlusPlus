@@ -262,6 +262,7 @@ class QuasimetricEmbeddingsDataset(Dataset):
         # INSERT_YOUR_CODE
         # Rename all nodes to integers from 0 to num_nodes-1
         # Build mapping from old IDs to new integer IDs
+        self.use_array = kwargs.get('use_array', False)
         old_nodes = list(self.graph.nodes())
         mapping = {old_id: new_id for new_id, old_id in enumerate(old_nodes)}
         self.graph = nx.relabel_nodes(self.graph, mapping, copy=True)
@@ -271,9 +272,15 @@ class QuasimetricEmbeddingsDataset(Dataset):
         """Extract all edge pairs from the graph."""
         edge_pairs = []
         for u, v in self.graph.edges():
-            #u_arr, v_arr = self.graph.nodes[u]['array'], self.graph.nodes[v]['array']
-            edge_pairs.append((torch.tensor(u), torch.tensor(v)))
-            #edge_pairs.append((torch.tensor(u, dtype=torch.long), torch.tensor(v, dtype=torch.long)))
+            if self.use_array:
+                u_arr = self.graph.nodes[u]['array']
+                v_arr = self.graph.nodes[v]['array']
+                # Convert each element in u_arr and v_arr to 3-dimensional one-hot encoding
+                u_arr = np.eye(3, dtype=np.float32)[np.array(u_arr, dtype=np.int64)]
+                v_arr = np.eye(3, dtype=np.float32)[np.array(v_arr, dtype=np.int64)]
+                edge_pairs.append((torch.tensor(u_arr), torch.tensor(v_arr)))
+            else:
+                edge_pairs.append((torch.tensor(u), torch.tensor(v)))
         random.shuffle(edge_pairs)
         return edge_pairs
 

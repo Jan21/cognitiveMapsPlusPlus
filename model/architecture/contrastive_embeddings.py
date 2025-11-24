@@ -1,6 +1,27 @@
 import torch
 import torch.nn as nn
 from sklearn.decomposition import PCA
+import umap
+import numpy as np
+
+
+class EmbeddingArray(nn.Module):
+    def __init__(self, array_size: int, latent_size: int):
+        super().__init__()
+        self.array_size = array_size
+        self.latent_size = latent_size
+        layers = [nn.Linear(array_size**2*3, latent_size),nn.ReLU()]
+        for _ in range(3):
+            layers.append(nn.Linear(latent_size, latent_size, bias=False))
+            layers.append(nn.ReLU())
+        self.embedding = nn.Sequential(*layers)
+        #self.embedding = nn.Linear(array_size**2*3, latent_size, bias=False)
+
+
+    def forward(self, x):
+        x = x.view(x.size(0), x.size(1), -1)
+        return self.embedding(x)
+
 
 class ContrastiveEmbeddingsModel(torch.nn.Module):
 
@@ -19,8 +40,13 @@ class ContrastiveEmbeddingsModel(torch.nn.Module):
         self.softplus_beta = softplus_beta
         self.softplus_offset = softplus_offset
         self.mult = mult
+        self.use_array = kwargs.get('use_array', False)
+        if self.use_array:
+            self.array_size = kwargs.get('array_size', None)
+            self.node_embedding = EmbeddingArray(self.array_size, self.latent_size)
+        else:
+            self.node_embedding = nn.Embedding(self.input_size, self.latent_size)
         # Replace simple embedding with convolutional embedding
-        self.node_embedding = nn.Embedding(self.input_size, self.latent_size) #nn.Linear(self.input_size, self.latent_size,bias=False) #ConvNodeEmbedding(input_channels=1, latent_size=self.latent_size)
 
     def forward(self, batch):
         # x shape: (batch_size, seq_len, height, width) for array-based inputs
@@ -80,7 +106,6 @@ class ContrastiveEmbeddingsModel(torch.nn.Module):
         }]
         return param_groups
 
-
     def get_embeddings(self, graph, num_vertices):
         """
         Obtain PCA-projected node embeddings for all vertices in the graph from their array representations.
@@ -96,22 +121,28 @@ class ContrastiveEmbeddingsModel(torch.nn.Module):
         self.eval()
         device = next(self.parameters()).device
         with torch.no_grad():
-            # Extract all node indices from the graph
-            node_ids = sorted(graph.nodes())  # Sort to maintain consistent ordering
 
-            # For this architecture, the node index itself is sufficient for node_embedding()
-            node_arrays = [i for i, node_id in enumerate(node_ids)]
+            if self.use_array:
+                node_arrays = [graph.nodes[node]['array'] for node in graph.nodes()]
+                node_arrays = [np.eye(3, dtype=np.float32)[np.array(node_array, dtype=np.int64)] for node_array in node_arrays]
+                node_arrays_tensor = torch.tensor(node_arrays, dtype=torch.float).to(device).unsqueeze(1)
+                embeddings = self.node_embedding(node_arrays_tensor).squeeze(1)
+            else:       
+                # Extract all node indices from the graph
+                node_ids = sorted(graph.nodes())  # Sort to maintain consistent ordering
 
-            # Stack into a batch tensor: (num_nodes)
-            node_arrays_tensor = torch.tensor(node_arrays, dtype=torch.long).to(device)
+                # For this architecture, the node index itself is sufficient for node_embedding()
+                node_arrays = [i for i, node_id in enumerate(node_ids)]
 
-            # Get embeddings through the convolutional network
-            embeddings = self.node_embedding(node_arrays_tensor)  # (num_nodes, latent_size)
+                # Stack into a batch tensor: (num_nodes)
+                node_arrays_tensor = torch.tensor(node_arrays, dtype=torch.long).to(device)
+
+                # Get embeddings through the convolutional network
+                embeddings = self.node_embedding(node_arrays_tensor)  # (num_nodes, latent_size)
 
             # Convert to numpy
             embeddings_np = embeddings.cpu().numpy()
 
-        # Project embeddings to 3D using PCA
-        pca = PCA(n_components=3)
-        embeddings_3d = pca.fit_transform(embeddings_np)
-        return embeddings_3d
+        # Project embeddings to 3D using UMAP
+
+        return embeddings_np

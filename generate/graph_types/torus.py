@@ -26,7 +26,9 @@ def generate(dimensions):
     for idx, coords in enumerate(node_indices):
         # Normalize coordinates to [0, 1] range for each dimension
         normalized_pos = tuple(c / (d - 1) if d > 1 else 0 for c, d in zip(coords, dimensions))
-        G.add_node(idx, pos=normalized_pos, coords=coords)
+        node_array = np.zeros(dimensions, dtype=np.float32)
+        node_array[coords] = 1.0
+        G.add_node(idx, pos=normalized_pos, coords=coords, array=node_array)
 
     # Create a mapping from coordinates to node index
     coord_to_idx = {coords: idx for idx, coords in enumerate(node_indices)}

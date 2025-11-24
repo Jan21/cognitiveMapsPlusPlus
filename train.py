@@ -46,7 +46,8 @@ def main(cfg: DictConfig) -> None:
         dataset_type=cfg.model.dataset_type,
         percentage_of_train_samples=cfg.data.get('percentage_of_train_samples', 1.0),
         num_val_samples=cfg.data.get('num_val_samples', None),
-        graph=graph
+        graph=graph,
+        use_array=cfg.model.get('use_array', False),
     )
 
     # Select Lightning module based on configuration

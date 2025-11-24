@@ -7,7 +7,8 @@ softplus_beta: 0.01
 softplus_offset: 20
 mult: 0.1
 dataset_type: "quasimetric_embeddings"  # Options: "path" (PathDataset with collate_fn) or "spread" (SpreadPathDataset without collate_fn) or "quasimetric_embeddings" (QuasimetricEmbeddingsDataset without collate_fn)
-
+use_array: true
+array_size: 30
 # Configurable metrics
 enabled_metrics: []
 
