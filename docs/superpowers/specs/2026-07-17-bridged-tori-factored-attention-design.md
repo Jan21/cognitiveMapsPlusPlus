@@ -80,3 +80,26 @@ Otherwise: pivot the head (try B2 gated / B1 hub-routing, or enable the metric k
 3. Run on `ciirc-old-cluster`.
 4. Productionize into `generate/graph_types/`, a dataset class, and Hydra configs
    **only after** the probe shows signal (separate plan).
+
+## Outcome (2026-07-17, run overnight)
+
+See `probe/RESULTS.md` for the full write-up. Summary:
+
+- **B3 as literally specified (`cross_scalar`, free scalar cross-attention distance)
+  FAILS.** The distance head has no metric prior, so once the pointwise constraints
+  (neighbor=1, random pushed to `offset`) tighten, the repulsion term overfits and
+  the geodesic *grading* collapses: Spearman peaks ~0.56 at step 400 then decays to
+  ~0.13 by step 4000. Detour never appears. This is the risk flagged when B3 was
+  chosen.
+- **Fix — metric-prior attention readout (`self_norm`): PASS.** Keep the factored
+  latent and attention, but read distance as `||e_u - e_v||_p` where `e` is an
+  attention-produced (self-attention over the 2 factor tokens) state embedding. The
+  norm supplies triangle inequality + identity, which the free scalar lacked.
+  Result (seed 0): Spearman(D, geodesic) = 0.86 vs baseline 0.68; **detour signature
+  Spearman = 0.90** (the route-through-bridge structure emerges from local-only
+  supervision, confirming the A1 claim). Trajectory is stable, no collapse.
+- `cross_reg` (B3 + triangle/identity soft regularizers) is the intermediate test of
+  whether the *pure* scalar head can be salvaged with the reserved metric knobs.
+
+Design decision recorded: the attention head must carry a metric prior. `self_norm`
+is the recommended head to productionize.
