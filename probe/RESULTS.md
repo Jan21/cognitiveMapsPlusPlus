@@ -76,7 +76,16 @@ local supervision alone.
 
 ## Robustness (multi-seed, self_norm)
 
-_(filled after the multi-seed run completes)_
+All runs PASS; `self_norm` Spearman stays in 0.86–0.91, detour 0.81–0.99. The plain
+L-p baseline is itself seed-sensitive (geodesic Spearman 0.41–0.68) but always far
+below `self_norm` and always ~0 on the detour.
+
+| seed | hardware | Spearman(D, geodesic) | detour | verdict |
+|-----:|----------|----------------------:|-------:|:-------:|
+| 0 | local CPU    | 0.860 | 0.898 | PASS |
+| 0 | cluster GPU  | 0.863 | 0.917 | PASS |
+| 1 | local CPU    | 0.909 | 0.986 | PASS |
+| 2 | local CPU    | 0.865 | 0.807 | PASS |
 
 ## Cluster confirmation (ciirc-old-cluster, GPU)
 
