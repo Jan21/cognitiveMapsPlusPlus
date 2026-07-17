@@ -1,0 +1,109 @@
+host: dgx-3.ciircluster
+Tesla V100-SXM2-32GB-LS, 32768 MiB
+torch 2.9.0+cu128 cuda True
+========================= cross_scalar =========================
+device=cuda head=cross_scalar steps=4000 batch=512 lr=0.002 seed=0
+nodes=450 edges=901 connected=True
+transitions=2700 max_geodesic=29 max_to_bridge=14
+
+training factored (cross_scalar) ...
+[cross_scalar] step 1/4000 loss 10.062 | dyn 0.231 anc 0.294 rep 9.537 | spearman 0.040 detour 0.045
+[cross_scalar] step 500/4000 loss 4.021 | dyn 0.000 anc 0.068 rep 3.953 | spearman 0.674 detour 0.037
+[cross_scalar] step 1000/4000 loss 3.337 | dyn 0.000 anc 0.059 rep 3.278 | spearman 0.675 detour -0.010
+[cross_scalar] step 1500/4000 loss 3.396 | dyn 0.000 anc 0.108 rep 3.288 | spearman 0.437 detour -0.011
+[cross_scalar] step 2000/4000 loss 2.545 | dyn 0.000 anc 0.038 rep 2.507 | spearman 0.365 detour -0.003
+[cross_scalar] step 2500/4000 loss 3.432 | dyn 0.000 anc 0.070 rep 3.362 | spearman 0.452 detour 0.087
+[cross_scalar] step 3000/4000 loss 2.792 | dyn 0.000 anc 0.029 rep 2.763 | spearman 0.354 detour -0.009
+[cross_scalar] step 3500/4000 loss 2.487 | dyn 0.000 anc 0.026 rep 2.461 | spearman 0.514 detour -0.109
+[cross_scalar] step 4000/4000 loss 1.909 | dyn 0.000 anc 0.022 rep 1.887 | spearman 0.475 detour 0.047
+
+training baseline ...
+[baseline] step 1/4000 loss 53.436 | anc 51.167 rep 2.269 | spearman 0.024
+[baseline] step 500/4000 loss 15.611 | anc 10.634 rep 4.977 | spearman 0.034
+[baseline] step 1000/4000 loss 8.846 | anc 2.770 rep 6.076 | spearman 0.077
+[baseline] step 1500/4000 loss 7.306 | anc 1.063 rep 6.243 | spearman 0.148
+[baseline] step 2000/4000 loss 6.369 | anc 0.688 rep 5.680 | spearman 0.238
+[baseline] step 2500/4000 loss 5.400 | anc 0.637 rep 4.762 | spearman 0.332
+[baseline] step 3000/4000 loss 4.441 | anc 0.754 rep 3.688 | spearman 0.435
+[baseline] step 3500/4000 loss 3.431 | anc 0.855 rep 2.576 | spearman 0.545
+[baseline] step 4000/4000 loss 2.818 | anc 0.909 rep 1.908 | spearman 0.651
+
+================ RESULTS ================
+head=cross_scalar
+Spearman(D, geodesic)     factored=0.448  baseline=0.667  margin=-0.219 (need >= 0.05)
+Detour signature Spearman factored=0.047  baseline=0.208  (factored need >= 0.5)
+crit1 beat-baseline: NO   crit2 detour: NO
+VERDICT: FAIL
+=========================================
+wrote probe/results/cross_scalar.json
+========================= cross_reg =========================
+device=cuda head=cross_reg steps=4000 batch=512 lr=0.002 seed=0
+nodes=450 edges=901 connected=True
+transitions=2700 max_geodesic=29 max_to_bridge=14
+
+training factored (cross_reg) ...
+[cross_reg] step 1/4000 loss 10.309 | dyn 0.231 anc 0.294 rep 9.537 | spearman 0.055 detour 0.049
+[cross_reg] step 500/4000 loss 3.718 | dyn 0.000 anc 0.386 rep 2.811 | spearman 0.678 detour 0.035
+[cross_reg] step 1000/4000 loss 2.944 | dyn 0.000 anc 0.109 rep 2.394 | spearman 0.677 detour 0.095
+[cross_reg] step 1500/4000 loss 2.110 | dyn 0.000 anc 0.035 rep 1.507 | spearman 0.683 detour 0.040
+[cross_reg] step 2000/4000 loss 1.727 | dyn 0.000 anc 0.054 rep 1.199 | spearman 0.677 detour 0.087
+[cross_reg] step 2500/4000 loss 1.881 | dyn 0.000 anc 0.315 rep 1.130 | spearman 0.685 detour 0.102
+[cross_reg] step 3000/4000 loss 1.326 | dyn 0.000 anc 0.055 rep 0.881 | spearman 0.680 detour 0.092
+[cross_reg] step 3500/4000 loss 1.502 | dyn 0.000 anc 0.211 rep 0.852 | spearman 0.678 detour 0.088
+[cross_reg] step 4000/4000 loss 1.890 | dyn 0.000 anc 0.042 rep 1.286 | spearman 0.686 detour 0.155
+
+training baseline ...
+[baseline] step 1/4000 loss 54.469 | anc 52.190 rep 2.279 | spearman 0.024
+[baseline] step 500/4000 loss 15.331 | anc 10.295 rep 5.036 | spearman 0.035
+[baseline] step 1000/4000 loss 9.067 | anc 2.923 rep 6.145 | spearman 0.077
+[baseline] step 1500/4000 loss 7.210 | anc 1.021 rep 6.189 | spearman 0.148
+[baseline] step 2000/4000 loss 6.305 | anc 0.684 rep 5.620 | spearman 0.237
+[baseline] step 2500/4000 loss 5.371 | anc 0.651 rep 4.720 | spearman 0.331
+[baseline] step 3000/4000 loss 4.343 | anc 0.768 rep 3.575 | spearman 0.434
+[baseline] step 3500/4000 loss 3.440 | anc 0.900 rep 2.540 | spearman 0.544
+[baseline] step 4000/4000 loss 2.760 | anc 0.897 rep 1.863 | spearman 0.650
+
+================ RESULTS ================
+head=cross_reg
+Spearman(D, geodesic)     factored=0.684  baseline=0.666  margin=+0.019 (need >= 0.05)
+Detour signature Spearman factored=0.155  baseline=0.197  (factored need >= 0.5)
+crit1 beat-baseline: NO   crit2 detour: NO
+VERDICT: FAIL
+=========================================
+wrote probe/results/cross_reg.json
+========================= self_norm =========================
+device=cuda head=self_norm steps=4000 batch=512 lr=0.002 seed=0
+nodes=450 edges=901 connected=True
+transitions=2700 max_geodesic=29 max_to_bridge=14
+
+training factored (self_norm) ...
+[self_norm] step 1/4000 loss 14.728 | dyn 4.830 anc 3.261 rep 6.637 | spearman 0.611 detour -0.040
+[self_norm] step 500/4000 loss 4.552 | dyn 0.151 anc 0.053 rep 4.348 | spearman 0.740 detour 0.338
+[self_norm] step 1000/4000 loss 2.898 | dyn 0.041 anc 0.441 rep 2.416 | spearman 0.860 detour 0.892
+[self_norm] step 1500/4000 loss 2.786 | dyn 0.028 anc 0.336 rep 2.422 | spearman 0.860 detour 0.908
+[self_norm] step 2000/4000 loss 2.830 | dyn 0.033 anc 0.371 rep 2.426 | spearman 0.860 detour 0.917
+[self_norm] step 2500/4000 loss 2.856 | dyn 0.020 anc 0.395 rep 2.442 | spearman 0.862 detour 0.915
+[self_norm] step 3000/4000 loss 2.784 | dyn 0.018 anc 0.357 rep 2.409 | spearman 0.859 detour 0.916
+[self_norm] step 3500/4000 loss 2.817 | dyn 0.014 anc 0.353 rep 2.450 | spearman 0.860 detour 0.915
+[self_norm] step 4000/4000 loss 2.593 | dyn 0.019 anc 0.408 rep 2.165 | spearman 0.860 detour 0.917
+
+training baseline ...
+[baseline] step 1/4000 loss 55.288 | anc 53.034 rep 2.254 | spearman 0.024
+[baseline] step 500/4000 loss 15.391 | anc 10.340 rep 5.052 | spearman 0.038
+[baseline] step 1000/4000 loss 8.923 | anc 2.792 rep 6.131 | spearman 0.073
+[baseline] step 1500/4000 loss 7.259 | anc 1.018 rep 6.240 | spearman 0.132
+[baseline] step 2000/4000 loss 6.325 | anc 0.679 rep 5.646 | spearman 0.202
+[baseline] step 2500/4000 loss 5.438 | anc 0.664 rep 4.774 | spearman 0.264
+[baseline] step 3000/4000 loss 4.452 | anc 0.759 rep 3.693 | spearman 0.323
+[baseline] step 3500/4000 loss 3.562 | anc 0.924 rep 2.638 | spearman 0.389
+[baseline] step 4000/4000 loss 2.921 | anc 0.944 rep 1.977 | spearman 0.467
+
+================ RESULTS ================
+head=self_norm
+Spearman(D, geodesic)     factored=0.863  baseline=0.465  margin=+0.397 (need >= 0.05)
+Detour signature Spearman factored=0.917  baseline=0.004  (factored need >= 0.5)
+crit1 beat-baseline: ok   crit2 detour: ok
+VERDICT: PASS
+=========================================
+wrote probe/results/self_norm.json
+ALL DONE

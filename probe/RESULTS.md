@@ -28,11 +28,22 @@ Spec: `docs/superpowers/specs/2026-07-17-bridged-tori-factored-attention-design.
 
 ## Result — seed 0, 4000 steps
 
+Local (CPU) and cluster (Volta100 GPU, job 111033) agree:
+
 | head | Spearman(D, geodesic) | baseline | detour signature | verdict |
 |------|----------------------:|---------:|-----------------:|:-------:|
-| `cross_scalar` (B3, free scalar) | 0.13 | 0.66 | -0.01 | **FAIL** |
-| `self_norm` (attention + norm readout) | **0.86** | 0.68 | **0.90** | **PASS** |
-| `cross_reg` (B3 + triangle/identity knobs) | see `probe/results/` | — | — | (cluster) |
+| `cross_scalar` (B3, free scalar) | 0.45 (local 0.13) | 0.67 | 0.05 | **FAIL** |
+| `cross_reg` (B3 + triangle/identity knobs) | 0.68 | 0.67 | 0.16 | **FAIL** |
+| `self_norm` (attention + norm readout) | **0.86** | 0.47–0.68 | **0.92** (local 0.90) | **PASS** |
+
+`cross_scalar` is unstable run-to-run (peak-then-collapse; where it lands depends on
+the stopping step) — that instability is itself the symptom.
+
+**`cross_reg` finding:** adding soft triangle-inequality + identity regularizers to the
+pure scalar head lifts geodesic ranking back to ~baseline (0.68) but **still fails the
+detour signature** (0.16 ≪ 0.5). Soft metric penalties are not enough to force the
+routing-through-bridge structure; only a **hard** metric readout (`self_norm`) recovers
+it. So the pure B3 scalar head is not salvageable for this task.
 
 ## Root cause of the B3 failure (confirmed by instrumentation)
 
@@ -70,9 +81,15 @@ _(filled after the multi-seed run completes)_
 ## Cluster confirmation (ciirc-old-cluster, GPU)
 
 - Synced to `~/cognitiveMapsPlusPlus` on `ciirc-old-cluster` (user `hulajan1`).
-- Job submitted via `probe/run_cluster.sbatch` (partition `gpu`, 1x GPU), runs all
-  three heads at seed 0; JSONs land in `probe/results/`.
-- _(filled after the job completes)_
+- Job submitted via `probe/run_cluster.sbatch`, runs all three heads at seed 0; JSONs
+  in `~/cognitiveMapsPlusPlus/probe/results/`.
+- **Gotcha:** torch 2.9 (cu128) on the cluster dropped Pascal `sm_61`, so a plain
+  `--gres=gpu:1` landed on gpu-1's GTX 1080 Ti and crashed with
+  `no kernel image available` (job 111032, FAILED). Pinning `--gres=gpu:Volta100:1`
+  (sm_70) fixed it (job 111033, COMPLETED). Use A40 or Volta100 on this cluster, not
+  GTX 1080 Ti.
+- Job 111033 results match local: `self_norm` PASS (Spearman 0.863, detour 0.917),
+  `cross_scalar` and `cross_reg` FAIL.
 
 ## Reproduce
 

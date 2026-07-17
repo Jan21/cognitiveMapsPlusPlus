@@ -1,7 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=bridged_tori
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:1
+# torch 2.9 (cu128) dropped Pascal sm_61 -> avoid GTX1080Ti; Volta100 (sm_70) works.
+#SBATCH --gres=gpu:Volta100:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=8G
 #SBATCH --time=00:30:00
