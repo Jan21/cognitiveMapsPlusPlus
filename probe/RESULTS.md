@@ -111,6 +111,45 @@ python probe/bridged_tori_probe.py --head cross_scalar --steps 4000   # FAIL (B3
 sbatch probe/run_cluster.sbatch   # from ~/cognitiveMapsPlusPlus
 ```
 
+## Disentanglement study (image input)
+
+Question: can the factored tokens (`[z_pos | z_id]`, and 3-factor `[pos | id | color]`)
+be made to *specialize* — one token per factor — and can it happen without a hand-crafted
+"trick"? Encoder = 2 (or 3) query vectors cross-attending the rendered image. Metric =
+per-token sensitivity (how much a token changes when ONE factor varies); clean split = each
+token sensitive to exactly one factor.
+
+| method | trick? | geodesic / detour | token split |
+|--------|--------|-------------------|-------------|
+| no-aux (single task)          | none              | 0.84 / 0.79  | none (both → agent) |
+| decorr                        | loss              | 0.08         | degenerate (kills a factor) |
+| actsplit (dynamics-Δ)         | loss              | 0.71 / 0.28  | none (dynamics absorbs it) |
+| **invar (move-invariance)**   | loss (principled) | 0.84 / 0.81  | **CLEAN** |
+| multi-task (2 tasks)          | no-trick          | 0.90 / 0.99  | weak/partial |
+| multi-task (3 tasks)          | no-trick          | 0.90 / 0.96  | collapse (one token dead) |
+| multi-task + token bottleneck | no-trick (arch)   | 0.86 / 0.97  | none (one token dominant) |
+| equivariant dynamics (A)      | no-trick (arch)   | 0.87 / 0.993 | none (subspace only) |
+| 3-factor, no-aux (C)          | none              | 0.867        | none (all → id) |
+| 3-factor, invar (C)           | loss              | 0.869        | PARTIAL (id clean; pos/color mixed) |
+
+Conclusions:
+1. **Token-level disentanglement needs an encoder-OUTPUT constraint.** Any pressure applied
+   downstream (readout heads, dynamics net) is satisfiable without splitting the tokens,
+   because the model reads them jointly — multi-task collapses to one token, actsplit is
+   absorbed by the dynamics MLP, equivariant dynamics factor only at the subspace level.
+2. **The constraint must resist degeneracy.** `invar` = penalize `min_token(move-change /
+   overall-spread)`. The spread-normalization is what blocks the "kill a factor" cheat that
+   made plain `decorr` collapse.
+3. `invar` is **clean for 2 factors, partial for 3** (identity extracts cleanly; position and
+   color stay mixed). The "min per action-group" generalization is necessary but not
+   sufficient — refining it (pairwise-disjoint or per-factor invariance) is future work.
+4. **No-trick methods give the best geometry but not the split**: multi-task and equivariant
+   dynamics reach ~0.90 / 0.99, better than the plain model (0.84 / 0.79). Task diversity and
+   a constrained world-model help the *metric*, not the token factorization.
+
+Artifacts: `probe/bridged_tori_{image,multitask,equivariant,3factor}_probe.py`,
+`probe/results/*.json`, attention maps `factored_vis/image_attention_maps_*.png`.
+
 ## Next steps (only now that the probe shows signal)
 
 1. Productionize `self_norm`: add `bridged_tori` under `generate/graph_types/`, a
