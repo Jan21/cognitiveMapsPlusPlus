@@ -200,8 +200,22 @@ def actsplit_loss(model, tok_a, pred, move_mask, device):
     return (cm * cs).sum()                                   # 0 iff moves/switch hit different tokens
 
 
+def invar_loss(tok_a, tok_b, tok_r, move_mask):
+    """Mechanism 2: force ONE (unnamed) factor to be move-invariant, RELATIVE to its
+    own spread. change_under_move / overall_spread, per token; take the min over tokens.
+    A constant token has small spread too -> ratio ~1 (not minimized); only a token that
+    varies across states yet is invariant under moves (= identity) gets a low ratio."""
+    if move_mask.any():
+        dm = (tok_a[move_mask] - tok_b[move_mask]).norm(dim=2).mean(0)   # (2,) move-change
+    else:
+        dm = torch.zeros(2, device=tok_a.device)
+    ds = (tok_a - tok_r).norm(dim=2).mean(0) + 1e-4                      # (2,) overall spread
+    return (dm / ds).min()                                              # one token -> move-invariant
+
+
 def train_image_factored(model, trans, geo, tg_bridge, steps, batch, lr, device,
-                         aux_mode="none", aux_weight=1.0, rep_offset=10.0, eval_every=500):
+                         aux_mode="none", aux_weight=1.0, aux_warmup=1000,
+                         rep_offset=10.0, eval_every=500):
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     A, ACT, B = trans[:, 0].to(device), trans[:, 1].to(device), trans[:, 2].to(device)
     is_move = (A != B)
@@ -228,9 +242,12 @@ def train_image_factored(model, trans, geo, tg_bridge, steps, batch, lr, device,
             aux = decorr_loss(tok_a)
         elif aux_mode == "actsplit":
             aux = actsplit_loss(model, tok_a, pred, mv, device)
+        elif aux_mode == "invar":
+            aux = invar_loss(tok_a, tok_b, model.state_tokens(rp, rt), mv)
         else:
             aux = torch.zeros((), device=device)
-        loss = loss + aux_weight * aux
+        w = aux_weight * min(1.0, (s + 1) / max(1, aux_warmup))     # warmup: metric forms first
+        loss = loss + w * aux
 
         opt.zero_grad(); loss.backward(); opt.step()
         if (s + 1) % eval_every == 0 or s == 0:
@@ -248,8 +265,9 @@ def main():
     ap.add_argument("--lr", type=float, default=2e-3)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--eval_every", type=int, default=500)
-    ap.add_argument("--aux", default="none", choices=["none", "decorr", "actsplit"])
+    ap.add_argument("--aux", default="none", choices=["none", "decorr", "actsplit", "invar"])
     ap.add_argument("--aux_weight", type=float, default=None)
+    ap.add_argument("--aux_warmup", type=int, default=1000)
     ap.add_argument("--tag", default=None, help="suffix for output files")
     ap.add_argument("--json_out", default=None)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
@@ -259,7 +277,7 @@ def main():
     device = torch.device(args.device)
     os.makedirs(OUT, exist_ok=True)
     tag = args.tag or args.aux
-    aux_weight = args.aux_weight if args.aux_weight is not None else {"none": 0.0, "decorr": 1.0, "actsplit": 5.0}[args.aux]
+    aux_weight = args.aux_weight if args.aux_weight is not None else {"none": 0.0, "decorr": 1.0, "actsplit": 5.0, "invar": 3.0}[args.aux]
     print(f"device={device} IMAGE markers={MARKERS} steps={args.steps} seed={args.seed} "
           f"aux={args.aux} aux_weight={aux_weight}")
 
@@ -271,7 +289,8 @@ def main():
     print(f"\ntraining image factored-attention (aux={args.aux}) ...")
     model_f = ImageFactoredAttentionModel().to(device)
     train_image_factored(model_f, trans, geo, tg_bridge, args.steps, args.batch, args.lr, device,
-                         aux_mode=args.aux, aux_weight=aux_weight, eval_every=args.eval_every)
+                         aux_mode=args.aux, aux_weight=aux_weight, aux_warmup=args.aux_warmup,
+                         eval_every=args.eval_every)
 
     print("\ntraining image MLP baseline ...")
     model_b = ImageMLPBaseline().to(device)
