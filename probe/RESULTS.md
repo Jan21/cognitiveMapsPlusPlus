@@ -131,6 +131,20 @@ token sensitive to exactly one factor.
 | equivariant dynamics (A)      | no-trick (arch)   | 0.87 / 0.993 | none (subspace only) |
 | 3-factor, no-aux (C)          | none              | 0.867        | none (all → id) |
 | 3-factor, invar (C)           | loss              | 0.869        | PARTIAL (id clean; pos/color mixed) |
+| sparse code (L1), 3-factor    | none (arch)       | 0.90         | color CLEAN (own neurons); pos+id coupled/shared |
+| FACTS-lite (recurrent slots)  | none (temporal)   | n/a (world-model) | none (both slots → position; identity under-encoded) |
+
+**Neuron-level (sparse code) vs token-level.** Measuring per-*neuron* (not per-token) selectivity,
+the code is already ~85% factor-pure, and L1 sharpens it. Crucially, **independent factors get
+clean dedicated neuron groups for free** (color → its own units), but **coupled factors don't**:
+position and identity share neurons because the task couples them (crossing = detour via node 150),
+so the metric mixes them.
+
+**Temporal factoring (FACTS-lite) insight.** Carrying recurrent slot-attention slots over
+trajectories with next-observation prediction (no disentangle loss) did NOT slot identity — both
+slots tracked position and identity was under-encoded. Lesson: a factor earns a slot only if it is
+BOTH stable AND predictively relevant. Identity here is stable but nearly prediction-irrelevant
+(static markers, rare crossing), so prediction ignores it rather than dedicating a slot.
 
 Conclusions:
 1. **Token-level disentanglement needs an encoder-OUTPUT constraint.** Any pressure applied
@@ -146,6 +160,15 @@ Conclusions:
 4. **No-trick methods give the best geometry but not the split**: multi-task and equivariant
    dynamics reach ~0.90 / 0.99, better than the plain model (0.84 / 0.79). Task diversity and
    a constrained world-model help the *metric*, not the token factorization.
+5. **Coupled vs independent factors is the key distinction.** *Independent* factors (color) get
+   clean dedicated neuron groups for free from sparsity / architecture. *Coupled* factors
+   (position + identity, coupled by the bridge detour) resist every emergent method we tried
+   (multi-task, bottleneck, equivariant dynamics, sparse coding, temporal/FACTS-lite) — only the
+   explicit encoder-level `invar` splits them cleanly, and even it is only partial at 3 factors.
+
+**Practical recipe:** `invar` (spread-normalized move-invariance) for the coupled position/identity
+pair + sparsity for any independent extra factors. Best geometry (if disentanglement isn't required):
+equivariant dynamics or multi-task (~0.90 / 0.99).
 
 Artifacts: `probe/bridged_tori_{image,multitask,equivariant,3factor}_probe.py`,
 `probe/results/*.json`, attention maps `factored_vis/image_attention_maps_*.png`.
