@@ -17,6 +17,7 @@ and the three factors occupying disjoint unit sets.
 
 import argparse
 import json
+import os
 import numpy as np
 import networkx as nx
 import torch
@@ -28,6 +29,7 @@ from bridged_tori_3factor_probe import (
     SIDE, N_POS, N_STATES, N_ACTIONS, ID_MARKERS, COLOR_MARKERS,
     gid3, build_graph, build_transitions, all_pairs_geodesic,
 )
+from bridged_tori_image_probe import OUT
 
 
 def render(ids, device):
@@ -71,37 +73,49 @@ class SparseModel(nn.Module):
         return F.relu(za + self.dyn(torch.cat([za, self.act_emb(action)], dim=-1)))
 
 
-def eta2(Z, labels, K):
-    """fraction of each unit's variance explained by grouping by `labels` (K groups)."""
-    N, D = Z.shape
-    total = Z.var(0) + 1e-9
-    grand = Z.mean(0)
-    bg = np.zeros(D)
-    for k in range(K):
-        m = labels == k
-        if m.sum() > 0:
-            bg += m.sum() * (Z[m].mean(0) - grand) ** 2
-    return (bg / N) / total
+FACTOR_NAMES = ["position", "id", "color"]
 
 
 @torch.no_grad()
-def selectivity(model, device):
+def analyze(model, device, save_png=None):
+    """Per-neuron modulation depth for each factor (comparable scale: range of
+    group-means / unit std). Assign each active neuron to its dominant factor ->
+    the position/id/color neuron GROUPS. Also flag mixed neurons (low purity)."""
     ids = torch.arange(N_STATES, device=device)
     Z = model.encode(ids).cpu().numpy()                       # (900,D)
     color = np.arange(N_STATES) // (N_POS * 2)
     rem = np.arange(N_STATES) % (N_POS * 2)
     idx = rem // N_POS; pos = rem % N_POS
-    active = (Z > 1e-3)
-    mean_L0 = active.sum(1).mean()                            # avg active units / state
-    e_pos = eta2(Z, pos, N_POS)
-    e_id = eta2(Z, idx, 2)
-    e_col = eta2(Z, color, 2)
-    E = np.stack([e_pos, e_id, e_col], axis=1)                # (D,3)
-    unit_active = active.mean(0) > 0.02                       # units that fire for some states
-    dom = E.argmax(1)                                         # 0=pos,1=id,2=color
-    purity = E.max(1) / (E.sum(1) + 1e-9)                     # how factor-pure each unit is
-    return dict(mean_L0=float(mean_L0), n_active=int(unit_active.sum()),
-                dom=dom, purity=purity, unit_active=unit_active, E=E)
+    std = Z.std(0) + 1e-6
+    m_id = np.abs(Z[idx == 0].mean(0) - Z[idx == 1].mean(0)) / std
+    m_col = np.abs(Z[color == 0].mean(0) - Z[color == 1].mean(0)) / std
+    onehot = np.zeros((N_STATES, N_POS)); onehot[np.arange(N_STATES), pos] = 1
+    posmeans = (onehot.T @ Z) / onehot.sum(0)[:, None]        # (225,D)
+    m_pos = (posmeans.max(0) - posmeans.min(0)) / std
+    S = np.stack([m_pos, m_id, m_col], axis=1)                # (D,3) modulation depth
+    activity = (Z > 1e-3).mean(0)
+    active = activity > 0.02
+    mean_L0 = float((Z > 1e-3).sum(1).mean())
+    dom = S.argmax(1)
+    purity = S.max(1) / (S.sum(1) + 1e-9)
+    groups = {nm: [int(u) for u in np.where(active & (dom == i))[0]] for i, nm in enumerate(FACTOR_NAMES)}
+    mixed = int((active & (purity < 0.6)).sum())
+
+    if save_png is not None:
+        import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
+        au = np.where(active)[0]
+        order = au[np.argsort(dom[au] * 1e6 - S[au].max(1))]  # group by factor, strongest first
+        Sa = S[order]
+        fig, ax = plt.subplots(figsize=(3.2, max(3, len(order) * 0.28)))
+        im = ax.imshow(Sa, aspect="auto", cmap="magma")
+        ax.set_xticks([0, 1, 2]); ax.set_xticklabels(FACTOR_NAMES, rotation=30)
+        ax.set_yticks(range(len(order))); ax.set_yticklabels([f"n{u}" for u in order], fontsize=7)
+        ax.set_title("neuron factor-selectivity\n(modulation depth)", fontsize=9)
+        plt.colorbar(im, fraction=0.06)
+        fig.tight_layout(); fig.savefig(save_png, dpi=150, bbox_inches="tight"); plt.close(fig)
+
+    return dict(mean_L0=mean_L0, n_active=int(active.sum()), groups=groups,
+                mean_purity=float(purity[active].mean()) if active.any() else 0.0, mixed=mixed)
 
 
 def train(model, trans, geo, steps, batch, lr, device, l1=0.0, rep_offset=10.0, eval_every=1500):
@@ -167,25 +181,25 @@ def main():
         d = model.distance(model.encode(torch.tensor(a, device=device)),
                            model.encode(torch.tensor(b, device=device))).cpu().numpy()
     sp = spearmanr(d, geo[a, b]).statistic
-    st = selectivity(model, device)
-
-    names = ["position", "id", "color"]
-    ua = st['unit_active']
-    counts = {nm: int(((st['dom'] == i) & ua).sum()) for i, nm in enumerate(names)}
-    mean_purity = float(st['purity'][ua].mean()) if ua.any() else 0.0
+    png = os.path.join(OUT, f"sparse_neuron_groups_l1{args.l1}.png")
+    st = analyze(model, device, save_png=png)
+    g = st['groups']
 
     print("\n================ SPARSE RESULTS ================")
     print(f"Spearman(D, 900-state geodesic) = {sp:.3f}")
     print(f"avg active units / state (L0) = {st['mean_L0']:.1f} of {args.D}")
-    print(f"active units = {st['n_active']}")
-    print(f"active units by dominant factor = {counts}")
-    print(f"mean factor-purity of active units = {mean_purity:.3f}  (1.0 = each unit codes one factor)")
+    print(f"active units = {st['n_active']}   (mixed/low-purity = {st['mixed']})")
+    print(f"mean factor-purity of active units = {st['mean_purity']:.3f}")
+    for nm in FACTOR_NAMES:
+        print(f"  {nm:9s} neurons ({len(g[nm])}): {g[nm]}")
+    print(f"wrote {os.path.relpath(png)}")
     print("================================================")
 
     if args.json_out:
         with open(args.json_out, "w") as f:
             json.dump(dict(sp=float(sp), mean_L0=st['mean_L0'], n_active=st['n_active'],
-                           counts=counts, mean_purity=mean_purity), f, indent=2)
+                           mixed=st['mixed'], mean_purity=st['mean_purity'],
+                           group_sizes={k: len(v) for k, v in g.items()}), f, indent=2)
         print("wrote", args.json_out)
 
 
