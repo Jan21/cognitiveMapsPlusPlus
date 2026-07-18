@@ -1,3 +1,35 @@
+# Stratified-Space Probe (varying local dimension) — Results
+
+`probe/stratified_knobs_probe.py`. Question: does an adjacency-trained embedding organize
+into **strata of different ambient dimension**, matching each state's degrees of freedom?
+
+Env (tractable stand-in for the 20x20 / 4-agent idea): 2 agents on a 5x5 torus, each with a
+knob ∈ {all=2D, horiz=1D, vert=1D, none=0D} restricting its moves. State = (posA, posB, kA,
+kB), 10000 states, true local DOF = DOF(kA)+DOF(kB) ∈ {0..4}. Trained on adjacency ONLY
+(contrastive: neighbors ~1, random pushed apart; knob-changes always available to keep it
+connected; no actions). Measured per-state **participation-ratio dimension** of the
+move-neighbors' embeddings vs true DOF.
+
+| variant | corr(local dim, DOF) | mean local dim @ DOF 0/1/2/3/4 |
+|---------|---------------------:|--------------------------------|
+| plain (free table)     | 0.80 | 0 / 1.7 / 2.6 / 3.3 / 3.7 |
+| factored (per-agent/knob tokens) | **0.956** | 0 / 1.7 / 3.2 / 4.7 / 6.1 |
+| image (pixel grid + attention)   | **0.956** | 0 / 1.8 / 3.5 / 5.2 / 7.0 |
+
+**Confirmed — the space stratifies.** Local (ambient) dimension rises monotonically with DOF;
+DOF-0 states (frozen agents) collapse to exactly dimension 0. Absolute values overshoot the
+*intrinsic* DOF (DOF 4 → ~7) because participation ratio measures the *ambient* span, and a
+curved torus makes the ±move directions fan apart (ambient ≈ ~1.75× intrinsic) — which is
+precisely the "different states have different ambient dimension" phenomenon asked about.
+**Structured encoders (factored/image) stratify cleanly** — their UMAP fragments into many
+island-strata (corr 0.956); the **free embedding table stays one blob** (corr 0.80, weak).
+Figures: `factored_vis/stratified_{plain,factored,image}.png`.
+
+Next: gate knob-changes on knob-adjacency (true deadlock strata), scale toward more agents,
+and calibrate a dimension estimator to recover intrinsic (not ambient) DOF.
+
+---
+
 # Bridged-Tori Factored-Attention Probe — Results
 
 Date: 2026-07-17 (overnight autonomous run)
