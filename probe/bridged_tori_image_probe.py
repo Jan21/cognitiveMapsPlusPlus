@@ -30,9 +30,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from bridged_tori_probe import (
-    SIDE, N_POS, N_STATES, BRIDGE_POS, gid,
+    SIDE, N_POS, N_STATES, BRIDGE_POS, NEXT, PREV, gid,
     build_graph, build_transitions, all_pairs_geodesic, torus_geo_to_bridge,
-    FactoredAttentionModel, train_factored, train_baseline, final_eval,
+    FactoredAttentionModel, train_baseline, final_eval,
+    spearman_geo, detour_signature, _sample_pairs,
 )
 
 MARKERS = (0, N_POS - 1)   # two fixed identity-marker pixels (corners: (0,0) and (14,14))
@@ -168,6 +169,78 @@ def save_attention_maps(model, device, path):
     print("wrote", os.path.relpath(path))
 
 
+# ---------- emergent disentanglement auxiliaries ----------
+def decorr_loss(tok):
+    """Mechanism 3: statistical independence. Penalize cross-correlation between the
+    two factor tokens across the batch (Barlow-Twins style). tok: (B,2,d)."""
+    z0, z1 = tok[:, 0], tok[:, 1]
+    z0 = (z0 - z0.mean(0)) / (z0.std(0) + 1e-4)
+    z1 = (z1 - z1.mean(0)) / (z1.std(0) + 1e-4)
+    C = (z0.t() @ z1) / z0.shape[0]                  # (d,d) cross-correlation
+    return C.pow(2).sum() / z0.shape[1]
+
+
+def actsplit_loss(model, tok_a, pred, move_mask, device):
+    """Mechanism 1: disjoint action-effect subspaces at the token level. Moves and
+    switch (next/prev) actions should change DIFFERENT factor tokens. Penalize overlap
+    of their per-token change magnitudes. Which token becomes which is left to emerge."""
+    d_move = (pred - tok_a)[move_mask]                       # (Nmv,2,d)
+    if d_move.shape[0] == 0:
+        return torch.zeros((), device=device)
+    c_move = d_move.norm(dim=2).mean(0)                      # (2,) change per token under moves
+    # switch effect from the 2 real bridge crossings (rare in a batch -> compute directly)
+    bA = torch.tensor([gid(BRIDGE_POS, 0), gid(BRIDGE_POS, 1)], device=device)
+    bACT = torch.tensor([NEXT, PREV], device=device)
+    bp, bt = model.pos_torus(bA)
+    tok_b0 = model.state_tokens(bp, bt)
+    d_sw = (model.dynamics(tok_b0, bACT) - tok_b0)           # (2,2,d)
+    c_sw = d_sw.norm(dim=2).mean(0)                          # (2,) change per token under switch
+    cm = c_move / (c_move.sum() + 1e-6)
+    cs = c_sw / (c_sw.sum() + 1e-6)
+    return (cm * cs).sum()                                   # 0 iff moves/switch hit different tokens
+
+
+def train_image_factored(model, trans, geo, tg_bridge, steps, batch, lr, device,
+                         aux_mode="none", aux_weight=1.0, rep_offset=10.0, eval_every=500):
+    opt = torch.optim.Adam(model.parameters(), lr=lr)
+    A, ACT, B = trans[:, 0].to(device), trans[:, 1].to(device), trans[:, 2].to(device)
+    is_move = (A != B)
+    n = trans.shape[0]
+    ea, eb = _sample_pairs(3000, seed=123)
+    model.train()
+    for s in range(steps):
+        idx = torch.randint(0, n, (batch,), device=device)
+        a_id, act, b_id = A[idx], ACT[idx], B[idx]
+        ap, at = model.pos_torus(a_id); bp, bt = model.pos_torus(b_id)
+        tok_a = model.state_tokens(ap, at)
+        tok_b = model.state_tokens(bp, bt)
+        pred = model.dynamics(tok_a, act)
+        loss_dyn = model.distance(pred, tok_b).square().mean()
+        mv = is_move[idx]
+        loss_anchor = ((model.distance(tok_a[mv], tok_b[mv]) - 1.0).square().mean()
+                       if mv.any() else torch.zeros((), device=device))
+        r_id = torch.randint(0, N_STATES, (batch,), device=device)
+        rp, rt = model.pos_torus(r_id)
+        loss_rep = F.softplus(rep_offset - model.distance(tok_a, model.state_tokens(rp, rt))).mean()
+        loss = loss_dyn + loss_anchor + loss_rep
+
+        if aux_mode == "decorr":
+            aux = decorr_loss(tok_a)
+        elif aux_mode == "actsplit":
+            aux = actsplit_loss(model, tok_a, pred, mv, device)
+        else:
+            aux = torch.zeros((), device=device)
+        loss = loss + aux_weight * aux
+
+        opt.zero_grad(); loss.backward(); opt.step()
+        if (s + 1) % eval_every == 0 or s == 0:
+            sp = spearman_geo(model, geo, ea, eb, device)
+            det, _ = detour_signature(model, tg_bridge, device)
+            print(f"[{aux_mode}] step {s+1}/{steps} loss {loss.item():.3f} aux {float(aux):.4f} "
+                  f"| spearman {sp:.3f} detour {det:.3f}")
+    return model
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--steps", type=int, default=4000)
@@ -175,6 +248,9 @@ def main():
     ap.add_argument("--lr", type=float, default=2e-3)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--eval_every", type=int, default=500)
+    ap.add_argument("--aux", default="none", choices=["none", "decorr", "actsplit"])
+    ap.add_argument("--aux_weight", type=float, default=None)
+    ap.add_argument("--tag", default=None, help="suffix for output files")
     ap.add_argument("--json_out", default=None)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = ap.parse_args()
@@ -182,17 +258,20 @@ def main():
     torch.manual_seed(args.seed); np.random.seed(args.seed)
     device = torch.device(args.device)
     os.makedirs(OUT, exist_ok=True)
-    print(f"device={device} IMAGE input, markers={MARKERS} steps={args.steps} seed={args.seed}")
+    tag = args.tag or args.aux
+    aux_weight = args.aux_weight if args.aux_weight is not None else {"none": 0.0, "decorr": 1.0, "actsplit": 5.0}[args.aux]
+    print(f"device={device} IMAGE markers={MARKERS} steps={args.steps} seed={args.seed} "
+          f"aux={args.aux} aux_weight={aux_weight}")
 
     G = build_graph()
     trans = build_transitions()
     geo = all_pairs_geodesic(G)
     tg_bridge = torus_geo_to_bridge(G)
 
-    print("\ntraining image factored-attention (self_norm head) ...")
+    print(f"\ntraining image factored-attention (aux={args.aux}) ...")
     model_f = ImageFactoredAttentionModel().to(device)
-    train_factored(model_f, trans, geo, tg_bridge, args.steps, args.batch, args.lr, device,
-                   eval_every=args.eval_every)
+    train_image_factored(model_f, trans, geo, tg_bridge, args.steps, args.batch, args.lr, device,
+                         aux_mode=args.aux, aux_weight=aux_weight, eval_every=args.eval_every)
 
     print("\ntraining image MLP baseline ...")
     model_b = ImageMLPBaseline().to(device)
@@ -207,7 +286,7 @@ def main():
     print(f"marker-pixel attention mass: {st['marker_mass'].round(3)}")
     print(f"argmax-on-agent  accuracy  : {st['pos_argmax_acc'].round(3)}")
     print(f"argmax-on-marker accuracy  : {st['marker_argmax_acc'].round(3)}")
-    save_attention_maps(model_f, device, os.path.join(OUT, "image_attention_maps.png"))
+    save_attention_maps(model_f, device, os.path.join(OUT, f"image_attention_maps_{tag}.png"))
 
     if args.json_out:
         res.update({k: v.tolist() for k, v in st.items()})
