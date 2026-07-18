@@ -48,11 +48,20 @@ def torus_geo_matrix():
 
 
 class MultiTaskModel(ImageFactoredAttentionModel):
-    def __init__(self, **kw):
+    def __init__(self, token_bottleneck=0, **kw):
         super().__init__(**kw)
         d = self.d_model
         self.pos_head = nn.Sequential(nn.Linear(2 * d, 128), nn.GELU(), nn.Linear(128, 16))
         self.id_head = nn.Sequential(nn.Linear(2 * d, 128), nn.GELU(), nn.Linear(128, 16))
+        # architectural capacity bottleneck per token (no loss): each token squeezed to
+        # token_bottleneck dims, so no single token can hold everything -> both get used.
+        self.bottleneck = (nn.Sequential(nn.Linear(d, token_bottleneck), nn.GELU(),
+                                         nn.Linear(token_bottleneck, d))
+                           if token_bottleneck > 0 else None)
+
+    def state_tokens(self, pos, torus):
+        tok = super().state_tokens(pos, torus)          # (B,2,d)
+        return self.bottleneck(tok) if self.bottleneck is not None else tok
 
     def dist_pos(self, tok_u, tok_v):
         return torch.norm(self.pos_head(tok_u.flatten(1)) - self.pos_head(tok_v.flatten(1)), p=1.5, dim=-1)
@@ -171,6 +180,7 @@ def main():
     ap.add_argument("--lr", type=float, default=2e-3)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--eval_every", type=int, default=500)
+    ap.add_argument("--token_bottleneck", type=int, default=0, help="per-token capacity (0=off)")
     ap.add_argument("--json_out", default=None)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = ap.parse_args()
@@ -178,7 +188,8 @@ def main():
     torch.manual_seed(args.seed); np.random.seed(args.seed)
     device = torch.device(args.device)
     os.makedirs(OUT, exist_ok=True)
-    print(f"device={device} MULTITASK (full + position-only), no disentangle loss, seed={args.seed}")
+    print(f"device={device} MULTITASK 3-task, no disentangle loss, "
+          f"token_bottleneck={args.token_bottleneck}, seed={args.seed}")
 
     G = build_graph()
     trans = build_transitions()
@@ -186,7 +197,7 @@ def main():
     tgeo = torus_geo_matrix()
     tg_bridge = torus_geo_to_bridge(G)
 
-    model = MultiTaskModel().to(device)
+    model = MultiTaskModel(token_bottleneck=args.token_bottleneck).to(device)
     train_multitask(model, trans, geo, tgeo, tg_bridge, args.steps, args.batch, args.lr, device,
                     eval_every=args.eval_every)
 
