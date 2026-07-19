@@ -203,6 +203,46 @@ def participation_dim(diffs):
     return float((s1 ** 2) / (ev ** 2).sum())
 
 
+def vgt_dim(E, qi, sub=None, num_radii=40, window=5):
+    """Volume Growth Transform (Curry et al., robust variant), ported from
+    quasimetric_tests/stratified/VGT.py. Local intrinsic dim = median of sliding-window
+    slopes of log(count-in-ball) vs log(radius). count(r) ~ r^d over the stable regime.
+    `sub` restricts the point cloud (e.g. to one stratum)."""
+    pts = E if sub is None else E[sub]
+    d = np.linalg.norm(pts - E[qi], axis=1)
+    d = d[d > 1e-9]
+    if d.size < 20:
+        return np.nan
+    sd = np.sort(d)
+    rmin, rmax = sd[0], sd[int(len(sd) * 0.5)]        # cap at median distance (avoid far tail)
+    if not (rmax > rmin):
+        return np.nan
+    radii = np.logspace(np.log10(rmin), np.log10(rmax), num_radii)
+    counts = np.searchsorted(sd, radii, side="left").astype(float)
+    valid = counts > 10
+    if valid.sum() < window + 1:
+        return np.nan
+    lr, lc = np.log(radii[valid]), np.log(counts[valid])
+    slopes = [np.polyfit(lr[i:i + window], lc[i:i + window], 1)[0] for i in range(len(lr) - window)]
+    return float(np.median(slopes)) if slopes else np.nan
+
+
+@torch.no_grad()
+def measure_all_dims(model, device, ids, move_nbrs, stratum):
+    """participation-ratio (ambient) + VGT full-cloud + VGT within-stratum, per state."""
+    E = embed_all(model, device).cpu().numpy()
+    pr = np.array([participation_dim(E[move_nbrs[s]] - E[s]) if len(move_nbrs[s]) else 0.0 for s in ids])
+    strata_idx = {}
+    vgt_full = np.zeros(len(ids)); vgt_strat = np.zeros(len(ids))
+    for i, s in enumerate(ids):
+        vgt_full[i] = vgt_dim(E, s)
+        st = stratum[s]
+        if st not in strata_idx:
+            strata_idx[st] = np.where(stratum == st)[0]
+        vgt_strat[i] = vgt_dim(E, s, sub=strata_idx[st])
+    return E, pr, vgt_full, vgt_strat
+
+
 @torch.no_grad()
 def local_dims(model, device, ids, move_nbrs):
     """per-state participation-ratio dimension from MOVE-neighbors' embeddings."""
@@ -273,23 +313,38 @@ def main():
     train(model, edges, args.steps, args.batch, args.lr, device,
           eval_every=args.eval_every, dof=dof, move_nbrs=move_nbrs)
 
-    # full stratification eval on a large sample
+    # stratum id per state (knob-config) for within-stratum VGT
+    pa, pb, ka, kb = decode(np.arange(NSTATES))
+    stratum = (ka * NKNOB + kb).astype(np.int64)
+
     rng = np.random.default_rng(7)
-    ids = rng.integers(0, NSTATES, 4000)
-    ld, E = local_dims(model, device, ids, move_nbrs)
-    corr = spearmanr(ld, dof[ids]).statistic
-    # mean measured local dim per true DOF level
-    per = {int(d): float(ld[dof[ids] == d].mean()) for d in sorted(set(dof[ids].astype(int)))}
+    ids = rng.integers(0, NSTATES, 2500)
+    E, pr, vgt_full, vgt_strat = measure_all_dims(model, device, ids, move_nbrs, stratum)
+    tdof = dof[ids]
+
+    def ladder(x):
+        m = ~np.isnan(x)
+        return {int(d): round(float(x[m & (tdof == d)].mean()), 2) for d in sorted(set(tdof.astype(int)))
+                if (m & (tdof == d)).any()}
+
+    def corr(x):
+        m = ~np.isnan(x)
+        return float(spearmanr(x[m], tdof[m]).statistic)
+
     print("\n================ STRATIFICATION RESULTS ================")
-    print(f"variant={args.variant}")
-    print(f"Spearman(local_dim, true DOF) = {corr:.3f}")
-    print(f"mean measured local dim per true DOF: {per}")
+    print(f"variant={args.variant}   (true DOF ladder target = 0/1/2/3/4)")
+    print(f"[PR ambient ]  corr={corr(pr):.3f}   ladder={ladder(pr)}")
+    print(f"[VGT full   ]  corr={corr(vgt_full):.3f}   ladder={ladder(vgt_full)}")
+    print(f"[VGT stratum]  corr={corr(vgt_strat):.3f}   ladder={ladder(vgt_strat)}")
     print("========================================================")
-    visualize(E, dof, ld, ids, args.variant)
+    visualize(E, dof, vgt_strat, ids, args.variant + "_vgt")
 
     if args.json_out:
         with open(args.json_out, "w") as f:
-            json.dump(dict(variant=args.variant, corr=float(corr), per_dof=per), f, indent=2)
+            json.dump(dict(variant=args.variant,
+                           pr=dict(corr=corr(pr), ladder=ladder(pr)),
+                           vgt_full=dict(corr=corr(vgt_full), ladder=ladder(vgt_full)),
+                           vgt_stratum=dict(corr=corr(vgt_strat), ladder=ladder(vgt_strat))), f, indent=2)
         print("wrote", args.json_out)
 
 
