@@ -180,6 +180,37 @@ def measure_vgt(model, device, R, N, per_dof, seed):
     return np.array(rows, float)
 
 
+# ---------- per-point local dimension (participation ratio of move-neighbors) ----------
+def _move_nbr_offsets(k):
+    dirs = []
+    if k in (0, 2): dirs += [(-1, 0), (1, 0)]     # vertical (row) moves
+    if k in (0, 1): dirs += [(0, -1), (0, 1)]     # horizontal (col) moves
+    return dirs
+
+
+@torch.no_grad()
+def per_point_localdim(model, device, POS, KNOB):
+    """for each state, participation-ratio dimension of its move-neighbors' embedding diffs."""
+    out = np.zeros(len(POS))
+    for j in range(len(POS)):
+        pos, knob = POS[j], KNOB[j]
+        nb_pos = [pos]
+        for i in range(NAGENTS):
+            r, c = pos[i] // G, pos[i] % G
+            for dr, dc in _move_nbr_offsets(knob[i]):
+                p2 = pos.copy(); p2[i] = ((r + dr) % G) * G + ((c + dc) % G); nb_pos.append(p2)
+        if len(nb_pos) == 1:
+            out[j] = 0.0; continue
+        nb = np.stack(nb_pos)
+        E = model.embed(torch.tensor(nb, device=device),
+                        torch.tensor(np.tile(knob, (len(nb), 1)), device=device)).cpu().numpy()
+        diffs = E[1:] - E[0]
+        ev = np.clip(np.linalg.eigvalsh(diffs.T @ diffs), 0, None)
+        s1 = ev.sum()
+        out[j] = (s1 ** 2) / (ev ** 2).sum() if s1 > 1e-9 else 0.0
+    return out
+
+
 # ---------- strata visualization ----------
 @torch.no_grad()
 def visualize(model, device, per_config, seed, tag=""):
@@ -200,20 +231,22 @@ def visualize(model, device, per_config, seed, tag=""):
     for i in range(0, len(dof), 4096):
         E.append(model.embed(pos[i:i + 4096], knob[i:i + 4096]).cpu().numpy())
     E = np.concatenate(E)
-    p2 = PCA(2).fit_transform(E)
-    u2 = umap.UMAP(n_neighbors=25, min_dist=0.08, random_state=1).fit_transform(E)
+    ld = per_point_localdim(model, device, np.array(P_), np.array(K_))    # measured local dim per point
+    u2 = umap.UMAP(n_neighbors=25, min_dist=0.1, random_state=1).fit_transform(E)
 
     fig = plt.figure(figsize=(15, 4.6))
     ax = fig.add_subplot(1, 3, 1)
-    s = ax.scatter(p2[:, 0], p2[:, 1], c=dof, cmap="viridis", s=7); ax.set_title("PCA · colored by dimension (DOF 0–4)")
+    s = ax.scatter(u2[:, 0], u2[:, 1], c=dof, cmap="viridis", s=7); ax.set_title("UMAP · TRUE dimension (DOF 0–4)")
     plt.colorbar(s, ax=ax, fraction=.046); ax.set_xticks([]); ax.set_yticks([])
     ax = fig.add_subplot(1, 3, 2)
-    s = ax.scatter(u2[:, 0], u2[:, 1], c=dof, cmap="viridis", s=7); ax.set_title("UMAP · colored by dimension")
-    plt.colorbar(s, ax=ax, fraction=.046); ax.set_xticks([]); ax.set_yticks([])
-    ax = fig.add_subplot(1, 3, 3)
-    ax.scatter(u2[:, 0], u2[:, 1], c=strat, cmap="tab20", s=7); ax.set_title("UMAP · colored by stratum (knob-config)")
+    s = ax.scatter(u2[:, 0], u2[:, 1], c=ld, cmap="plasma", s=7)
+    ax.set_title("UMAP · MEASURED local dimension"); plt.colorbar(s, ax=ax, fraction=.046)
     ax.set_xticks([]); ax.set_yticks([])
-    fig.suptitle("Stratified embedding from IMAGE input — 2 agents · 16 strata · dims 0–4", fontsize=12)
+    ax = fig.add_subplot(1, 3, 3)
+    ax.scatter(dof + np.random.default_rng(0).normal(0, .06, len(dof)), ld, c=dof, cmap="viridis", s=6, alpha=.5)
+    ax.set_title("measured local dim vs true DOF"); ax.set_xlabel("true DOF"); ax.set_ylabel("measured")
+    ax.plot([0, 4], [0, 4], color="0.6", ls="--", lw=1)
+    fig.suptitle("Stratified embedding from IMAGE input (unit-cost knob changes) — dimension varies across the map", fontsize=12)
     fig.tight_layout()
     path = os.path.join(OUT, f"stratified_image{('_' + tag) if tag else ''}.png")
     fig.savefig(path, dpi=150, bbox_inches="tight"); plt.close(fig)
@@ -227,7 +260,7 @@ def main():
     ap.add_argument("--lr", type=float, default=2e-3)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--K", type=int, default=2)
-    ap.add_argument("--knob_dist", type=float, default=6.0)
+    ap.add_argument("--knob_dist", type=float, default=1.0)   # knob change = unit cost, like a move
     ap.add_argument("--R", type=int, default=6)
     ap.add_argument("--N", type=int, default=6000)
     ap.add_argument("--per_dof", type=int, default=30)
