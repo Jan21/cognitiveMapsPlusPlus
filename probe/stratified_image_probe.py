@@ -104,7 +104,7 @@ class ImageEnc(nn.Module):
         return self.proj(z.reshape(B, -1))
 
 
-def train(model, steps, batch, lr, device, K=2, rep_offset=10.0, eval_every=1000):
+def train(model, steps, batch, lr, device, K=2, knob_dist=6.0, rep_offset=15.0, eval_every=1000):
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     model.train()
     for s in range(steps):
@@ -113,7 +113,8 @@ def train(model, steps, batch, lr, device, K=2, rep_offset=10.0, eval_every=1000
         tgt, dist = sample_move_pair(pos, knob, K)
         loss_iso = (torch.norm(eu - model.embed(tgt, knob), dim=-1) - dist).square().mean()
         _, nk = knob_change(pos, knob)
-        loss_knob = (torch.norm(eu - model.embed(pos, nk), dim=-1) - 1.0).square().mean()
+        # knob change is an EXPENSIVE transition -> strata separate into distinct clusters
+        loss_knob = (torch.norm(eu - model.embed(pos, nk), dim=-1) - knob_dist).square().mean()
         rp, rk = rand_states(batch, device)
         loss_rep = F.softplus(rep_offset - torch.norm(eu - model.embed(rp, rk), dim=-1)).mean()
         loss = loss_iso + loss_knob + loss_rep
@@ -181,39 +182,38 @@ def measure_vgt(model, device, R, N, per_dof, seed):
 
 # ---------- strata visualization ----------
 @torch.no_grad()
-def visualize(model, device, per_dof, seed):
+def visualize(model, device, per_config, seed):
     import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
     from sklearn.decomposition import PCA
     import umap
     rng = np.random.default_rng(seed)
-    P_, K_, D_ = [], [], []
-    for dof in range(0, 2 * NAGENTS + 1):
-        got = 0
-        while got < per_dof:
-            cand = rng.integers(0, NKNOB, NAGENTS)
-            if int(KDOF[cand].sum()) != dof:
-                continue
-            pos = rng.integers(0, NPOS, NAGENTS)
-            P_.append(pos); K_.append(cand); D_.append(dof); got += 1
+    # sample every knob-config (stratum) evenly
+    configs = [np.array(c) for c in np.ndindex(*([NKNOB] * NAGENTS))]
+    P_, K_, D_, S_ = [], [], [], []
+    for sid, cand in enumerate(configs):
+        for _ in range(per_config):
+            P_.append(rng.integers(0, NPOS, NAGENTS)); K_.append(cand)
+            D_.append(int(KDOF[cand].sum())); S_.append(sid)
     pos = torch.tensor(np.array(P_), device=device); knob = torch.tensor(np.array(K_), device=device)
-    dof = np.array(D_)
+    dof = np.array(D_); strat = np.array(S_)
     E = []
     for i in range(0, len(dof), 4096):
         E.append(model.embed(pos[i:i + 4096], knob[i:i + 4096]).cpu().numpy())
     E = np.concatenate(E)
-    p2 = PCA(2).fit_transform(E); p3 = PCA(3).fit_transform(E)
-    u2 = umap.UMAP(n_neighbors=20, min_dist=0.12, random_state=1).fit_transform(E)
-    fig = plt.figure(figsize=(15, 4.4))
+    p2 = PCA(2).fit_transform(E)
+    u2 = umap.UMAP(n_neighbors=25, min_dist=0.08, random_state=1).fit_transform(E)
+
+    fig = plt.figure(figsize=(15, 4.6))
     ax = fig.add_subplot(1, 3, 1)
-    s = ax.scatter(p2[:, 0], p2[:, 1], c=dof, cmap="viridis", s=9); ax.set_title("PCA | true dimension (DOF)")
+    s = ax.scatter(p2[:, 0], p2[:, 1], c=dof, cmap="viridis", s=7); ax.set_title("PCA · colored by dimension (DOF 0–4)")
     plt.colorbar(s, ax=ax, fraction=.046); ax.set_xticks([]); ax.set_yticks([])
-    ax = fig.add_subplot(1, 3, 2, projection="3d")
-    ax.scatter(p3[:, 0], p3[:, 1], p3[:, 2], c=dof, cmap="viridis", s=8)
-    ax.set_title("PCA 3D | DOF"); ax.set_xticks([]); ax.set_yticks([]); ax.set_zticks([])
+    ax = fig.add_subplot(1, 3, 2)
+    s = ax.scatter(u2[:, 0], u2[:, 1], c=dof, cmap="viridis", s=7); ax.set_title("UMAP · colored by dimension")
+    plt.colorbar(s, ax=ax, fraction=.046); ax.set_xticks([]); ax.set_yticks([])
     ax = fig.add_subplot(1, 3, 3)
-    s = ax.scatter(u2[:, 0], u2[:, 1], c=dof, cmap="viridis", s=9); ax.set_title("UMAP | DOF")
-    plt.colorbar(s, ax=ax, fraction=.046); ax.set_xticks([]); ax.set_yticks([])
-    fig.suptitle("Stratified embedding from IMAGE input (2 agents, dims 0-4)", fontsize=12)
+    ax.scatter(u2[:, 0], u2[:, 1], c=strat, cmap="tab20", s=7); ax.set_title("UMAP · colored by stratum (knob-config)")
+    ax.set_xticks([]); ax.set_yticks([])
+    fig.suptitle("Stratified embedding from IMAGE input — 2 agents · 16 strata · dims 0–4", fontsize=12)
     fig.tight_layout()
     path = os.path.join(OUT, "stratified_image.png")
     fig.savefig(path, dpi=150, bbox_inches="tight"); plt.close(fig)
@@ -227,10 +227,11 @@ def main():
     ap.add_argument("--lr", type=float, default=2e-3)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--K", type=int, default=2)
+    ap.add_argument("--knob_dist", type=float, default=6.0)
     ap.add_argument("--R", type=int, default=6)
     ap.add_argument("--N", type=int, default=6000)
     ap.add_argument("--per_dof", type=int, default=30)
-    ap.add_argument("--vis_per_dof", type=int, default=700)
+    ap.add_argument("--vis_per_config", type=int, default=180)
     ap.add_argument("--eval_every", type=int, default=2000)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = ap.parse_args()
@@ -241,7 +242,7 @@ def main():
     print(f"device={device} IMAGE input, {NAGENTS} agents G={G} P={P} vocab={VOCAB} (DOF 0..4)")
 
     model = ImageEnc().to(device)
-    train(model, args.steps, args.batch, args.lr, device, K=args.K, eval_every=args.eval_every)
+    train(model, args.steps, args.batch, args.lr, device, K=args.K, knob_dist=args.knob_dist, rep_offset=args.knob_dist+9.0, eval_every=args.eval_every)
 
     res = measure_vgt(model, device, args.R, args.N, args.per_dof, args.seed)
     dof, vgt = res[:, 0], res[:, 1]
@@ -252,7 +253,7 @@ def main():
     print("\n================ IMAGE-INPUT STRATIFICATION ================")
     print(f"VGT local dimension vs true DOF:  corr={corr:+.3f}   ladder={ladder}")
     print("============================================================")
-    visualize(model, device, args.vis_per_dof, args.seed)
+    visualize(model, device, args.vis_per_config, args.seed)
 
 
 if __name__ == "__main__":
