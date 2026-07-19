@@ -89,6 +89,14 @@ The map is smooth+monotone, so a one-time calibration curve gives exact DOF. Con
 program: a contrastively-learned cognitive map organizes into strata whose local ambient/intrinsic
 dimension matches each state's degrees of freedom, measurable without enumerating the state space.
 
+**Improved capture (`probe/stratified_4agent_iso_probe.py`):** multi-scale L2 isometry training
+(anchor move-pairs to their EXACT flat-torus geodesic, not just 1-step=1) + D=64 raised count-VGT
+to **corr 0.949**, ladder 2.1/3.4/4.6/5.9/7.0/8.1/8.4 -- nearly identity, near the 0.97 graph
+ceiling. Isometry fixed both error sources: low-D over-read gone (DOF2 2.6->2.1) and high-D
+decompressed (DOF8 7.1->8.4). TwoNN (Facco 2017) tried but FAILED here (corr 0.53, over-reads
+low-D with only 2 neighbors on thin patches) -- count-slope VGT is the better estimator. Only
+residual: DOF 7/8 nearly merge (last of the curse of dimensionality).
+
 Next: gate knob-changes on knob-adjacency (true deadlock strata); calibration curve VGT->DOF;
 per-state dimension heatmaps.
 
