@@ -131,14 +131,24 @@ def vgt_slope(dist, window=3, rmax_frac=0.55, min_count=6, num_radii=30):
     return float(np.median(slopes)) if slopes else np.nan
 
 
+def config_for_dof(dof_t, rng, tries=3000):
+    for _ in range(tries):
+        cand = rng.integers(0, NKNOB, NAGENTS)
+        if int(KDOF[cand].sum()) == dof_t:
+            return cand
+    return None
+
+
 @torch.no_grad()
-def measure(model, device, R, N, n_queries, seed):
+def measure(model, device, R, N, per_dof, seed):
+    """stratified by DOF: guarantee coverage of every level 0..2*NAGENTS (incl. rare high ones)."""
     rng = np.random.default_rng(seed)
     rows = []
-    for _ in range(n_queries):
+    queries = [(config_for_dof(d, rng), d) for d in range(0, 2 * NAGENTS + 1) for _ in range(per_dof)]
+    for knob, dof in queries:
+        if knob is None:
+            continue
         pos = rng.integers(0, NPOS, NAGENTS)
-        knob = rng.integers(0, NKNOB, NAGENTS)
-        dof = int(KDOF[knob].sum())
         ball_pos, l1 = sample_local_ball(pos, knob, R, N, rng)
         M = ball_pos.shape[0]
         kt = torch.tensor(np.tile(knob, (M, 1)), device=device)
@@ -165,7 +175,7 @@ def main():
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--R", type=int, default=10)
     ap.add_argument("--N", type=int, default=25000)
-    ap.add_argument("--queries", type=int, default=300)
+    ap.add_argument("--per_dof", type=int, default=30)
     ap.add_argument("--eval_every", type=int, default=2000)
     ap.add_argument("--json_out", default=None)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
@@ -175,12 +185,12 @@ def main():
     device = torch.device(args.device)
     os.makedirs(OUT, exist_ok=True)
     print(f"device={device} {NAGENTS} AGENTS G={G} (DOF 0..{2*NAGENTS}), R={args.R} N={args.N} "
-          f"queries={args.queries}  (states ~ {NPOS}^{NAGENTS} * {NKNOB}^{NAGENTS}, not enumerated)")
+          f"per_dof={args.per_dof}  (states ~ {NPOS}^{NAGENTS} * {NKNOB}^{NAGENTS}, not enumerated)")
 
     model = Factored().to(device)
     train(model, args.steps, args.batch, args.lr, device, eval_every=args.eval_every)
 
-    res = measure(model, device, args.R, args.N, args.queries, args.seed)
+    res = measure(model, device, args.R, args.N, args.per_dof, args.seed)
     dof, vgt_emb, vgt_graph = res[:, 0], res[:, 1], res[:, 2]
 
     def ladder(x):
