@@ -47,8 +47,30 @@ needs only a monotonic calibration for magnitude); (b) **participation ratio** o
 = ambient stratification (0.96). To make Euclidean-VGT/MLE viable on embeddings, need denser
 sampling (bigger grid -> many points per movement axis).
 
-Next: gate knob-changes on knob-adjacency (true deadlock strata), a DENSER-grid variant so
-embedding-VGT has a scaling regime, and calibrate graph-VGT magnitude to read exact 0/1/2/3/4.
+### Dense grid — VGT on embeddings DOES recover intrinsic dimension
+
+`probe/stratified_dense_probe.py`. VGT is local, so we do NOT enumerate the state space: a
+40x40 torus with 2 agents = ~4e7 states, factored embedding trained on sampled edges
+on-the-fly; dimension estimated per query from its locally-sampled (deduped) move-ball.
+
+| estimator | corr(dim, DOF) | ladder @ DOF 1/2/3/4 |
+|-----------|---------------:|----------------------|
+| **embedding-VGT (local ball)** | **0.85** | 0.7 / 2.1 / 3.0 / 3.4 |
+| graph-VGT (L1 reference)        | 0.97 | 0.9 / 1.8 / 2.7 / 3.8 |
+| (coarse-5x5-lattice VGT)        | ~0.15 | flat ~5 (fails) |
+
+So **applying VGT directly to the embeddings recovers the intrinsic (not ambient) dimension**
+once the point cloud is dense enough — corr 0.85, tracking the graph-VGT reference, reading
+~1/2/3/4 (vs the ambient participation-ratio's 1.7/3.2/4.7/6.1). Three fixes made it work:
+(1) DENSE grid (a real count~r^d regime), (2) DEDUP the local ball (a 1D stratum has only
+~2R+1 distinct points; raw N-sampling duplicated them and broke VGT), (3) small-window robust
+slope tolerant of low-D strata. DOF-4 compresses a little (3.4 vs 4: VGT boundary/saturation +
+finite N; larger N or a monotonic calibration sharpens it); DOF-0 (a frozen single point) is
+correctly unmeasurable. Confirms the key insight: you need enough LOCAL neighbors per query,
+not the whole state space.
+
+Next: gate knob-changes on knob-adjacency (true deadlock strata); scale toward the full
+20x20/4-agent vision (local-ball VGT already makes this feasible without enumeration).
 
 ---
 
