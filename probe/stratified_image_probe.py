@@ -113,7 +113,7 @@ def train(model, steps, batch, lr, device, K=2, knob_dist=6.0, rep_offset=15.0, 
         tgt, dist = sample_move_pair(pos, knob, K)
         loss_iso = (torch.norm(eu - model.embed(tgt, knob), dim=-1) - dist).square().mean()
         _, nk = knob_change(pos, knob)
-        # knob change is an EXPENSIVE transition -> strata separate into distinct clusters
+        # knob change anchored to knob_dist (default 1 = unit cost, same as a position move)
         loss_knob = (torch.norm(eu - model.embed(pos, nk), dim=-1) - knob_dist).square().mean()
         rp, rk = rand_states(batch, device)
         loss_rep = F.softplus(rep_offset - torch.norm(eu - model.embed(rp, rk), dim=-1)).mean()
@@ -213,30 +213,33 @@ def per_point_localdim(model, device, POS, KNOB):
 
 # ---------- strata visualization ----------
 @torch.no_grad()
-def visualize(model, device, per_config, seed, tag=""):
+def visualize(model, device, n_vis, seed, tag=""):
     import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
-    from sklearn.decomposition import PCA
     import umap
     rng = np.random.default_rng(seed)
-    # sample every knob-config (stratum) evenly
-    configs = [np.array(c) for c in np.ndindex(*([NKNOB] * NAGENTS))]
-    P_, K_, D_, S_ = [], [], [], []
-    for sid, cand in enumerate(configs):
-        for _ in range(per_config):
-            P_.append(rng.integers(0, NPOS, NAGENTS)); K_.append(cand)
-            D_.append(int(KDOF[cand].sum())); S_.append(sid)
-    pos = torch.tensor(np.array(P_), device=device); knob = torch.tensor(np.array(K_), device=device)
-    dof = np.array(D_); strat = np.array(S_)
+    MAXD = 2 * NAGENTS
+    # sample states stratified by DOF (so every level 0..MAXD is covered)
+    per = max(1, n_vis // (MAXD + 1))
+    P_, K_, D_ = [], [], []
+    for dof_t in range(MAXD + 1):
+        got = 0
+        while got < per:
+            cand = rng.integers(0, NKNOB, NAGENTS)
+            if int(KDOF[cand].sum()) != dof_t:
+                continue
+            P_.append(rng.integers(0, NPOS, NAGENTS)); K_.append(cand); D_.append(dof_t); got += 1
+    Pa, Ka = np.array(P_), np.array(K_); dof = np.array(D_)
+    pos = torch.tensor(Pa, device=device); knob = torch.tensor(Ka, device=device)
     E = []
     for i in range(0, len(dof), 4096):
         E.append(model.embed(pos[i:i + 4096], knob[i:i + 4096]).cpu().numpy())
     E = np.concatenate(E)
-    ld = per_point_localdim(model, device, np.array(P_), np.array(K_))    # measured local dim per point
+    ld = per_point_localdim(model, device, Pa, Ka)                       # measured local dim per point
     u2 = umap.UMAP(n_neighbors=25, min_dist=0.1, random_state=1).fit_transform(E)
 
     fig = plt.figure(figsize=(15, 4.6))
     ax = fig.add_subplot(1, 3, 1)
-    s = ax.scatter(u2[:, 0], u2[:, 1], c=dof, cmap="viridis", s=7); ax.set_title("UMAP · TRUE dimension (DOF 0–4)")
+    s = ax.scatter(u2[:, 0], u2[:, 1], c=dof, cmap="viridis", s=7); ax.set_title(f"UMAP · TRUE dimension (DOF 0–{MAXD})")
     plt.colorbar(s, ax=ax, fraction=.046); ax.set_xticks([]); ax.set_yticks([])
     ax = fig.add_subplot(1, 3, 2)
     s = ax.scatter(u2[:, 0], u2[:, 1], c=ld, cmap="plasma", s=7)
@@ -245,8 +248,8 @@ def visualize(model, device, per_config, seed, tag=""):
     ax = fig.add_subplot(1, 3, 3)
     ax.scatter(dof + np.random.default_rng(0).normal(0, .06, len(dof)), ld, c=dof, cmap="viridis", s=6, alpha=.5)
     ax.set_title("measured local dim vs true DOF"); ax.set_xlabel("true DOF"); ax.set_ylabel("measured")
-    ax.plot([0, 4], [0, 4], color="0.6", ls="--", lw=1)
-    fig.suptitle("Stratified embedding from IMAGE input (unit-cost knob changes) — dimension varies across the map", fontsize=12)
+    ax.plot([0, MAXD], [0, MAXD], color="0.6", ls="--", lw=1)
+    fig.suptitle(f"Stratified embedding from IMAGE input (unit-cost) — {NAGENTS} agents · dims 0–{MAXD}", fontsize=12)
     fig.tight_layout()
     path = os.path.join(OUT, f"stratified_image{('_' + tag) if tag else ''}.png")
     fig.savefig(path, dpi=150, bbox_inches="tight"); plt.close(fig)
@@ -254,6 +257,7 @@ def visualize(model, device, per_config, seed, tag=""):
 
 
 def main():
+    global NAGENTS, G, NPOS, P, VOCAB
     ap = argparse.ArgumentParser()
     ap.add_argument("--steps", type=int, default=8000)
     ap.add_argument("--batch", type=int, default=512)
@@ -264,7 +268,9 @@ def main():
     ap.add_argument("--R", type=int, default=6)
     ap.add_argument("--N", type=int, default=6000)
     ap.add_argument("--per_dof", type=int, default=30)
-    ap.add_argument("--vis_per_config", type=int, default=180)
+    ap.add_argument("--n_vis", type=int, default=3000)
+    ap.add_argument("--nagents", type=int, default=NAGENTS)
+    ap.add_argument("--G", type=int, default=G)
     ap.add_argument("--eval_every", type=int, default=2000)
     ap.add_argument("--d_model", type=int, default=64)
     ap.add_argument("--D", type=int, default=48)
@@ -273,10 +279,13 @@ def main():
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = ap.parse_args()
 
+    NAGENTS, G = args.nagents, args.G
+    NPOS = G * G; P = NPOS + NAGENTS; VOCAB = max(NAGENTS + 1, NKNOB)
+
     torch.manual_seed(args.seed); np.random.seed(args.seed)
     device = torch.device(args.device)
     os.makedirs(OUT, exist_ok=True)
-    print(f"device={device} IMAGE input tag={args.tag} {NAGENTS} agents G={G} P={P} "
+    print(f"device={device} IMAGE input tag={args.tag} {NAGENTS} agents G={G} P={P} vocab={VOCAB} "
           f"knob_dist={args.knob_dist} d_model={args.d_model} D={args.D} slots={args.slots}")
 
     model = ImageEnc(d_model=args.d_model, D=args.D, n_slots=args.slots).to(device)
@@ -290,7 +299,7 @@ def main():
     ladder = {int(d): round(float(vgt[m & (dof == d)].mean()), 2) for d in sorted(set(dof.astype(int)))
               if (m & (dof == d)).sum() >= 2}
     print(f"\n[{args.tag}] VGT corr={corr:+.3f}  ladder={ladder}", flush=True)
-    visualize(model, device, args.vis_per_config, args.seed, tag=args.tag)
+    visualize(model, device, args.n_vis, args.seed, tag=args.tag)
 
 
 if __name__ == "__main__":
