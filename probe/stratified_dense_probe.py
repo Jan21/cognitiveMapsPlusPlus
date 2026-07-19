@@ -21,8 +21,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from scipy.stats import spearmanr
 
-G = 20
-NPOS = G * G                      # 400
+G = 40
+NPOS = G * G                      # 1600 (states = 1600^2*16 ~ 4e7, never enumerated)
 NKNOB = 4
 DOF = np.array([2, 1, 1, 0])      # all, horiz, vert, none
 OUT = os.path.join(os.path.dirname(__file__), "..", "factored_vis")
@@ -100,27 +100,34 @@ def train(model, steps, batch, lr, device, p=1.5, rep_offset=8.0, eval_every=100
 
 # ---------- local-ball dimension estimation ----------
 def sample_local_ball(pa, pb, ka, kb, R, N, rng):
-    """N states sampled uniformly from the query's local MOVE-ball (offsets on allowed axes).
-    returns arrays (posA,posB) + L1 offset distance per sample (graph move-distance)."""
+    """UNIQUE states from the query's local MOVE-ball (offsets on allowed axes). Dedup is
+    essential: a 1D stratum has only ~2R+1 distinct points, so raw sampling duplicates."""
     rA, cA, rB, cB = pa // G, pa % G, pb // G, pb % G
     def offs(knob):
         drow = rng.integers(-R, R + 1, N) if knob in (0, 2) else np.zeros(N, int)   # all/vert -> row moves
         dcol = rng.integers(-R, R + 1, N) if knob in (0, 1) else np.zeros(N, int)   # all/horiz -> col moves
         return drow, dcol
     dRA, dCA = offs(ka); dRB, dCB = offs(kb)
+    off = np.unique(np.stack([dRA, dCA, dRB, dCB], axis=1), axis=0)      # dedup
+    dRA, dCA, dRB, dCB = off[:, 0], off[:, 1], off[:, 2], off[:, 3]
     posA = ((rA + dRA) % G) * G + ((cA + dCA) % G)
     posB = ((rB + dRB) % G) * G + ((cB + dCB) % G)
     l1 = np.abs(dRA) + np.abs(dCA) + np.abs(dRB) + np.abs(dCB)
     return posA.astype(np.int64), posB.astype(np.int64), l1
 
 
-def vgt_slope(dist, num_radii=40, window=6, rmax_frac=0.6):
+def vgt_slope(dist, window=3, rmax_frac=0.55, min_count=5, num_radii=30):
+    """robust local slope of log(count-in-ball) vs log(radius); small window so it works on
+    the few points of a low-dimensional stratum."""
     d = np.sort(dist[dist > 1e-9])
-    if d.size < 30:
+    if d.size < 12:
         return np.nan
-    radii = np.logspace(np.log10(d[0]), np.log10(d[int(len(d) * rmax_frac)] + 1e-9), num_radii)
+    rmax = d[int(len(d) * rmax_frac)]
+    if rmax <= d[0]:
+        return np.nan
+    radii = np.logspace(np.log10(d[0]), np.log10(rmax), num_radii)
     counts = np.searchsorted(d, radii, side="left").astype(float)
-    valid = counts > 15
+    valid = counts >= min_count
     if valid.sum() < window + 1:
         return np.nan
     lr, lc = np.log(radii[valid]), np.log(counts[valid])
@@ -138,8 +145,9 @@ def measure(model, device, R, N, per_config, seed):
             for _ in range(per_config):
                 pa = int(rng.integers(0, NPOS)); pb = int(rng.integers(0, NPOS))
                 posA, posB, l1 = sample_local_ball(pa, pb, ka, kb, R, N, rng)
+                nb = len(posA)
                 E = model.embed(torch.tensor(posA, device=device), torch.tensor(posB, device=device),
-                                torch.full((N,), ka, device=device), torch.full((N,), kb, device=device)).cpu().numpy()
+                                torch.full((nb,), ka, device=device), torch.full((nb,), kb, device=device)).cpu().numpy()
                 q = model.embed(torch.tensor([pa], device=device), torch.tensor([pb], device=device),
                                 torch.tensor([ka], device=device), torch.tensor([kb], device=device)).cpu().numpy()[0]
                 d_emb = np.linalg.norm(E - q, axis=1)
@@ -147,7 +155,7 @@ def measure(model, device, R, N, per_config, seed):
                 # graph-VGT reference: count within L1 move-radius r (model-free)
                 ml1 = l1[l1 > 0]
                 vgt_graph = np.nan
-                if ml1.size > 30:
+                if ml1.size > 8:
                     rr = np.arange(1, R + 1)
                     C = np.array([(l1 <= r).sum() for r in rr], float)
                     m = C > 5
