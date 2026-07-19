@@ -182,7 +182,7 @@ def measure_vgt(model, device, R, N, per_dof, seed):
 
 # ---------- strata visualization ----------
 @torch.no_grad()
-def visualize(model, device, per_config, seed):
+def visualize(model, device, per_config, seed, tag=""):
     import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
     from sklearn.decomposition import PCA
     import umap
@@ -215,7 +215,7 @@ def visualize(model, device, per_config, seed):
     ax.set_xticks([]); ax.set_yticks([])
     fig.suptitle("Stratified embedding from IMAGE input — 2 agents · 16 strata · dims 0–4", fontsize=12)
     fig.tight_layout()
-    path = os.path.join(OUT, "stratified_image.png")
+    path = os.path.join(OUT, f"stratified_image{('_' + tag) if tag else ''}.png")
     fig.savefig(path, dpi=150, bbox_inches="tight"); plt.close(fig)
     print("wrote", os.path.relpath(path))
 
@@ -233,16 +233,22 @@ def main():
     ap.add_argument("--per_dof", type=int, default=30)
     ap.add_argument("--vis_per_config", type=int, default=180)
     ap.add_argument("--eval_every", type=int, default=2000)
+    ap.add_argument("--d_model", type=int, default=64)
+    ap.add_argument("--D", type=int, default=48)
+    ap.add_argument("--slots", type=int, default=8)
+    ap.add_argument("--tag", default="")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = ap.parse_args()
 
     torch.manual_seed(args.seed); np.random.seed(args.seed)
     device = torch.device(args.device)
     os.makedirs(OUT, exist_ok=True)
-    print(f"device={device} IMAGE input, {NAGENTS} agents G={G} P={P} vocab={VOCAB} (DOF 0..4)")
+    print(f"device={device} IMAGE input tag={args.tag} {NAGENTS} agents G={G} P={P} "
+          f"knob_dist={args.knob_dist} d_model={args.d_model} D={args.D} slots={args.slots}")
 
-    model = ImageEnc().to(device)
-    train(model, args.steps, args.batch, args.lr, device, K=args.K, knob_dist=args.knob_dist, rep_offset=args.knob_dist+9.0, eval_every=args.eval_every)
+    model = ImageEnc(d_model=args.d_model, D=args.D, n_slots=args.slots).to(device)
+    train(model, args.steps, args.batch, args.lr, device, K=args.K, knob_dist=args.knob_dist,
+          rep_offset=args.knob_dist + 9.0, eval_every=args.eval_every)
 
     res = measure_vgt(model, device, args.R, args.N, args.per_dof, args.seed)
     dof, vgt = res[:, 0], res[:, 1]
@@ -250,10 +256,8 @@ def main():
     corr = spearmanr(vgt[m], dof[m]).statistic
     ladder = {int(d): round(float(vgt[m & (dof == d)].mean()), 2) for d in sorted(set(dof.astype(int)))
               if (m & (dof == d)).sum() >= 2}
-    print("\n================ IMAGE-INPUT STRATIFICATION ================")
-    print(f"VGT local dimension vs true DOF:  corr={corr:+.3f}   ladder={ladder}")
-    print("============================================================")
-    visualize(model, device, args.vis_per_config, args.seed)
+    print(f"\n[{args.tag}] VGT corr={corr:+.3f}  ladder={ladder}", flush=True)
+    visualize(model, device, args.vis_per_config, args.seed, tag=args.tag)
 
 
 if __name__ == "__main__":
