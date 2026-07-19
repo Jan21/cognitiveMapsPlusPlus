@@ -25,8 +25,30 @@ precisely the "different states have different ambient dimension" phenomenon ask
 island-strata (corr 0.956); the **free embedding table stays one blob** (corr 0.80, weak).
 Figures: `factored_vis/stratified_{plain,factored,image}.png`.
 
-Next: gate knob-changes on knob-adjacency (true deadlock strata), scale toward more agents,
-and calibrate a dimension estimator to recover intrinsic (not ambient) DOF.
+### Dimension estimators (adapting the VGT framework from quasimetric_tests/stratified)
+
+Ported the Volume Growth Transform (VGT: local dim = slope of log count-in-ball vs log
+radius), Levina-Bickel MLE, and a graph-BFS volume-growth, and applied them to the trained
+embeddings. Spearman(estimate, true DOF), full training:
+
+| estimator | plain | factored | image | reads |
+|-----------|------:|---------:|------:|-------|
+| participation ratio (ambient) | 0.80 | **0.96** | **0.96** | works on embedding, ambient (~1.75x intrinsic) |
+| VGT full-cloud (Euclidean)    | -0.63 | 0.13 | 0.16 | **fails** (flat ~5-15) |
+| VGT within-stratum            | -0.12 | -0.07 | -0.11 | **fails** |
+| MLE (embedding kNN ratios)    | -0.12 | 0.24 | 0.43 | weak/fails |
+| **graph-VGT (true move-graph)** | **1.00** | **1.00** | **1.00** | perfect ordering, ladder 0/.5/1.3/1.9/2.4 |
+
+Conclusion: **VGT/MLE do NOT transfer to the embedded point cloud** here — it is a coarse
+5-point-per-axis lattice with no continuous `r^d` scaling regime, so radius/kNN-scaling reads
+a flat ~ambient value (structural, confirmed at convergence, not undertraining). Two tools
+that DO work: (a) **graph volume-growth** on the adjacency = perfect DOF ordering (intrinsic,
+needs only a monotonic calibration for magnitude); (b) **participation ratio** on the embedding
+= ambient stratification (0.96). To make Euclidean-VGT/MLE viable on embeddings, need denser
+sampling (bigger grid -> many points per movement axis).
+
+Next: gate knob-changes on knob-adjacency (true deadlock strata), a DENSER-grid variant so
+embedding-VGT has a scaling regime, and calibrate graph-VGT magnitude to read exact 0/1/2/3/4.
 
 ---
 
