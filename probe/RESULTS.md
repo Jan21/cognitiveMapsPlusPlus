@@ -69,8 +69,28 @@ finite N; larger N or a monotonic calibration sharpens it); DOF-0 (a frozen sing
 correctly unmeasurable. Confirms the key insight: you need enough LOCAL neighbors per query,
 not the whole state space.
 
-Next: gate knob-changes on knob-adjacency (true deadlock strata); scale toward the full
-20x20/4-agent vision (local-ball VGT already makes this feasible without enumeration).
+### 4 agents — dimension 0..8 captured from embeddings
+
+`probe/stratified_4agent_probe.py`. 4 agents on a 40x40 torus, each with a movement knob;
+local DOF = sum of knob-DOF in {0..8}. State space ~625^4 * 256, NEVER enumerated. Factored
+embedding trained on sampled edges; per-query dimension from a locally-sampled deduped
+move-ball; queries stratified by DOF for even coverage; N=30000 for high-D density.
+
+| estimator | corr | ladder @ DOF 2/3/4/5/6/7/8 |
+|-----------|-----:|----------------------------|
+| **embedding-VGT (local ball)** | **0.93** | 2.6 / 3.6 / 4.5 / 5.4 / 5.9 / 6.3 / 7.1 |
+| graph-VGT (reference)          | 0.97 | (DOF 1-6) 0.9 / 1.8 / 2.6 / 3.6 / 4.6 / 6.1 |
+
+The per-state intrinsic dimension of the learned embedding is recovered by VGT across the whole
+0..8 range (corr 0.93, ladder near-linear in true DOF). Bigger N + DOF-stratified sampling
+raised corr 0.88->0.93 and DOF-8 from 6.4->7.05. Limits: DOF-0/1 thin (a frozen point / 29-point
+line give VGT too few points); DOF-7/8 compress (curse of dimensionality, 8D ball undersampled).
+The map is smooth+monotone, so a one-time calibration curve gives exact DOF. Confirms the whole
+program: a contrastively-learned cognitive map organizes into strata whose local ambient/intrinsic
+dimension matches each state's degrees of freedom, measurable without enumerating the state space.
+
+Next: gate knob-changes on knob-adjacency (true deadlock strata); calibration curve VGT->DOF;
+per-state dimension heatmaps.
 
 ---
 
