@@ -227,20 +227,54 @@ def vgt_dim(E, qi, sub=None, num_radii=40, window=5):
     return float(np.median(slopes)) if slopes else np.nan
 
 
+def mle_dim(E, qi, k=15):
+    """Levina-Bickel MLE intrinsic dimension from kNN distance ratios (discreteness-tolerant)."""
+    d = np.linalg.norm(E - E[qi], axis=1)
+    d = np.sort(d[d > 1e-9])[:k]
+    if d.size < 3 or d[-1] < 1e-9:
+        return np.nan
+    return float(-1.0 / np.mean(np.log(np.maximum(d[:-1], 1e-10) / d[-1])))
+
+
+def graph_vgt(move_nbrs, s, maxr=3):
+    """volume growth on the MOVE-graph (discrete): slope of log(nodes within r hops) vs log r.
+    count ~ r^d on the true stratified structure; frozen states (no moves) -> 0."""
+    seen = {s: 0}; frontier = [s]; cum = [1]
+    for r in range(1, maxr + 1):
+        nxt = []
+        for u in frontier:
+            for v in move_nbrs[u]:
+                if v not in seen:
+                    seen[v] = r; nxt.append(v)
+        frontier = nxt
+        cum.append(len(seen))
+        if not nxt:
+            break
+    C = np.array(cum, float)
+    rr = np.arange(len(C))
+    m = rr >= 1
+    if m.sum() < 2 or C[-1] <= 1:
+        return 0.0
+    return float(np.polyfit(np.log(rr[m]), np.log(C[m]), 1)[0])
+
+
 @torch.no_grad()
 def measure_all_dims(model, device, ids, move_nbrs, stratum):
-    """participation-ratio (ambient) + VGT full-cloud + VGT within-stratum, per state."""
+    """PR (ambient) + VGT full/stratum + MLE (embedding) + graph-VGT (true structure)."""
     E = embed_all(model, device).cpu().numpy()
     pr = np.array([participation_dim(E[move_nbrs[s]] - E[s]) if len(move_nbrs[s]) else 0.0 for s in ids])
     strata_idx = {}
     vgt_full = np.zeros(len(ids)); vgt_strat = np.zeros(len(ids))
+    mle = np.zeros(len(ids)); gvgt = np.zeros(len(ids))
     for i, s in enumerate(ids):
         vgt_full[i] = vgt_dim(E, s)
         st = stratum[s]
         if st not in strata_idx:
             strata_idx[st] = np.where(stratum == st)[0]
         vgt_strat[i] = vgt_dim(E, s, sub=strata_idx[st])
-    return E, pr, vgt_full, vgt_strat
+        mle[i] = mle_dim(E, s)
+        gvgt[i] = graph_vgt(move_nbrs, s)
+    return E, dict(pr=pr, vgt_full=vgt_full, vgt_strat=vgt_strat, mle=mle, graph_vgt=gvgt)
 
 
 @torch.no_grad()
@@ -319,7 +353,7 @@ def main():
 
     rng = np.random.default_rng(7)
     ids = rng.integers(0, NSTATES, 2500)
-    E, pr, vgt_full, vgt_strat = measure_all_dims(model, device, ids, move_nbrs, stratum)
+    E, dims = measure_all_dims(model, device, ids, move_nbrs, stratum)
     tdof = dof[ids]
 
     def ladder(x):
@@ -333,18 +367,18 @@ def main():
 
     print("\n================ STRATIFICATION RESULTS ================")
     print(f"variant={args.variant}   (true DOF ladder target = 0/1/2/3/4)")
-    print(f"[PR ambient ]  corr={corr(pr):.3f}   ladder={ladder(pr)}")
-    print(f"[VGT full   ]  corr={corr(vgt_full):.3f}   ladder={ladder(vgt_full)}")
-    print(f"[VGT stratum]  corr={corr(vgt_strat):.3f}   ladder={ladder(vgt_strat)}")
+    labels = {"pr": "PR ambient", "vgt_full": "VGT full", "vgt_strat": "VGT stratum",
+              "mle": "MLE (emb)", "graph_vgt": "graph-VGT (ref)"}
+    out = {}
+    for key, lab in labels.items():
+        print(f"[{lab:16s}] corr={corr(dims[key]):+.3f}   ladder={ladder(dims[key])}")
+        out[key] = dict(corr=corr(dims[key]), ladder=ladder(dims[key]))
     print("========================================================")
-    visualize(E, dof, vgt_strat, ids, args.variant + "_vgt")
+    visualize(E, dof, dims["mle"], ids, args.variant + "_mle")
 
     if args.json_out:
         with open(args.json_out, "w") as f:
-            json.dump(dict(variant=args.variant,
-                           pr=dict(corr=corr(pr), ladder=ladder(pr)),
-                           vgt_full=dict(corr=corr(vgt_full), ladder=ladder(vgt_full)),
-                           vgt_stratum=dict(corr=corr(vgt_strat), ladder=ladder(vgt_strat))), f, indent=2)
+            json.dump(dict(variant=args.variant, **out), f, indent=2)
         print("wrote", args.json_out)
 
 
