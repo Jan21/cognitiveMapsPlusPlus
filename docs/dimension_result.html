@@ -173,21 +173,79 @@
     </figure>
   </section>
 
-  <!-- 02 TRAINING -->
+  <!-- 02 ARCHITECTURE -->
+  <section id="arch">
+    <div class="col">
+      <p class="num">02 — Architecture</p>
+      <h2>Factored tokens, pooled by attention, read as a metric</h2>
+      <p>Each state becomes a small bag of <strong>factor tokens</strong> — one learned embedding per agent position and one per knob, so four agents give <span class="mono">4 + 4 = 8</span> tokens. A learned type embedding tags each slot (which agent, position vs knob). A pooling query and a two-layer <strong>transformer encoder</strong> then attend over the tokens and collapse them into a single <strong>state embedding</strong> <span class="mono">e(s) ∈ R<sup>64</sup></span>.</p>
+      <p>The learned distance is simply a <strong>norm</strong> of the difference:</p>
+      <div class="eq col"><span class="c"># the metric prior is the whole point</span><br>D(u, v)  =  ‖ e(u) − e(v) ‖<sub>2</sub></div>
+      <p>Reading distance as a norm — rather than a free scalar score — is load-bearing. The norm supplies identity and the triangle inequality, and it's that constraint that forces graded, globally-consistent distances to emerge from purely local training. The 64-dimensional latent leaves room for the highest strata (an 8-D torus needs about sixteen dimensions once curvature is included).</p>
+    </div>
+
+    <figure class="wrap">
+      <div class="panel">
+        <div class="svgpanel">
+          <svg viewBox="0 0 940 236" role="img" aria-label="Factored attention architecture">
+            <defs>
+              <marker id="arh" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+                <path d="M0 0 L6 3 L0 6 z" fill="var(--muted)"/>
+              </marker>
+            </defs>
+            <g font-size="12">
+              <!-- tokens -->
+              <text x="24" y="26" class="s-mut" font-size="11.5" letter-spacing="1.4">FACTOR TOKENS (4 + 4)</text>
+              <g>
+                <rect x="24" y="40" width="118" height="24" rx="5" fill="none" class="sl-acc" stroke-width="1.3"/><text x="83" y="57" text-anchor="middle" class="s-acc">pos · agent 1</text>
+                <rect x="24" y="68" width="118" height="24" rx="5" fill="none" class="sl-acc" stroke-width="1.3"/><text x="83" y="85" text-anchor="middle" class="s-acc">pos · agent 2 …</text>
+                <rect x="24" y="104" width="118" height="24" rx="5" fill="none" class="sl-a2" stroke="var(--accent2)" stroke-width="1.3"/><text x="83" y="121" text-anchor="middle" class="s-a2">knob · agent 1</text>
+                <rect x="24" y="132" width="118" height="24" rx="5" fill="none" class="sl-a2" stroke="var(--accent2)" stroke-width="1.3"/><text x="83" y="149" text-anchor="middle" class="s-a2">knob · agent 2 …</text>
+                <rect x="24" y="168" width="118" height="24" rx="5" fill="var(--panel2)" class="sl-line" stroke-width="1"/><text x="83" y="185" text-anchor="middle" class="s-mut">pool query</text>
+              </g>
+              <line x1="148" y1="116" x2="196" y2="116" class="sl-mut" stroke-width="1.4" marker-end="url(#arh)"/>
+              <!-- encoder -->
+              <rect x="200" y="80" width="160" height="76" rx="10" fill="none" class="sl-acc" stroke-width="1.8"/>
+              <text x="280" y="110" text-anchor="middle" class="s-acc">transformer</text>
+              <text x="280" y="128" text-anchor="middle" class="s-acc">encoder · pool</text>
+              <text x="280" y="146" text-anchor="middle" class="s-mut" font-size="10.5">attend + collapse</text>
+              <line x1="366" y1="116" x2="414" y2="116" class="sl-mut" stroke-width="1.4" marker-end="url(#arh)"/>
+              <!-- embedding -->
+              <rect x="418" y="92" width="120" height="48" rx="9" fill="none" class="sl-acc" stroke-width="1.8"/>
+              <text x="478" y="112" text-anchor="middle" class="s-acc">e(s)</text>
+              <text x="478" y="130" text-anchor="middle" class="s-mut" font-size="10.5">∈ R⁶⁴</text>
+              <!-- distance -->
+              <line x1="544" y1="116" x2="592" y2="116" class="sl-mut" stroke-width="1.4" marker-end="url(#arh)"/>
+              <rect x="596" y="86" width="200" height="60" rx="10" fill="var(--panel2)" class="sl-line" stroke-width="1"/>
+              <text x="696" y="112" text-anchor="middle" class="s-ink" font-size="14">D(u,v) = ‖e_u − e_v‖₂</text>
+              <text x="696" y="132" text-anchor="middle" class="s-acc" font-size="11">norm ⇒ metric prior</text>
+              <text x="812" y="112" class="s-mut" font-size="11">→ learned</text>
+              <text x="812" y="128" class="s-mut" font-size="11">geodesic</text>
+            </g>
+          </svg>
+        </div>
+        <figcaption><b>The factored self-norm encoder.</b> One token per factor (agent positions in <span style="color:var(--accent)">teal</span>, knobs in <span style="color:var(--accent2)">coral</span>) is attended and pooled into a 64-D embedding; distance is its L2 norm. The norm — not a free scalar — is what makes a consistent global metric emerge from local supervision.</figcaption>
+      </div>
+    </figure>
+  </section>
+
+  <!-- 03 TRAINING -->
   <section id="train">
     <div class="col">
-      <p class="num">02 — How it's built</p>
+      <p class="num">03 — Training</p>
       <h2>Adjacency in, geometry out</h2>
-      <p>A factored encoder turns a state into an embedding: one token per agent-position and one per knob, pooled by a small attention network into a vector <span class="mono">e(s)</span>. Distance between states is a norm, <span class="mono">‖e(u) − e(v)‖</span>.</p>
-      <p>Training uses only <strong>local structure</strong> — no shortest paths, no actions, no goals:</p>
+      <p>There are no shortest-path labels, no rewards, and — for these experiments — <strong>no actions at all</strong>. The model is shown only local facts about the graph and optimizes three terms:</p>
       <ul>
-        <li><strong>Isometry.</strong> Sample a nearby state and anchor its embedding distance to the <em>exact</em> local geodesic. This flattens local patches, so the geometry is faithful at every scale — the single change that mattered most.</li>
-        <li><strong>Repulsion.</strong> Random pairs are pushed apart, so the space can't collapse to a point.</li>
+        <li><strong>Isometry (the term that mattered most).</strong> Offset each agent within its knob-allowed axes to reach a nearby state, and anchor the embedding distance to that state's <em>exact</em> geodesic — the flat-torus distance, <span class="mono">√Σ&nbsp;offset²</span>. Because pairs are anchored at a range of distances, not just one step, local patches come out <strong>flat and faithful at every scale</strong>.
+          <div class="eq"><span class="c"># multi-scale isometry</span> &nbsp; L<sub>iso</sub> = ( ‖e_u − e_v‖ − geodesic(u,v) )²</div>
+        </li>
+        <li><strong>Knob edges.</strong> Changing one knob is a single step between strata — anchored to distance 1.</li>
+        <li><strong>Repulsion.</strong> Random pairs are pushed apart past a margin, so the space can't collapse to a point (the trivial zero-loss solution).</li>
       </ul>
-      <p>Edges are drawn on the fly, so the state space is <strong>never enumerated</strong>. The four-agent space is astronomically large; the model only ever sees a stream of "here is a state and one of its neighbors."</p>
+      <p>Every training pair is <strong>sampled on the fly</strong> — a random state and one neighbor — so the state space is never materialized. The four-agent space is on the order of <span class="mono">10<sup>11</sup></span> states; the model only ever sees a stream of local neighbors and a latent width of 64.</p>
       <div class="note col">
         <span class="lab">The claim</span>
-        Shown nothing but which states touch, the embedding reconstructs the manifold well enough that its <em>local dimension</em> — a global, geometric property — can be read back out per state.
+        Shown nothing but which states touch, the embedding reconstructs the manifold well enough that a <em>global, geometric</em> property — the local dimension — can be read back out per state.
       </div>
     </div>
   </section>
@@ -195,7 +253,7 @@
   <!-- 03 MEASUREMENT -->
   <section id="measure">
     <div class="col">
-      <p class="num">03 — The measurement</p>
+      <p class="num">04 — The measurement</p>
       <h2>Volume growth, computed locally</h2>
       <p>Around any point on a d-dimensional manifold, the number of neighbors within radius <span class="mono">r</span> grows like <span class="mono">r<sup>d</sup></span>. So the slope of log-count against log-radius is the local dimension — the <strong>Volume Growth Transform</strong>.</p>
       <div class="eq col">count( ‖e − e<sub>q</sub>‖ &lt; r )  ∝  r<sup>d</sup> <span class="c">→ local dimension d = slope( log&nbsp;count , log&nbsp;r )</span></div>
@@ -245,7 +303,7 @@
   <!-- 04 RESULT -->
   <section id="result">
     <div class="col">
-      <p class="num">04 — The result</p>
+      <p class="num">05 — The result</p>
       <h2>The estimate lands on the truth</h2>
       <p>Across all four-agent strata, the measured local dimension tracks the true degrees of freedom almost on the identity line — correlation <strong>0.95</strong>, with the ladder reading close to <span class="mono">2, 3, 4, 5, 6, 7, 8</span>. Frozen states read 0; four free agents read a full eight dimensions, straight from the learned embedding.</p>
     </div>
@@ -322,7 +380,7 @@
   <!-- 05 VISUAL -->
   <section id="visual">
     <div class="col">
-      <p class="num">05 — Seeing the strata</p>
+      <p class="num">06 — Seeing the strata</p>
       <h2>It really is stratified</h2>
       <p>Projected down and colored by dimension, the learned space breaks into island-strata rather than one smooth blob — the visual signature of a space where different regions carry different dimension. (Shown for two agents, where the whole 0–4 range fits a single picture.)</p>
     </div>
@@ -337,7 +395,7 @@
   <!-- 06 -->
   <section id="end">
     <div class="col">
-      <p class="num">06 — In short</p>
+      <p class="num">07 — In short</p>
       <h2>A map that knows its own dimension</h2>
       <ul>
         <li>An embedding trained on <strong>adjacency alone</strong> organizes into strata of different dimension matching each state's degrees of freedom.</li>
