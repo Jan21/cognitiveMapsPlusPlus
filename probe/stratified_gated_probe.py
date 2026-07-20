@@ -170,7 +170,7 @@ def vgt_slope(dist, lo_frac=0.03, hi_frac=0.6, min_lo=5):
     if hi - lo < 5:
         return np.nan
     ld, lk = np.log(d[lo:hi]), np.log(np.arange(1, N + 1, dtype=float)[lo:hi])
-    if ld[-1] - ld[0] < 1e-6:
+    if ld[-1] - ld[0] < 0.1:      # distances span too narrow a range to read a slope (runaway fit)
         return np.nan
     return float(np.polyfit(ld, lk, 1)[0])
 
@@ -303,7 +303,7 @@ def main():
             balls.append(nb); cfgs.append(nc)
             if not np.isnan(d):
                 vals.append(d)
-        md = np.mean(vals) if vals else float("nan")
+        md = np.median(vals) if vals else float("nan")   # median: robust to a runaway thin-ring rep
         sd = np.std(vals) if len(vals) > 1 else 0.0
         print(f"{name:<18}{md:>7.2f}±{sd:.2f}{int(np.mean(balls)):>8}{int(np.mean(cfgs)):>5}   {exp}",
               flush=True)
