@@ -419,3 +419,37 @@ Dropped: InfoNCE (redundant with E1, loses absolute metric); per-anchor reachabi
 Early signal: factored + hardwired gate reads the ladder via graph-free emb-NN at 400 steps
 (2.75/3.99/4.86/6.45/7.46/8.70 for DOF 2..7), legal neighbours ~1.2 vs illegal 2-10. Full runs
 in progress (E1 112169, E7 112171, factored 112172).
+
+### Debugging "make the embedding stratified" on minimal examples + the 5-way sweep
+
+Minimal harness `probe/mini_strat.py` (ONE agent, 8x8 torus, knob in {all,horiz,vert}, 192 states
+enumerated) and `probe/mini2_strat.py` (TWO agents, DOF-2 state with a frozen agent) isolated the
+problem exactly, no sampling noise:
+
+- mini (1 agent): even the BASELINE embedding separates a SINGLE illegal step (horiz illegal
+  row-move = 5.65 vs legal col-move = 1.09). So "the embedding ignores the constraint" is false --
+  it respects it per step.
+- mini2 (2 agents): the smoking gun -- at a DOF-2 state the LEGAL ball reads 2.25 (correct) but a
+  graph-free jitter pool reads 5.98 (inflated). The embedding is fine; the graph-free MEASUREMENT
+  leaks. Baseline reads a frozen agent's position as a real ~1-unit dimension, so a pool jittering
+  all agents recovers the ambient dimension.
+
+Sweep (4 agents, G=24):
+| test | mechanism | graph-free emb-NN | verdict |
+|------|-----------|-------------------|---------|
+| E1 repel (image)        | illegal pushed >= margin | ~8-10 flat; also hurt BFS (iso strained) | fails |
+| E7 collapse-loss (image)| pull illegal together    | d_illegal stayed ~1 (never collapsed); ~6-9 | fails |
+| E5 factored, learned gate | knob gates each agent's axes + collapse loss | DOF ladder | WORKS |
+| E5 factored, hardwired    | gate zeroes immovable axes exactly | DOF ladder | WORKS |
+
+The IMAGE encoder will not stop reading a frozen agent's pixel (collapse loss couldn't force
+d_illegal to 0). The FACTORED knob-gated encoder collapses immovable axes by construction, and the
+LEARNED gate matches the hardwired one -- so the gating is learnable. With that encoder, graph-free
+emb-NN (axis-guided pool + embedding dedup) reads the ladder 1..8:
+  hardwired 0.97/2.18/3.19/4.01/5.22/6.28/7.56/9.09 ; learned 0.98/2.11/3.15/4.05/5.13/6.34/7.60/9.08
+and d_illegal (moving a frozen agent) = 0.00 -- the embedding is genuinely invariant to immovable
+coordinates. THE EMBEDDING SPACE IS STRATIFIED, and its own local geometry (no graph) reads the DOF.
+
+Takeaway: to make the embedding respect the constraints you must COLLAPSE the immovable coordinates
+(quotient), not just repel illegal moves; and the collapse has to be in the encoder's structure (a
+knob-gated factored encoder), not only a loss on an image encoder.

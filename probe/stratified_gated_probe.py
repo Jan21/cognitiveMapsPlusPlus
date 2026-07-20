@@ -337,8 +337,9 @@ def measure_point_emb(model, device, pos0, knob0, W, M, k, rng, axis_guided=Fals
     E = np.concatenate(E)
     q = model.embed(torch.tensor(pos0[None], device=device),
                     torch.tensor(knob0[None], device=device)).cpu().numpy()[0]
-    dist = np.linalg.norm(E - q, axis=1)
-    kk = min(k, len(dist))
+    E = np.unique(np.round(E, 3), axis=0)                # dedup: a stratified embedding maps the many
+    dist = np.linalg.norm(E - q, axis=1)                 # frozen-axis variants to the SAME point, so
+    kk = min(k, len(dist))                               # without dedup the k-NN is all duplicates
     nn = np.partition(dist, kk - 1)[:kk]                 # k nearest in embedding space
     return vgt_slope(nn), int(kk)
 
