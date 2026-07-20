@@ -224,6 +224,40 @@ def measure_point(model, device, pos0, knob0, R, cap=6000, dbg=False):
     return vgt_slope(dist), len(ps), nconf
 
 
+# ---------- embedding-NN neighbourhood (no graph / BFS) ----------
+def local_pool(pos0, knob0, W, M, rng, frac_same_knob=0.5):
+    """Candidate pool for embedding-NN: jitter EVERY agent's position within +-W (toroidal) and,
+    for a fraction of the pool, keep the probe's knobs, else randomise them. Legality is NOT
+    consulted — the pool is a dense local cloud in *state* space; which of these are actually
+    'near' is decided later by embedding distance, not by the move graph."""
+    pos = np.tile(pos0.astype(np.int64), (M, 1))
+    dr = rng.integers(-W, W + 1, (M, NAGENTS)); dc = rng.integers(-W, W + 1, (M, NAGENTS))
+    pos = ((pos // G + dr) % G) * G + ((pos % G + dc) % G)
+    knob = np.tile(knob0.astype(np.int64), (M, 1))
+    use_rand = rng.random((M, 1)) > frac_same_knob
+    knob = np.where(use_rand, rng.integers(0, NKNOB, (M, NAGENTS)), knob)
+    return pos, knob
+
+
+@torch.no_grad()
+def measure_point_emb(model, device, pos0, knob0, W, M, k, rng):
+    """Local dimension from the embedding's OWN nearest neighbours: embed a dense local pool,
+    take the k closest to the probe in embedding space, read the correlation dimension of that
+    ball. Uses no graph structure to pick the neighbours."""
+    ps, ks = local_pool(pos0, knob0, W, M, rng)
+    E = []
+    for i in range(0, len(ps), 8192):
+        E.append(model.embed(torch.tensor(ps[i:i + 8192], device=device),
+                             torch.tensor(ks[i:i + 8192], device=device)).cpu().numpy())
+    E = np.concatenate(E)
+    q = model.embed(torch.tensor(pos0[None], device=device),
+                    torch.tensor(knob0[None], device=device)).cpu().numpy()[0]
+    dist = np.linalg.norm(E - q, axis=1)
+    kk = min(k, len(dist))
+    nn = np.partition(dist, kk - 1)[:kk]                 # k nearest in embedding space
+    return vgt_slope(nn), int(kk)
+
+
 def tor1(a, b):
     d = abs(a - b); return min(d, G - d)
 
@@ -269,6 +303,11 @@ def main():
     ap.add_argument("--D", type=int, default=48)
     ap.add_argument("--slots", type=int, default=8)
     ap.add_argument("--eval_every", type=int, default=4000)
+    ap.add_argument("--emb_W", type=int, default=10)     # embedding-NN pool jitter window
+    ap.add_argument("--emb_M", type=int, default=60000)  # embedding-NN pool size per probe
+    ap.add_argument("--emb_k", type=int, default=3000)   # nearest neighbours kept as the ball
+    ap.add_argument("--save_model", default="")          # path to save state_dict after training
+    ap.add_argument("--load_model", default="")          # path to load; skips training if set
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = ap.parse_args()
     NAGENTS, G = args.nagents, args.G
@@ -280,7 +319,13 @@ def main():
     print(f"device={device} GATED image, {NAGENTS} agents G={G} ctrl={CTRL} R={args.R} cap={args.cap}", flush=True)
 
     model = ImageEnc(d_model=args.d_model, D=args.D, n_slots=args.slots).to(device)
-    train(model, args.steps, args.batch, args.lr, device, K=args.K, eval_every=args.eval_every)
+    if args.load_model:
+        model.load_state_dict(torch.load(args.load_model, map_location=device))
+        model.eval(); print(f"loaded model from {args.load_model} (training skipped)", flush=True)
+    else:
+        train(model, args.steps, args.batch, args.lr, device, K=args.K, eval_every=args.eval_every)
+        if args.save_model:
+            torch.save(model.state_dict(), args.save_model); print(f"saved model -> {args.save_model}", flush=True)
 
     rng = np.random.default_rng(args.seed)
     # at_ctrl: agents pinned to their control cell (a stratum junction); others placed far from
@@ -293,19 +338,25 @@ def main():
     scenarios = [(f"DOF{t} far", (lambda t=t: st(dof_knob(t, NAGENTS), [])), float(t))
                  for t in range(1, 2 * NAGENTS + 1)]
     scenarios.append(("all-none a0@ctrl", (lambda: st([NONE] * NAGENTS, [0])), "junction >0"))
-    print("\n================ GATED — local dimension vs true DOF (representative points) ================", flush=True)
-    print(f"{'scenario':<18}{'measured':>10}{'ball':>8}{'cfg':>5}   true DOF")
+    print("\n===== GATED — local dimension vs true DOF: BFS ball vs embedding-NN ball =====", flush=True)
+    print(f"emb-NN pool: W={args.emb_W} M={args.emb_M} k={args.emb_k} (jitter all agents, no graph)", flush=True)
+    print(f"{'scenario':<18}{'BFS':>12}{'emb-NN':>12}{'ball':>8}   true DOF")
     for name, build, exp in scenarios:
-        vals, balls, cfgs = [], [], []
-        for r in range(args.reps):
+        bvals, evals, balls = [], [], []
+        for _ in range(args.reps):
             pos0, knob0 = build()
-            d, nb, nc = measure_point(model, device, pos0, knob0, args.R, args.cap, dbg=(r == 0))
-            balls.append(nb); cfgs.append(nc)
+            d, nb, _ = measure_point(model, device, pos0, knob0, args.R, args.cap)
+            balls.append(nb)
             if not np.isnan(d):
-                vals.append(d)
-        md = np.median(vals) if vals else float("nan")   # median: robust to a runaway thin-ring rep
-        sd = np.std(vals) if len(vals) > 1 else 0.0
-        print(f"{name:<18}{md:>7.2f}±{sd:.2f}{int(np.mean(balls)):>8}{int(np.mean(cfgs)):>5}   {exp}",
+                bvals.append(d)
+            de, _ = measure_point_emb(model, device, pos0, knob0, args.emb_W, args.emb_M, args.emb_k, rng)
+            if not np.isnan(de):
+                evals.append(de)
+        bm = np.median(bvals) if bvals else float("nan")
+        em = np.median(evals) if evals else float("nan")
+        bs = np.std(bvals) if len(bvals) > 1 else 0.0
+        es = np.std(evals) if len(evals) > 1 else 0.0
+        print(f"{name:<18}{bm:>7.2f}±{bs:.2f}{em:>7.2f}±{es:.2f}{int(np.mean(balls)):>8}   {exp}",
               flush=True)
     print("=============================================================================================", flush=True)
 
