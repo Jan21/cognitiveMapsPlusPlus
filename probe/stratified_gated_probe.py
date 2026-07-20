@@ -152,56 +152,52 @@ def train(model, steps, batch, lr, device, K=2, rep_offset=10.0, eval_every=2000
 
 
 # ---------- local-neighbourhood dimension ----------
-def vgt_slope(dist, window=3, rmax_frac=0.6, min_count=6, num_radii=30):
-    d = np.sort(dist[dist > 1e-9])
-    if d.size < 12:
-        return 0.0 if d.size == 0 else np.nan
-    rmax = d[int(len(d) * rmax_frac)]
-    if rmax <= d[0]:
+def vgt_slope(dist, sat_frac=0.5, min_count=8, num_radii=40):
+    """Volume-growth dimension = slope of log C(r) vs log r over the UNSATURATED region.
+    Cutting the fit at C <= sat_frac*N avoids the flat tail that appears once a small ball
+    is fully enclosed (that tail otherwise drags a median-of-windows slope toward 0)."""
+    d = np.sort(dist[dist > 1e-9]); N = d.size
+    if N < 20:
         return np.nan
-    radii = np.logspace(np.log10(d[0]), np.log10(rmax), num_radii)
-    counts = np.searchsorted(d, radii, side="left").astype(float)
-    valid = counts >= min_count
-    if valid.sum() < window + 1:
+    radii = np.logspace(np.log10(d[0]), np.log10(d[-1]), num_radii)
+    counts = np.searchsorted(d, radii, side="right").astype(float)
+    mask = (counts >= min_count) & (counts <= sat_frac * N)
+    if mask.sum() < 4:
         return np.nan
-    lr, lc = np.log(radii[valid]), np.log(counts[valid])
-    sl = [np.polyfit(lr[i:i + window], lc[i:i + window], 1)[0] for i in range(len(lr) - window)]
-    return float(np.median(sl)) if sl else np.nan
+    return float(np.polyfit(np.log(radii[mask]), np.log(counts[mask]), 1)[0])
 
 
-def local_ball(pos0, knob0, R, N, rng):
-    """vectorized: N legal random walks in parallel, collecting every step (all radii), deduped.
-    respects gating (move only if the knob allows the axis; flip only on the control cell)."""
-    ctrl = np.array(CTRL)
-    pos = np.tile(pos0.astype(np.int64), (N, 1)); knob = np.tile(knob0.astype(np.int64), (N, 1))
-    cp, ck = [pos.copy()], [knob.copy()]
-    ar = np.arange(N)
+def local_ball(pos0, knob0, R, cap=6000):
+    """Exact legal ball to radius R hops (BFS), capped. Dense and complete for low-dim
+    neighbourhoods (where a random walk under-samples the one free agent), so the count-vs-radius
+    curve has a clean power-law region. Respects gating via legal_transitions()."""
+    start = (tuple(int(x) for x in pos0), tuple(int(x) for x in knob0))
+    seen = {start}; frontier = [start]; order = [start]
     for _ in range(R):
-        a = rng.integers(0, NAGENTS, N)
-        ka = knob[ar, a]; pa = pos[ar, a]; r, c = pa // G, pa % G
-        do_flip = rng.random(N) < 0.3
-        d = rng.integers(0, 4, N)                                # 0 up,1 down (vert), 2 left,3 right (horiz)
-        nr = np.where(d == 0, (r - 1) % G, np.where(d == 1, (r + 1) % G, r))
-        nc = np.where(d == 2, (c - 1) % G, np.where(d == 3, (c + 1) % G, c))
-        move_ok = ((d < 2) & ((ka == 0) | (ka == 2))) | ((d >= 2) & ((ka == 0) | (ka == 1)))
-        at_ctrl = pa == ctrl[a]
-        new_knob = (ka + rng.integers(1, NKNOB, N)) % NKNOB
-        pos = pos.copy(); knob = knob.copy()
-        fmask = do_flip & at_ctrl
-        mmask = (~do_flip) & move_ok
-        knob[ar[fmask], a[fmask]] = new_knob[fmask]
-        pos[ar[mmask], a[mmask]] = (nr * G + nc)[mmask]
-        cp.append(pos.copy()); ck.append(knob.copy())
-    allp = np.concatenate(cp); allk = np.concatenate(ck)
-    _, idx = np.unique(np.concatenate([allp, allk], axis=1), axis=0, return_index=True)
-    return allp[idx], allk[idx]
+        nxt = []
+        for pos, knob in frontier:
+            for p2, k2 in legal_transitions(np.array(pos), np.array(knob)):
+                s = (tuple(int(x) for x in p2), tuple(int(x) for x in k2))
+                if s not in seen:
+                    seen.add(s); nxt.append(s); order.append(s)
+                    if len(seen) >= cap:
+                        nxt = []; break
+            if not nxt and len(seen) >= cap:
+                break
+        frontier = nxt
+        if not frontier:
+            break
+    ps = np.array([o[0] for o in order], dtype=np.int64)
+    ks = np.array([o[1] for o in order], dtype=np.int64)
+    return ps, ks
 
 
 @torch.no_grad()
-def measure_point(model, device, pos0, knob0, R, N, rng):
-    ps, ks = local_ball(pos0, knob0, R, N, rng)
-    if len(ps) < 12:
-        return 0.0, len(ps)                              # tiny neighbourhood -> ~0-dim
+def measure_point(model, device, pos0, knob0, R, cap=6000):
+    ps, ks = local_ball(pos0, knob0, R, cap)
+    nconf = len(set(map(tuple, ks)))
+    if len(ps) < 20:
+        return np.nan, len(ps), nconf                    # neighbourhood too small to fit
     E = []
     for i in range(0, len(ps), 8192):
         E.append(model.embed(torch.tensor(ps[i:i + 8192], device=device),
@@ -209,13 +205,22 @@ def measure_point(model, device, pos0, knob0, R, N, rng):
     E = np.concatenate(E)
     q = model.embed(torch.tensor(pos0[None], device=device),
                     torch.tensor(knob0[None], device=device)).cpu().numpy()[0]
-    return vgt_slope(np.linalg.norm(E - q, axis=1)), len(ps)
+    return vgt_slope(np.linalg.norm(E - q, axis=1)), len(ps), nconf
 
 
-def far_pos(rng, avoid_ctrl=True):
+def tor1(a, b):
+    d = abs(a - b); return min(d, G - d)
+
+
+def far_from_own_ctrl(i, rng, R):
+    """random cell whose toroidal distance from agent i's own control cell is > R,
+    so an R-ball there cannot reach the control cell -> stays a single movement config."""
+    cr, cc = CTRL[i] // G, CTRL[i] % G
     while True:
         p = int(rng.integers(0, NPOS))
-        if not avoid_ctrl or p not in CTRL:
+        if p in CTRL:
+            continue
+        if tor1(p // G, cr) + tor1(p % G, cc) > R:
             return p
 
 
@@ -226,43 +231,48 @@ def main():
     ap.add_argument("--lr", type=float, default=2e-3)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--K", type=int, default=2)
-    ap.add_argument("--R", type=int, default=8)
-    ap.add_argument("--N", type=int, default=5000)
-    ap.add_argument("--reps", type=int, default=6)
+    ap.add_argument("--R", type=int, default=7)
+    ap.add_argument("--cap", type=int, default=6000)
+    ap.add_argument("--reps", type=int, default=4)
     ap.add_argument("--eval_every", type=int, default=4000)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = ap.parse_args()
     torch.manual_seed(args.seed); np.random.seed(args.seed)
     device = torch.device(args.device); os.makedirs(OUT, exist_ok=True)
-    print(f"device={device} GATED image, {NAGENTS} agents G={G} ctrl={CTRL}", flush=True)
+    print(f"device={device} GATED image, {NAGENTS} agents G={G} ctrl={CTRL} R={args.R}", flush=True)
 
     model = ImageEnc().to(device)
     train(model, args.steps, args.batch, args.lr, device, K=args.K, eval_every=args.eval_every)
 
     rng = np.random.default_rng(args.seed)
-    # representative scenarios: (name, knob, positions-builder, expected note)
-    def st(k, at_ctrl):    # at_ctrl: list of agent indices placed on their control cell
-        pos = np.array([CTRL[i] if i in at_ctrl else far_pos(rng) for i in range(NAGENTS)])
+    # at_ctrl: agents pinned to their control cell (a stratum junction); others placed far from
+    # their own control cell so the ball is a single, genuinely low-dim movement patch.
+    def st(k, at_ctrl):
+        pos = np.array([CTRL[i] if i in at_ctrl else far_from_own_ctrl(i, rng, args.R)
+                        for i in range(NAGENTS)])
         return pos, np.array(k)
     scenarios = [
-        ("all,all  far",          lambda: st([0, 0], []),  "move 2+2=4, no flip"),
-        ("all,none far",          lambda: st([0, 3], []),  "move 2 (a1 stuck), no flip"),
-        ("horiz,vert far",        lambda: st([1, 2], []),  "move 1+1=2, no flip"),
-        ("none,all  far",         lambda: st([3, 0], []),  "move 2 (a0 stuck)"),
-        ("none,none a0@ctrl",     lambda: st([3, 3], [0]), "a0 can flip (bridge), a1 stuck"),
-        ("all,all   a0@ctrl",     lambda: st([0, 0], [0]), "move 4 + a0 flip bridge"),
+        ("all,all  far",       lambda: st([0, 0], []),  "both move 2D -> 4"),
+        ("all,none far",       lambda: st([0, 3], []),  "a1 frozen -> 2 (a0 only)"),
+        ("horiz,vert far",     lambda: st([1, 2], []),  "1D+1D -> 2"),
+        ("none,all  far",      lambda: st([3, 0], []),  "a0 frozen -> 2 (a1 only)"),
+        ("none,none a0@ctrl",  lambda: st([3, 3], [0]), "junction: a0 flips modes -> ~1.8"),
+        ("all,all   a0@ctrl",  lambda: st([0, 0], [0]), "4D bulk + flip bridges -> ~4"),
     ]
     print("\n================ GATED — local dimension at representative points ================", flush=True)
-    print(f"{'scenario':<24}{'measured':>10}{'ball':>8}   expected")
+    print(f"{'scenario':<22}{'measured':>10}{'ball':>7}{'cfg':>5}   expected")
     for name, build, note in scenarios:
-        vals, balls = [], []
+        vals, balls, cfgs = [], [], []
         for _ in range(args.reps):
             pos0, knob0 = build()
-            d, nb = measure_point(model, device, pos0, knob0, args.R, args.N, rng)
+            d, nb, nc = measure_point(model, device, pos0, knob0, args.R, args.cap)
+            balls.append(nb); cfgs.append(nc)
             if not np.isnan(d):
-                vals.append(d); balls.append(nb)
+                vals.append(d)
         md = np.mean(vals) if vals else float("nan")
-        print(f"{name:<24}{md:>10.2f}{int(np.mean(balls)) if balls else 0:>8}   {note}", flush=True)
+        sd = np.std(vals) if len(vals) > 1 else 0.0
+        print(f"{name:<22}{md:>7.2f}±{sd:.2f}{int(np.mean(balls)):>7}{int(np.mean(cfgs)):>5}   {note}",
+              flush=True)
     print("==================================================================================", flush=True)
 
 
