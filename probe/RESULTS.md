@@ -393,3 +393,29 @@ Follow-up if emb-NN is wanted: add a training term that pushes *illegal* local p
 (so non-adjacent neighbours become geometrically far), making the gate part of the embedding's
 local metric rather than only its adjacency. Model checkpoint saved at factored_vis/gated4_seed1.pt
 for retuning without retraining.
+
+### Making the EMBEDDING stratified — 5 hypotheses, criticism, and an ideal pre-check
+
+Goal: not "BFS-on-the-graph recovers dimension" (that measures the graph) but "the embedding's OWN
+local geometry is stratified", so a graph-free embedding-NN reads local dim = DOF. Key fork for an
+illegal move (e.g. displacing a stuck agent): REPEL it far (injective glued strata, but a generic
+jitter pool has ~0 on-stratum neighbours -> unmeasurable) vs COLLAPSE it to the same point (quotient
+immovable axes -> the local manifold's extent IS the movable axes -> emb-NN reads DOF).
+
+Ideal pre-check (no training): graph-free emb-NN on a generic jitter pool, using idealised
+distances. COLLAPSE distance -> 2.35/2.84/3.96/4.93/5.87/6.99/8.07 across DOF 2..8 (tracks DOF).
+REPEL distance -> 18.8/12.2/9.5/7.8/7.3/5.6/8.1 (garbage, non-monotone). So collapse is the
+mechanism; repulsion stratifies but stays unmeasurable graph-free.
+
+Five tests (image G=24, 4 agents unless noted):
+- E1  illegal-repulsion hinge (margin, image)        -> expect large legal/illegal gap, emb-NN fails
+- E7  illegal-COLLAPSE loss (image)                  -> expect emb-NN tracks DOF
+- E5-learned  factored encoder, knob-gated (learned gate + collapse loss)
+- E5-hard     factored encoder, hardwired gate (zeroes immovable axes)  -> upper bound
+- E2  knob-guided emb-NN sampling on the E1 model (jitter only knob-allowed axes)
+Dropped: InfoNCE (redundant with E1, loses absolute metric); per-anchor reachability negatives
+(BFS-per-step too slow, E1 is its tractable proxy).
+
+Early signal: factored + hardwired gate reads the ladder via graph-free emb-NN at 400 steps
+(2.75/3.99/4.86/6.45/7.46/8.70 for DOF 2..7), legal neighbours ~1.2 vs illegal 2-10. Full runs
+in progress (E1 112169, E7 112171, factored 112172).

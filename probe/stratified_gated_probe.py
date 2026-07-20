@@ -90,6 +90,42 @@ class ImageEnc(nn.Module):
         return self.proj(z.reshape(B, -1))
 
 
+class FactoredEnc(nn.Module):
+    """Per-agent tokens: identity + knob + position, where each agent's ROW and COL contributions
+    are GATED by its knob. gate='hardwired' zeroes the immovable axes exactly (all->row&col,
+    horiz->col, vert->row, none->neither); gate='learned' derives the two gates from the knob via a
+    sigmoid MLP (so a collapse loss can teach it to switch immovable axes off); gate='none' always
+    reads both axes (no architectural stratification)."""
+    def __init__(self, d_model=64, D=64, gate="learned", **kw):
+        super().__init__()
+        self.gate_mode = gate
+        self.agent_emb = nn.Embedding(NAGENTS, d_model)
+        self.knob_emb = nn.Embedding(NKNOB, d_model)
+        self.row_emb = nn.Embedding(G, d_model)
+        self.col_emb = nn.Embedding(G, d_model)
+        self.gate_net = nn.Sequential(nn.Linear(d_model, d_model), nn.GELU(), nn.Linear(d_model, 2))
+        self.proj = nn.Sequential(nn.Linear(NAGENTS * d_model, 256), nn.GELU(), nn.Linear(256, D))
+
+    def _gate(self, knob):
+        if self.gate_mode == "hardwired":
+            row = ((knob == 0) | (knob == 2)).float()            # all / vert -> row movable
+            col = ((knob == 0) | (knob == 1)).float()            # all / horiz -> col movable
+            return row, col
+        if self.gate_mode == "none":
+            o = torch.ones_like(knob, dtype=torch.float); return o, o
+        g = torch.sigmoid(self.gate_net(self.knob_emb(knob)))    # learned, per agent, per axis
+        return g[..., 0], g[..., 1]
+
+    def embed(self, pos, knob):
+        dev = pos.device; ar = torch.arange(NAGENTS, device=dev)
+        aid = self.agent_emb(ar).unsqueeze(0)                    # (1,A,d)
+        kn = self.knob_emb(knob)                                 # (B,A,d)
+        r, c = pos // G, pos % G
+        gr, gc = self._gate(knob)                                # (B,A) each
+        tok = aid + kn + gr.unsqueeze(-1) * self.row_emb(r) + gc.unsqueeze(-1) * self.col_emb(c)
+        return self.proj(tok.reshape(tok.shape[0], -1))
+
+
 # ---------- training (vectorized) ----------
 def rand_valid(n, device):
     pos = torch.randint(0, NPOS, (n, NAGENTS), device=device)
@@ -163,7 +199,8 @@ def illegal_flip(pos, knob):
     return knob_f, mask
 
 
-def train(model, steps, batch, lr, device, K=2, rep_offset=10.0, margin=8.0, lam_ill=1.0, eval_every=2000):
+def train(model, steps, batch, lr, device, K=2, rep_offset=10.0, margin=8.0,
+          lam_ill=0.0, lam_collapse=0.0, eval_every=2000):
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     model.train()
     for s in range(steps):
@@ -175,16 +212,20 @@ def train(model, steps, batch, lr, device, K=2, rep_offset=10.0, margin=8.0, lam
         loss_knob = (torch.norm(model.embed(p2, k_u) - model.embed(p2, k_v), dim=-1) - 1.0).square().mean()
         rp, rk = rand_valid(batch, device)
         loss_rep = F.softplus(rep_offset - torch.norm(eu - model.embed(rp, rk), dim=-1)).mean()
-        # gate becomes geometric: an illegal 1-step neighbour must sit at least `margin` away, so it
-        # leaves the local ball and the neighbourhood is a genuinely low-dim sheet.
-        pos_im, m_im = illegal_move(pos, knob)
+        loss = loss_iso + loss_knob + loss_rep
+        pos_im, m_im = illegal_move(pos, knob)                    # an illegal 1-step position change
         d_im = torch.norm(eu - model.embed(pos_im, knob), dim=-1)
-        loss_im = (F.relu(margin - d_im).square() * m_im).sum() / m_im.sum().clamp(min=1.0)
-        knob_if, m_if = illegal_flip(pos, knob)
-        d_if = torch.norm(eu - model.embed(pos, knob_if), dim=-1)
-        loss_if = (F.relu(margin - d_if).square() * m_if).sum() / m_if.sum().clamp(min=1.0)
-        loss_ill = loss_im + loss_if
-        loss = loss_iso + loss_knob + loss_rep + lam_ill * loss_ill
+        loss_ill = torch.tensor(0.0, device=device)
+        if lam_ill > 0:      # REPEL: illegal neighbour pushed >= margin (a true glued-strata space)
+            loss_im = (F.relu(margin - d_im).square() * m_im).sum() / m_im.sum().clamp(min=1.0)
+            knob_if, m_if = illegal_flip(pos, knob)
+            d_if = torch.norm(eu - model.embed(pos, knob_if), dim=-1)
+            loss_if = (F.relu(margin - d_if).square() * m_if).sum() / m_if.sum().clamp(min=1.0)
+            loss_ill = loss_im + loss_if
+            loss = loss + lam_ill * loss_ill
+        if lam_collapse > 0:  # COLLAPSE: illegal move maps to the SAME point (quotient immovable axes)
+            loss_ill = (d_im.square() * m_im).sum() / m_im.sum().clamp(min=1.0)
+            loss = loss + lam_collapse * loss_ill
         opt.zero_grad(); loss.backward(); opt.step()
         if (s + 1) % eval_every == 0 or s == 0:
             print(f"step {s+1}/{steps} loss {loss.item():.3f} (iso {loss_iso.item():.3f} "
@@ -262,26 +303,33 @@ def measure_point(model, device, pos0, knob0, R, cap=6000, dbg=False):
 
 
 # ---------- embedding-NN neighbourhood (no graph / BFS) ----------
-def local_pool(pos0, knob0, W, M, rng, frac_same_knob=0.5):
+def local_pool(pos0, knob0, W, M, rng, frac_same_knob=0.5, axis_guided=False):
     """Candidate pool for embedding-NN: jitter EVERY agent's position within +-W (toroidal) and,
     for a fraction of the pool, keep the probe's knobs, else randomise them. Legality is NOT
     consulted — the pool is a dense local cloud in *state* space; which of these are actually
-    'near' is decided later by embedding distance, not by the move graph."""
+    'near' is decided later by embedding distance, not by the move graph.
+    axis_guided=True instead jitters each agent only along the axes its OWN knob permits (using the
+    observable knob, not the move graph) so the pool stays dense on the low-dim stratum."""
     pos = np.tile(pos0.astype(np.int64), (M, 1))
     dr = rng.integers(-W, W + 1, (M, NAGENTS)); dc = rng.integers(-W, W + 1, (M, NAGENTS))
+    if axis_guided:
+        row_ok = ((knob0 == 0) | (knob0 == 2)).astype(np.int64)   # all/vert
+        col_ok = ((knob0 == 0) | (knob0 == 1)).astype(np.int64)   # all/horiz
+        dr = dr * row_ok[None]; dc = dc * col_ok[None]
     pos = ((pos // G + dr) % G) * G + ((pos % G + dc) % G)
     knob = np.tile(knob0.astype(np.int64), (M, 1))
-    use_rand = rng.random((M, 1)) > frac_same_knob
-    knob = np.where(use_rand, rng.integers(0, NKNOB, (M, NAGENTS)), knob)
+    if not axis_guided:
+        use_rand = rng.random((M, 1)) > frac_same_knob
+        knob = np.where(use_rand, rng.integers(0, NKNOB, (M, NAGENTS)), knob)
     return pos, knob
 
 
 @torch.no_grad()
-def measure_point_emb(model, device, pos0, knob0, W, M, k, rng):
+def measure_point_emb(model, device, pos0, knob0, W, M, k, rng, axis_guided=False):
     """Local dimension from the embedding's OWN nearest neighbours: embed a dense local pool,
     take the k closest to the probe in embedding space, read the correlation dimension of that
     ball. Uses no graph structure to pick the neighbours."""
-    ps, ks = local_pool(pos0, knob0, W, M, rng)
+    ps, ks = local_pool(pos0, knob0, W, M, rng, axis_guided=axis_guided)
     E = []
     for i in range(0, len(ps), 8192):
         E.append(model.embed(torch.tensor(ps[i:i + 8192], device=device),
@@ -373,7 +421,11 @@ def main():
     ap.add_argument("--slots", type=int, default=8)
     ap.add_argument("--eval_every", type=int, default=4000)
     ap.add_argument("--margin", type=float, default=8.0) # illegal 1-step neighbours pushed >= margin
-    ap.add_argument("--lam_ill", type=float, default=1.0)# weight of the illegal-repulsion term
+    ap.add_argument("--lam_ill", type=float, default=0.0)     # REPEL weight (glued-strata space)
+    ap.add_argument("--lam_collapse", type=float, default=0.0)# COLLAPSE weight (quotient immovable axes)
+    ap.add_argument("--encoder", choices=["image", "factored"], default="image")
+    ap.add_argument("--gate", choices=["learned", "hardwired", "none"], default="learned")
+    ap.add_argument("--emb_axis_guided", action="store_true")  # E2: jitter along knob-allowed axes
     ap.add_argument("--emb_W", type=int, default=10)     # embedding-NN pool jitter window
     ap.add_argument("--emb_M", type=int, default=60000)  # embedding-NN pool size per probe
     ap.add_argument("--emb_k", type=int, default=3000)   # nearest neighbours kept as the ball
@@ -389,13 +441,17 @@ def main():
     device = torch.device(args.device); os.makedirs(OUT, exist_ok=True)
     print(f"device={device} GATED image, {NAGENTS} agents G={G} ctrl={CTRL} R={args.R} cap={args.cap}", flush=True)
 
-    model = ImageEnc(d_model=args.d_model, D=args.D, n_slots=args.slots).to(device)
+    if args.encoder == "factored":
+        model = FactoredEnc(d_model=args.d_model, D=args.D, gate=args.gate).to(device)
+    else:
+        model = ImageEnc(d_model=args.d_model, D=args.D, n_slots=args.slots).to(device)
+    print(f"encoder={args.encoder} gate={args.gate} lam_ill={args.lam_ill} lam_collapse={args.lam_collapse}", flush=True)
     if args.load_model:
         model.load_state_dict(torch.load(args.load_model, map_location=device))
         model.eval(); print(f"loaded model from {args.load_model} (training skipped)", flush=True)
     else:
-        train(model, args.steps, args.batch, args.lr, device, K=args.K,
-              margin=args.margin, lam_ill=args.lam_ill, eval_every=args.eval_every)
+        train(model, args.steps, args.batch, args.lr, device, K=args.K, margin=args.margin,
+              lam_ill=args.lam_ill, lam_collapse=args.lam_collapse, eval_every=args.eval_every)
         if args.save_model:
             torch.save(model.state_dict(), args.save_model); print(f"saved model -> {args.save_model}", flush=True)
 
@@ -420,7 +476,8 @@ def main():
             d, _, _ = measure_point(model, device, pos0, knob0, args.R, args.cap)
             if not np.isnan(d):
                 bvals.append(d)
-            de, _ = measure_point_emb(model, device, pos0, knob0, args.emb_W, args.emb_M, args.emb_k, rng)
+            de, _ = measure_point_emb(model, device, pos0, knob0, args.emb_W, args.emb_M, args.emb_k,
+                                      rng, axis_guided=args.emb_axis_guided)
             if not np.isnan(de):
                 evals.append(de)
             gl, gi = gap_at(model, device, pos0, knob0)
