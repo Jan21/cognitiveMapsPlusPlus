@@ -156,17 +156,18 @@ def train(model, steps, batch, lr, device, K=2, rep_offset=10.0, eval_every=2000
 
 
 # ---------- local-neighbourhood dimension ----------
-def vgt_slope(dist, lo_frac=0.05, hi_frac=0.5, min_lo=8):
+def vgt_slope(dist, lo_frac=0.03, hi_frac=0.6, min_lo=5):
     """Correlation-dimension slope: log(rank k) vs log(k-th sorted distance), fit over the band
     [lo_frac, hi_frac] of the cumulative curve. Evaluating growth AT the observed distances (not
     at log-spaced bins) means there are no empty bins to drop when the embedding squeezes points
     into a narrow band, and starting at lo_frac skips any collapsed near-neighbours at the bottom.
-    The hi_frac cap keeps the fit below saturation (the flat tail of a fully-enclosed ball)."""
+    The hi_frac cap keeps the fit below saturation (the flat tail of a fully-enclosed ball).
+    The band is wide enough to read a thin 1-D ring (~24 points) as well as a capped 8-D ball."""
     d = np.sort(dist[dist > 1e-9]); N = d.size
-    if N < 20:
+    if N < 12:
         return np.nan
     lo = max(min_lo, int(lo_frac * N)); hi = int(hi_frac * N)
-    if hi - lo < 6:
+    if hi - lo < 5:
         return np.nan
     ld, lk = np.log(d[lo:hi]), np.log(np.arange(1, N + 1, dtype=float)[lo:hi])
     if ld[-1] - ld[0] < 1e-6:
@@ -239,8 +240,23 @@ def far_from_own_ctrl(i, rng, R):
             return p
 
 
+def dof_knob(t, nag):
+    """knob vector for total DOF t: t//2 agents 'all' (2D), one 'horiz' (1D) if t is odd, rest
+    'none' (frozen). Codes: all=0, horiz=1, none=3."""
+    k = [NONE] * nag
+    n_all = t // 2
+    for j in range(n_all):
+        k[j] = 0
+    if t % 2 == 1:
+        k[n_all] = 1
+    return k
+
+
 def main():
+    global NAGENTS, G, NPOS, CTRL, P, VOCAB
     ap = argparse.ArgumentParser()
+    ap.add_argument("--nagents", type=int, default=NAGENTS)
+    ap.add_argument("--G", type=int, default=G)
     ap.add_argument("--steps", type=int, default=12000)
     ap.add_argument("--batch", type=int, default=512)
     ap.add_argument("--lr", type=float, default=2e-3)
@@ -249,14 +265,21 @@ def main():
     ap.add_argument("--R", type=int, default=7)     # measurement-ball radius (hops)
     ap.add_argument("--cap", type=int, default=6000)
     ap.add_argument("--reps", type=int, default=4)
+    ap.add_argument("--d_model", type=int, default=64)
+    ap.add_argument("--D", type=int, default=48)
+    ap.add_argument("--slots", type=int, default=8)
     ap.add_argument("--eval_every", type=int, default=4000)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = ap.parse_args()
+    NAGENTS, G = args.nagents, args.G
+    NPOS = G * G
+    CTRL = [((2 + 3 * i) % G) * G + ((2 + 3 * i) % G) for i in range(4)][:NAGENTS]
+    P = NPOS + NAGENTS; VOCAB = max(NAGENTS + 1, NKNOB)
     torch.manual_seed(args.seed); np.random.seed(args.seed)
     device = torch.device(args.device); os.makedirs(OUT, exist_ok=True)
-    print(f"device={device} GATED image, {NAGENTS} agents G={G} ctrl={CTRL} R={args.R}", flush=True)
+    print(f"device={device} GATED image, {NAGENTS} agents G={G} ctrl={CTRL} R={args.R} cap={args.cap}", flush=True)
 
-    model = ImageEnc().to(device)
+    model = ImageEnc(d_model=args.d_model, D=args.D, n_slots=args.slots).to(device)
     train(model, args.steps, args.batch, args.lr, device, K=args.K, eval_every=args.eval_every)
 
     rng = np.random.default_rng(args.seed)
@@ -266,17 +289,13 @@ def main():
         pos = np.array([CTRL[i] if i in at_ctrl else far_from_own_ctrl(i, rng, args.R)
                         for i in range(NAGENTS)])
         return pos, np.array(k)
-    scenarios = [
-        ("all,all  far",       lambda: st([0, 0], []),  "both move 2D -> 4"),
-        ("all,none far",       lambda: st([0, 3], []),  "a1 frozen -> 2 (a0 only)"),
-        ("horiz,vert far",     lambda: st([1, 2], []),  "1D+1D -> 2"),
-        ("none,all  far",      lambda: st([3, 0], []),  "a0 frozen -> 2 (a1 only)"),
-        ("none,none a0@ctrl",  lambda: st([3, 3], [0]), "junction: a0 flips modes -> ~1.8"),
-        ("all,all   a0@ctrl",  lambda: st([0, 0], [0]), "4D bulk + flip bridges -> ~4"),
-    ]
-    print("\n================ GATED — local dimension at representative points ================", flush=True)
-    print(f"{'scenario':<22}{'measured':>10}{'ball':>7}{'cfg':>5}   expected")
-    for name, build, note in scenarios:
+    # DOF ladder 1..2*NAGENTS (pure movement, all agents far from their knobs) + a junction.
+    scenarios = [(f"DOF{t} far", (lambda t=t: st(dof_knob(t, NAGENTS), [])), float(t))
+                 for t in range(1, 2 * NAGENTS + 1)]
+    scenarios.append(("all-none a0@ctrl", (lambda: st([NONE] * NAGENTS, [0])), "junction >0"))
+    print("\n================ GATED — local dimension vs true DOF (representative points) ================", flush=True)
+    print(f"{'scenario':<18}{'measured':>10}{'ball':>8}{'cfg':>5}   true DOF")
+    for name, build, exp in scenarios:
         vals, balls, cfgs = [], [], []
         for r in range(args.reps):
             pos0, knob0 = build()
@@ -286,9 +305,9 @@ def main():
                 vals.append(d)
         md = np.mean(vals) if vals else float("nan")
         sd = np.std(vals) if len(vals) > 1 else 0.0
-        print(f"{name:<22}{md:>7.2f}±{sd:.2f}{int(np.mean(balls)):>7}{int(np.mean(cfgs)):>5}   {note}",
+        print(f"{name:<18}{md:>7.2f}±{sd:.2f}{int(np.mean(balls)):>8}{int(np.mean(cfgs)):>5}   {exp}",
               flush=True)
-    print("==================================================================================", flush=True)
+    print("=============================================================================================", flush=True)
 
 
 if __name__ == "__main__":
