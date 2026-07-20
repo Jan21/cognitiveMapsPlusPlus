@@ -107,15 +107,19 @@ def rand_valid(n, device):
     return pos, knob
 
 
-def move_pair(pos, knob, K):
-    """isometry target within the same config; dist = flat-torus L2 geodesic."""
+def move_pair(pos, knob, Kmax):
+    """isometry target within the same config; dist = flat-torus L2 geodesic. A per-sample scale
+    s in [1, Kmax] is drawn so pairs span all offset magnitudes (not just the max) — this trains
+    the metric to be faithful at short range (adjacent states must stay ~1 apart, not collapse to
+    0) as well as out toward the measurement radius."""
     n, dev = pos.shape[0], pos.device
+    s = torch.randint(1, Kmax + 1, (n,), device=dev).float()
     dsq = torch.zeros(n, device=dev); tgt = pos.clone()
     for i in range(NAGENTS):
         ki = knob[:, i]; r, c = pos[:, i] // G, pos[:, i] % G
-        row_ok = ((ki == 0) | (ki == 2)).long(); col_ok = ((ki == 0) | (ki == 1)).long()
-        drow = torch.randint(-K, K + 1, (n,), device=dev) * row_ok
-        dcol = torch.randint(-K, K + 1, (n,), device=dev) * col_ok
+        row_ok = ((ki == 0) | (ki == 2)).float(); col_ok = ((ki == 0) | (ki == 1)).float()
+        drow = (torch.round((torch.rand(n, device=dev) * 2 - 1) * s) * row_ok).long()
+        dcol = (torch.round((torch.rand(n, device=dev) * 2 - 1) * s) * col_ok).long()
         tgt[:, i] = ((r + drow) % G) * G + ((c + dcol) % G)
         dsq = dsq + drow.float() ** 2 + dcol.float() ** 2
     return tgt, dsq.sqrt()
@@ -152,19 +156,22 @@ def train(model, steps, batch, lr, device, K=2, rep_offset=10.0, eval_every=2000
 
 
 # ---------- local-neighbourhood dimension ----------
-def vgt_slope(dist, sat_frac=0.5, min_count=8, num_radii=40):
-    """Volume-growth dimension = slope of log C(r) vs log r over the UNSATURATED region.
-    Cutting the fit at C <= sat_frac*N avoids the flat tail that appears once a small ball
-    is fully enclosed (that tail otherwise drags a median-of-windows slope toward 0)."""
+def vgt_slope(dist, lo_frac=0.05, hi_frac=0.5, min_lo=8):
+    """Correlation-dimension slope: log(rank k) vs log(k-th sorted distance), fit over the band
+    [lo_frac, hi_frac] of the cumulative curve. Evaluating growth AT the observed distances (not
+    at log-spaced bins) means there are no empty bins to drop when the embedding squeezes points
+    into a narrow band, and starting at lo_frac skips any collapsed near-neighbours at the bottom.
+    The hi_frac cap keeps the fit below saturation (the flat tail of a fully-enclosed ball)."""
     d = np.sort(dist[dist > 1e-9]); N = d.size
     if N < 20:
         return np.nan
-    radii = np.logspace(np.log10(d[0]), np.log10(d[-1]), num_radii)
-    counts = np.searchsorted(d, radii, side="right").astype(float)
-    mask = (counts >= min_count) & (counts <= sat_frac * N)
-    if mask.sum() < 4:
+    lo = max(min_lo, int(lo_frac * N)); hi = int(hi_frac * N)
+    if hi - lo < 6:
         return np.nan
-    return float(np.polyfit(np.log(radii[mask]), np.log(counts[mask]), 1)[0])
+    ld, lk = np.log(d[lo:hi]), np.log(np.arange(1, N + 1, dtype=float)[lo:hi])
+    if ld[-1] - ld[0] < 1e-6:
+        return np.nan
+    return float(np.polyfit(ld, lk, 1)[0])
 
 
 def local_ball(pos0, knob0, R, cap=6000):
@@ -193,7 +200,7 @@ def local_ball(pos0, knob0, R, cap=6000):
 
 
 @torch.no_grad()
-def measure_point(model, device, pos0, knob0, R, cap=6000):
+def measure_point(model, device, pos0, knob0, R, cap=6000, dbg=False):
     ps, ks = local_ball(pos0, knob0, R, cap)
     nconf = len(set(map(tuple, ks)))
     if len(ps) < 20:
@@ -205,7 +212,15 @@ def measure_point(model, device, pos0, knob0, R, cap=6000):
     E = np.concatenate(E)
     q = model.embed(torch.tensor(pos0[None], device=device),
                     torch.tensor(knob0[None], device=device)).cpu().numpy()[0]
-    return vgt_slope(np.linalg.norm(E - q, axis=1)), len(ps), nconf
+    dist = np.linalg.norm(E - q, axis=1)
+    if dbg:
+        d = np.sort(dist[dist > 1e-9])
+        radii = np.logspace(np.log10(d[0]), np.log10(d[-1]), 40)
+        counts = np.searchsorted(d, radii, side="right").astype(float)
+        nmask = int(((counts >= 8) & (counts <= 0.5 * d.size)).sum())
+        print(f"      [dbg] N={d.size} d0={d[0]:.3f} d25={np.percentile(d,25):.3f} "
+              f"dmed={np.median(d):.3f} dmax={d[-1]:.3f} fit_bins={nmask}", flush=True)
+    return vgt_slope(dist), len(ps), nconf
 
 
 def tor1(a, b):
@@ -230,8 +245,8 @@ def main():
     ap.add_argument("--batch", type=int, default=512)
     ap.add_argument("--lr", type=float, default=2e-3)
     ap.add_argument("--seed", type=int, default=1)
-    ap.add_argument("--K", type=int, default=2)
-    ap.add_argument("--R", type=int, default=7)
+    ap.add_argument("--K", type=int, default=7)     # max isometry scale (per-sample draws 1..K)
+    ap.add_argument("--R", type=int, default=7)     # measurement-ball radius (hops)
     ap.add_argument("--cap", type=int, default=6000)
     ap.add_argument("--reps", type=int, default=4)
     ap.add_argument("--eval_every", type=int, default=4000)
@@ -263,9 +278,9 @@ def main():
     print(f"{'scenario':<22}{'measured':>10}{'ball':>7}{'cfg':>5}   expected")
     for name, build, note in scenarios:
         vals, balls, cfgs = [], [], []
-        for _ in range(args.reps):
+        for r in range(args.reps):
             pos0, knob0 = build()
-            d, nb, nc = measure_point(model, device, pos0, knob0, args.R, args.cap)
+            d, nb, nc = measure_point(model, device, pos0, knob0, args.R, args.cap, dbg=(r == 0))
             balls.append(nb); cfgs.append(nc)
             if not np.isnan(d):
                 vals.append(d)
