@@ -289,3 +289,44 @@ Artifacts: `probe/bridged_tori_{image,multitask,equivariant,3factor}_probe.py`,
    joined only at the bridge (the stratified-space picture from the repo README).
 4. Stress tests: move the bridge node, add a second bridge, vary torus size, check the
    emergent metric still matches geodesic.
+
+---
+
+## Gated-knob probe — genuine low-dim states + local-neighbourhood dimension
+
+`probe/stratified_gated_probe.py`. Sharpens the story: a knob can be flipped **only** when its
+agent stands on that knob's control cell. So far from all knobs you cannot switch movement-mode
+at will — the local neighbourhood is *genuinely* the current movement, and can be truly
+low-dimensional. Image input (grid pixels + one always-visible knob-value pixel per agent, never
+occupied). Dead states (all frozen, none at a control cell) are excluded and no transition
+creates one. Trained on adjacency only: multi-scale isometry within a config (dist = flat-torus
+L2 geodesic, per-sample scale 1..K) + gated knob-flip edges at distance 1 + a repulsion term.
+
+Dimension is read **at representative points**, embedding only each point's local neighbourhood
+(no UMAP): exact BFS enumeration of the legal R=7 ball, then correlation-dimension slope
+(log rank vs log sorted embedding-distance over [0.05, 0.5]N). 2 agents, G=15, 20k steps.
+
+| representative state | seed1 | seed2 | true local dim |
+|----------------------|------:|------:|:--------------:|
+| all,all far          | 4.25 | 4.36 | 4 |
+| all,none far         | 2.13 | 2.19 | 2 (a1 frozen, a0 2D) |
+| horiz,vert far       | 2.19 | 2.14 | 2 (1D+1D) |
+| none,all far         | 2.14 | 2.10 | 2 (a0 frozen, a1 2D) |
+| none,none a0@ctrl    | 2.02 | 2.63 | junction (>1) |
+| all,all a0@ctrl      | 4.66 | 4.91 | ~4 (+flip bridges) |
+
+**Confirmed from image input, no UMAP.** A frozen agent far from its knob contributes **0**
+(none,all far reads ~2.1 = only the free agent), so the gating genuinely creates low-dim states.
+Pure-movement dims are recovered with a clean factor-2 gap (2D ~2.1 vs 4D ~4.3). A **control cell
+is a stratum junction**: standing there (able to flip into other movement modes) reads *above*
+the surrounding frozen bulk. Mild overshoot on 4D / junctions is embedding noise + correlation-dim
+on a curved patch; separation is unaffected.
+
+### Debugging note (measurement, not model)
+Early runs returned `nan` on every 1D/2D state. Root-caused on **ideal flat-torus distances**
+(zero model): (1) a random-walk ball wasted steps on frozen agents → 62-state balls of radius ~4;
+(2) `vgt_slope`'s median-of-windows was dragged to 0 by the saturated tail of a small ball; and,
+once those were fixed, (3) the trained embedding squeezed distances into a narrow band with
+collapsed near-neighbours, so log-spaced radii left <4 populated bins. Fixes: exact BFS ball +
+correlation-dimension estimator (evaluate growth at the observed distances, skip the collapsed
+bottom fraction) + multi-scale isometry (adjacent states stay ~1 apart instead of collapsing).
