@@ -135,7 +135,35 @@ def knob_edge(pos, knob):
     return pos2, knob, knob_v
 
 
-def train(model, steps, batch, lr, device, K=2, rep_offset=10.0, eval_every=2000):
+def illegal_move(pos, knob):
+    """an ILLEGAL 1-step position change: move a random agent one cell along an axis its knob does
+    NOT permit. Returns the perturbed positions and a mask that is 1 exactly where the move really
+    was illegal (a knob=all agent has no illegal move, so those are masked out)."""
+    n, dev = pos.shape[0], pos.device; ar = torch.arange(n, device=dev)
+    a = torch.randint(0, NAGENTS, (n,), device=dev)
+    ka = knob[ar, a]; pa = pos[ar, a]; r, c = pa // G, pa % G
+    d = torch.randint(0, 4, (n,), device=dev)                    # 0 up,1 down (row); 2 left,3 right (col)
+    is_row = d < 2
+    row_ok = (ka == 0) | (ka == 2); col_ok = (ka == 0) | (ka == 1)
+    mask = (~torch.where(is_row, row_ok, col_ok)).float()        # 1 where this move is illegal
+    nr = torch.where(d == 0, (r - 1) % G, torch.where(d == 1, (r + 1) % G, r))
+    nc = torch.where(d == 2, (c - 1) % G, torch.where(d == 3, (c + 1) % G, c))
+    pos_ill = pos.clone(); pos_ill[ar, a] = nr * G + nc
+    return pos_ill, mask
+
+
+def illegal_flip(pos, knob):
+    """an ILLEGAL knob change: flip a random agent's knob while it is NOT on its control cell.
+    Mask is 1 where the agent is off its control cell (so the flip is not permitted)."""
+    n, dev = pos.shape[0], pos.device; ar = torch.arange(n, device=dev)
+    ctrl_t = torch.tensor(CTRL, device=dev)
+    a = torch.randint(0, NAGENTS, (n,), device=dev)
+    mask = (pos[ar, a] != ctrl_t[a]).float()
+    knob_f = knob.clone(); knob_f[ar, a] = (knob[ar, a] + torch.randint(1, NKNOB, (n,), device=dev)) % NKNOB
+    return knob_f, mask
+
+
+def train(model, steps, batch, lr, device, K=2, rep_offset=10.0, margin=8.0, lam_ill=1.0, eval_every=2000):
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     model.train()
     for s in range(steps):
@@ -147,11 +175,20 @@ def train(model, steps, batch, lr, device, K=2, rep_offset=10.0, eval_every=2000
         loss_knob = (torch.norm(model.embed(p2, k_u) - model.embed(p2, k_v), dim=-1) - 1.0).square().mean()
         rp, rk = rand_valid(batch, device)
         loss_rep = F.softplus(rep_offset - torch.norm(eu - model.embed(rp, rk), dim=-1)).mean()
-        loss = loss_iso + loss_knob + loss_rep
+        # gate becomes geometric: an illegal 1-step neighbour must sit at least `margin` away, so it
+        # leaves the local ball and the neighbourhood is a genuinely low-dim sheet.
+        pos_im, m_im = illegal_move(pos, knob)
+        d_im = torch.norm(eu - model.embed(pos_im, knob), dim=-1)
+        loss_im = (F.relu(margin - d_im).square() * m_im).sum() / m_im.sum().clamp(min=1.0)
+        knob_if, m_if = illegal_flip(pos, knob)
+        d_if = torch.norm(eu - model.embed(pos, knob_if), dim=-1)
+        loss_if = (F.relu(margin - d_if).square() * m_if).sum() / m_if.sum().clamp(min=1.0)
+        loss_ill = loss_im + loss_if
+        loss = loss_iso + loss_knob + loss_rep + lam_ill * loss_ill
         opt.zero_grad(); loss.backward(); opt.step()
         if (s + 1) % eval_every == 0 or s == 0:
             print(f"step {s+1}/{steps} loss {loss.item():.3f} (iso {loss_iso.item():.3f} "
-                  f"knob {loss_knob.item():.3f} rep {loss_rep.item():.3f})", flush=True)
+                  f"knob {loss_knob.item():.3f} rep {loss_rep.item():.3f} ill {loss_ill.item():.3f})", flush=True)
     return model
 
 
@@ -258,6 +295,38 @@ def measure_point_emb(model, device, pos0, knob0, W, M, k, rng):
     return vgt_slope(nn), int(kk)
 
 
+@torch.no_grad()
+def gap_at(model, device, pos0, knob0):
+    """median embedding distance from a probe to its LEGAL 1-step neighbours vs its ILLEGAL 1-step
+    neighbours (off-axis moves + flips away from a control cell). A large illegal/legal gap is the
+    direct evidence that the embedding's local geometry is stratified."""
+    def emb(ps, ks):
+        return model.embed(torch.tensor(np.array(ps), device=device),
+                           torch.tensor(np.array(ks), device=device)).cpu().numpy()
+    q = emb(pos0[None], knob0[None])[0]
+    leg = legal_transitions(pos0, knob0)
+    dleg = np.nan
+    if leg:
+        el = emb([p for p, _ in leg], [k for _, k in leg])
+        dleg = float(np.median(np.linalg.norm(el - q, axis=1)))
+    ip, ik = [], []
+    for i in range(NAGENTS):
+        r, c = pos0[i] // G, pos0[i] % G
+        allowed = set(allowed_dirs(int(knob0[i])))
+        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            if (dr, dc) not in allowed:
+                p2 = pos0.copy(); p2[i] = ((r + dr) % G) * G + ((c + dc) % G); ip.append(p2); ik.append(knob0.copy())
+        if pos0[i] != CTRL[i]:
+            for kv in range(NKNOB):
+                if kv != knob0[i]:
+                    k2 = knob0.copy(); k2[i] = kv; ip.append(pos0.copy()); ik.append(k2)
+    dill = np.nan
+    if ip:
+        ei = emb(ip, ik)
+        dill = float(np.median(np.linalg.norm(ei - q, axis=1)))
+    return dleg, dill
+
+
 def tor1(a, b):
     d = abs(a - b); return min(d, G - d)
 
@@ -303,6 +372,8 @@ def main():
     ap.add_argument("--D", type=int, default=48)
     ap.add_argument("--slots", type=int, default=8)
     ap.add_argument("--eval_every", type=int, default=4000)
+    ap.add_argument("--margin", type=float, default=8.0) # illegal 1-step neighbours pushed >= margin
+    ap.add_argument("--lam_ill", type=float, default=1.0)# weight of the illegal-repulsion term
     ap.add_argument("--emb_W", type=int, default=10)     # embedding-NN pool jitter window
     ap.add_argument("--emb_M", type=int, default=60000)  # embedding-NN pool size per probe
     ap.add_argument("--emb_k", type=int, default=3000)   # nearest neighbours kept as the ball
@@ -323,7 +394,8 @@ def main():
         model.load_state_dict(torch.load(args.load_model, map_location=device))
         model.eval(); print(f"loaded model from {args.load_model} (training skipped)", flush=True)
     else:
-        train(model, args.steps, args.batch, args.lr, device, K=args.K, eval_every=args.eval_every)
+        train(model, args.steps, args.batch, args.lr, device, K=args.K,
+              margin=args.margin, lam_ill=args.lam_ill, eval_every=args.eval_every)
         if args.save_model:
             torch.save(model.state_dict(), args.save_model); print(f"saved model -> {args.save_model}", flush=True)
 
@@ -338,27 +410,28 @@ def main():
     scenarios = [(f"DOF{t} far", (lambda t=t: st(dof_knob(t, NAGENTS), [])), float(t))
                  for t in range(1, 2 * NAGENTS + 1)]
     scenarios.append(("all-none a0@ctrl", (lambda: st([NONE] * NAGENTS, [0])), "junction >0"))
-    print("\n===== GATED — local dimension vs true DOF: BFS ball vs embedding-NN ball =====", flush=True)
-    print(f"emb-NN pool: W={args.emb_W} M={args.emb_M} k={args.emb_k} (jitter all agents, no graph)", flush=True)
-    print(f"{'scenario':<18}{'BFS':>12}{'emb-NN':>12}{'ball':>8}   true DOF")
+    print("\n===== GATED — is the EMBEDDING stratified? BFS ball · embedding-NN ball · legal/illegal gap =====", flush=True)
+    print(f"emb-NN pool: W={args.emb_W} M={args.emb_M} k={args.emb_k} · illegal-repulsion margin={args.margin}", flush=True)
+    print(f"{'scenario':<18}{'BFS':>10}{'emb-NN':>10}{'d_legal':>9}{'d_illegal':>10}   true DOF")
     for name, build, exp in scenarios:
-        bvals, evals, balls = [], [], []
+        bvals, evals, dl, di = [], [], [], []
         for _ in range(args.reps):
             pos0, knob0 = build()
-            d, nb, _ = measure_point(model, device, pos0, knob0, args.R, args.cap)
-            balls.append(nb)
+            d, _, _ = measure_point(model, device, pos0, knob0, args.R, args.cap)
             if not np.isnan(d):
                 bvals.append(d)
             de, _ = measure_point_emb(model, device, pos0, knob0, args.emb_W, args.emb_M, args.emb_k, rng)
             if not np.isnan(de):
                 evals.append(de)
+            gl, gi = gap_at(model, device, pos0, knob0)
+            if not np.isnan(gl): dl.append(gl)
+            if not np.isnan(gi): di.append(gi)
         bm = np.median(bvals) if bvals else float("nan")
         em = np.median(evals) if evals else float("nan")
-        bs = np.std(bvals) if len(bvals) > 1 else 0.0
-        es = np.std(evals) if len(evals) > 1 else 0.0
-        print(f"{name:<18}{bm:>7.2f}±{bs:.2f}{em:>7.2f}±{es:.2f}{int(np.mean(balls)):>8}   {exp}",
-              flush=True)
-    print("=============================================================================================", flush=True)
+        glm = np.median(dl) if dl else float("nan")
+        gim = np.median(di) if di else float("nan")
+        print(f"{name:<18}{bm:>10.2f}{em:>10.2f}{glm:>9.2f}{gim:>10.2f}   {exp}", flush=True)
+    print("=================================================================================================", flush=True)
 
 
 if __name__ == "__main__":
