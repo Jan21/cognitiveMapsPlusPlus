@@ -360,3 +360,36 @@ because an 8-D volume needs a radius unreachable with finite points (curse of di
 not a model failure — the *ideal* geometry compresses identically. A **control cell is a junction**:
 'all-none' with a0 on its control cell reads ~2, where the surrounding fully-frozen bulk is 0-dim
 (dead) — a genuine dimension bump where a stuck agent can switch movement modes.
+
+### Embedding-NN neighbourhood (dropping the graph) — negative result
+
+Question: can local dimension be read from the embedding's OWN nearest neighbours, without the
+BFS legal ball? Sampling ruled out a global uniform bank first (1e6 uniform states give 0
+neighbours within radius 3 of a DOF2 probe; an 8-D local ball can't be filled uniformly), so the
+pool is a per-probe local jitter of ALL agents (+ mixed knobs), legality never consulted, and
+embedding distance alone picks the k-NN ball (W=6, M=60000, k=3000).
+
+| true DOF | BFS ball | emb-NN ball |
+|---------:|---------:|------------:|
+| 1 | 1.19 | 8.02 |
+| 2 | 2.19 | 8.21 |
+| 3 | 3.36 | 8.17 |
+| 4 | 3.89 | 8.50 |
+| 5 | 5.17 | 8.84 |
+| 6 | 5.66 | 8.34 |
+| 7 | 5.00 | 8.15 |
+| 8 | 6.19 | 8.43 |
+| junction | 2.08 | 8.71 |
+
+**Embedding-NN reads ~8 flat for every state; the strata are invisible to it.** The gate lives in
+the *graph* (which moves cost one step), not in the embedding's local Euclidean metric. The image
+encoder maps a small pixel move of *any* agent — legal or not — to a small embedding move, and the
+isometry loss only supervised *legal* moves, so displacing a frozen agent was never pushed apart.
+The embedding is thus locally ~isometric to the full 8-D position space (4 agents x 2 axes), and
+Euclidean k-NN recovers that ambient 8 everywhere. Reading a low stratum dimension requires the
+legal-move structure (BFS); it cannot be recovered from embedding neighbours alone.
+
+Follow-up if emb-NN is wanted: add a training term that pushes *illegal* local perturbations apart
+(so non-adjacent neighbours become geometrically far), making the gate part of the embedding's
+local metric rather than only its adjacency. Model checkpoint saved at factored_vis/gated4_seed1.pt
+for retuning without retraining.
