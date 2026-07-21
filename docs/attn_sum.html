@@ -1,0 +1,149 @@
+<title>attn_sum — Attention as a Sum</title>
+<style>
+  :root{
+    --paper:#f6f7f9;--panel:#ffffff;--panel2:#eef2f5;--ink:#17222c;--muted:#5a6a76;--faint:#8b98a3;
+    --accent:#0e8f8a;--accent2:#d9622f;--accent3:#6b4fb0;--line:#dde3e9;--codebg:#eef1f4;--glow:rgba(14,143,138,.10);
+    --serif:"Charter","Bitstream Charter","Iowan Old Style","Palatino Linotype",Georgia,serif;
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --measure:66ch;--wide:820px;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --paper:#0f1620;--panel:#16212c;--panel2:#1b2833;--ink:#dbe4ea;--muted:#8fa0ad;--faint:#6b7b88;
+    --accent:#33b6af;--accent2:#f0885a;--accent3:#9d84e2;--line:#263340;--codebg:#182430;--glow:rgba(51,182,175,.14);}}
+  :root[data-theme="dark"]{
+    --paper:#0f1620;--panel:#16212c;--panel2:#1b2833;--ink:#dbe4ea;--muted:#8fa0ad;--faint:#6b7b88;
+    --accent:#33b6af;--accent2:#f0885a;--accent3:#9d84e2;--line:#263340;--codebg:#182430;--glow:rgba(51,182,175,.14);}
+  :root[data-theme="light"]{
+    --paper:#f6f7f9;--panel:#ffffff;--panel2:#eef2f5;--ink:#17222c;--muted:#5a6a76;--faint:#8b98a3;
+    --accent:#0e8f8a;--accent2:#d9622f;--accent3:#6b4fb0;--line:#dde3e9;--codebg:#eef1f4;--glow:rgba(14,143,138,.10);}
+
+  *{box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);font-family:var(--serif);font-size:18px;line-height:1.6;
+    margin:0;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  .wrap{max-width:var(--wide);margin:0 auto;padding:0 26px}
+  .col{max-width:var(--measure)}
+  p{margin:0 0 15px}a{color:var(--accent)}strong{font-weight:600}
+  code{font-family:var(--mono);font-size:.85em;background:var(--codebg);padding:1.5px 5px;border-radius:4px}
+  svg{display:block;max-width:100%;height:auto}text{font-family:var(--mono)}
+
+  .hero{padding:58px 0 18px;position:relative;overflow:hidden}
+  .hero::before{content:"";position:absolute;inset:-40% 30% auto -10%;height:400px;
+    background:radial-gradient(60% 60% at 30% 30%,var(--glow),transparent 70%);pointer-events:none}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin:0 0 16px;position:relative}
+  h1{font-size:clamp(30px,5vw,46px);line-height:1.07;font-weight:600;letter-spacing:-.015em;margin:0 0 18px;text-wrap:balance;position:relative}
+  .lede{font-size:19px;color:var(--muted);max-width:60ch;margin:0 0 22px;position:relative}
+  .lede em{color:var(--ink);font-style:normal}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12.5px;
+    border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 13px;color:var(--muted);position:relative}
+  .pill b{color:var(--accent);font-weight:600}
+
+  section{padding:26px 0;border-top:1px solid var(--line)}
+  h2{font-size:22px;font-weight:600;letter-spacing:-.01em;margin:0 0 12px}
+  .eq{font-family:var(--mono);font-size:15px;background:var(--codebg);border:1px solid var(--line);border-radius:10px;
+    padding:16px 18px;margin:16px 0;overflow-x:auto;line-height:1.5}
+  .eq .c{color:var(--muted)}.eq .acc{color:var(--accent)}.eq .a2{color:var(--accent2)}.eq .a3{color:var(--accent3)}
+  ul{padding-left:0;margin:14px 0;list-style:none}
+  li{position:relative;padding-left:20px;margin:11px 0}
+  li::before{content:"";position:absolute;left:0;top:.62em;width:8px;height:8px;border-radius:2px;background:var(--dot,var(--accent))}
+  li.k::before{background:var(--accent2)}li.p::before{background:var(--accent)}li.d::before{background:var(--accent3)}
+  .k b{color:var(--accent2)}.p b{color:var(--accent)}.d b{color:var(--accent3)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:16px 0}
+  @media (max-width:620px){.two{grid-template-columns:1fr}}
+  .card{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:14px 16px}
+  .card .t{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:4px}
+  .card .b{font-size:15px}
+  .bad{color:var(--accent2)}.good{color:var(--accent)}
+  figure{margin:20px 0}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 16px}
+  figcaption{font-family:var(--mono);font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.55}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:4px}
+  .lg{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+  .sw{width:13px;height:13px;border-radius:3px;display:inline-block}
+  footer{border-top:1px solid var(--line);padding:22px 0 46px;color:var(--faint);font-family:var(--mono);font-size:12px}
+</style>
+
+<div class="wrap">
+
+  <header class="hero col">
+    <p class="eyebrow">distance head &middot; attn_sum</p>
+    <h1>Attention as a sum, not an average</h1>
+    <p class="lede">A distance between two states, built so it can <em>accumulate</em> costs the way a real path does: dial a knob up, move, dial it back. The fix that made it work: independent gates and a genuine sum.</p>
+    <span class="pill">exact on the 60&times;60 geodesic &middot; <b>RMSE 0.00</b></span>
+  </header>
+
+  <section class="col">
+    <h2>The formula</h2>
+    <div class="eq">
+d(x, y) = <span class="acc">&Sigma;</span><span class="c">&#8202;terms t&#8202;</span> &nbsp; <span class="acc">sigmoid</span>(q &middot; k<sub>t</sub>) &nbsp;&times;&nbsp; <span class="a2">softplus</span>(value<sub>t</sub>)
+<span class="c">              &#8963;&#8202; gate in [0,1], per term        &#8963;&#8202; a distance &ge; 0</span>
+    </div>
+    <p>Each term contributes <strong>its own gated distance</strong>, and the terms are <strong>added</strong>. The gate decides whether a term is active for this pair of states; the value is how much it costs.</p>
+  </section>
+
+  <section class="col">
+    <h2>Why the sum, not softmax</h2>
+    <div class="two">
+      <div class="card">
+        <div class="t">softmax (old, broken)</div>
+        <div class="b">Weights are forced to sum to 1 &rarr; the output is a weighted <span class="bad">average</span>. An average can never exceed its largest term, so it cannot build up a detour.</div>
+      </div>
+      <div class="card">
+        <div class="t">independent sigmoids (attn_sum)</div>
+        <div class="b">Each gate is its own [0,1], no competition &rarr; the terms <span class="good">accumulate</span>. Two, three, many costs can stack into one distance.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="col">
+    <h2>Three terms</h2>
+    <ul>
+      <li class="k"><b>knob term</b> &mdash; cost of dialing the knob: <code>&#8741;&Delta;knob&#8741;</code>.</li>
+      <li class="p"><b>position term</b> &mdash; cost of moving the agent: <code>&#8741;&Delta;pos&#8741;</code>.</li>
+      <li class="d"><b>detour term</b> &mdash; the extra cost to <em>enable</em> a move. Its value is a function of <strong>both</strong> knobs, and its gate fires only when the position actually changes. This is the piece a plain gated distance cannot add.</li>
+    </ul>
+    <p>The learned distance is effectively:</p>
+    <div class="eq">
+d &asymp; <span class="a2">&#8741;&Delta;knob&#8741;</span> + <span class="acc">&#8741;&Delta;pos&#8741;</span> + <span class="c">[&Delta;pos &gt; 0]</span> &middot; <span class="a3">( (5&minus;k<sub>x</sub>) + (5&minus;k<sub>y</sub>) )</span>
+    </div>
+  </section>
+
+  <section class="col">
+    <h2>Worked example</h2>
+    <p>Knob 5 means the agent can move; any other value freezes it. To go from <code>(pos 0, knob 0)</code> to <code>(pos 5, knob 0)</code> you must dial up to 5, move 5, dial back: <strong>15</strong>. The terms add up to exactly that.</p>
+    <figure>
+      <div class="panel">
+        <div class="legend">
+          <span class="lg"><span class="sw" style="background:var(--accent2)"></span> knob</span>
+          <span class="lg"><span class="sw" style="background:var(--accent)"></span> position</span>
+          <span class="lg"><span class="sw" style="background:var(--accent3)"></span> detour</span>
+        </div>
+        <svg viewBox="0 0 720 176" role="img" aria-label="Two worked examples decomposed into summed terms">
+          <!-- scale: 36 px per unit, bars start at x=160 -->
+          <g class="s-mut" font-size="12.5" fill="var(--muted)">
+            <text x="150" y="48" text-anchor="end">(0,0)&rarr;(5,0)</text>
+            <text x="150" y="122" text-anchor="end">(0,0)&rarr;(0,3)</text>
+          </g>
+          <!-- row A: pos 5 (teal) + detour 10 (purple) = 15 -->
+          <g>
+            <rect x="160" y="30" width="180" height="34" rx="3" fill="var(--accent)"/>
+            <rect x="340" y="30" width="360" height="34" rx="3" fill="var(--accent3)"/>
+            <text x="250" y="52" text-anchor="middle" font-size="13" fill="#fff">+5</text>
+            <text x="520" y="52" text-anchor="middle" font-size="13" fill="#fff">+10</text>
+            <text x="712" y="52" text-anchor="end" font-size="14.5" fill="var(--ink)" font-weight="600">= 15</text>
+          </g>
+          <!-- row B: knob 3 (orange) = 3 -->
+          <g>
+            <rect x="160" y="104" width="108" height="34" rx="3" fill="var(--accent2)"/>
+            <text x="214" y="126" text-anchor="middle" font-size="13" fill="#fff">+3</text>
+            <text x="712" y="126" text-anchor="end" font-size="14.5" fill="var(--ink)" font-weight="600">= 3</text>
+            <text x="286" y="126" font-size="12" fill="var(--faint)">position 0, detour off (no move)</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption>Top: the agent moves, so the <b style="color:var(--accent3)">detour term</b> switches on and adds the dial-up-and-back cost. Bottom: only the knob changes, position is fixed, so both the position and detour terms stay off &mdash; distance is just the dial. The gates turn terms on and off; the sum makes them add.</figcaption>
+    </figure>
+  </section>
+
+  <footer class="col">probe/mini4_detour.py &middot; AttnSum &middot; CognitiveMaps++</footer>
+
+</div>

@@ -1,0 +1,235 @@
+<title>Distances on Guarded Graphs</title>
+<style>
+  :root{
+    --paper:#f6f7f9;--panel:#ffffff;--panel2:#eef2f5;--ink:#17222c;--muted:#5a6a76;--faint:#8b98a3;
+    --accent:#0e8f8a;--accent2:#d9622f;--accent3:#6b4fb0;--line:#dde3e9;--codebg:#eef1f4;--glow:rgba(14,143,138,.10);
+    --serif:"Charter","Bitstream Charter","Iowan Old Style","Palatino Linotype",Georgia,serif;
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --measure:70ch;--wide:940px;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --paper:#0f1620;--panel:#16212c;--panel2:#1b2833;--ink:#dbe4ea;--muted:#8fa0ad;--faint:#6b7b88;
+    --accent:#33b6af;--accent2:#f0885a;--accent3:#9d84e2;--line:#263340;--codebg:#182430;--glow:rgba(51,182,175,.14);}}
+  :root[data-theme="dark"]{
+    --paper:#0f1620;--panel:#16212c;--panel2:#1b2833;--ink:#dbe4ea;--muted:#8fa0ad;--faint:#6b7b88;
+    --accent:#33b6af;--accent2:#f0885a;--accent3:#9d84e2;--line:#263340;--codebg:#182430;--glow:rgba(51,182,175,.14);}
+  :root[data-theme="light"]{
+    --paper:#f6f7f9;--panel:#ffffff;--panel2:#eef2f5;--ink:#17222c;--muted:#5a6a76;--faint:#8b98a3;
+    --accent:#0e8f8a;--accent2:#d9622f;--accent3:#6b4fb0;--line:#dde3e9;--codebg:#eef1f4;--glow:rgba(14,143,138,.10);}
+
+  *{box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);font-family:var(--serif);font-size:18px;line-height:1.62;
+    margin:0;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  .wrap{max-width:var(--wide);margin:0 auto;padding:0 28px}
+  .col{max-width:var(--measure);margin-left:auto;margin-right:auto}
+  p{margin:0 0 16px}.col p,.col ul,.col h3{max-width:var(--measure)}
+  a{color:var(--accent)}strong{font-weight:600}
+  code{font-family:var(--mono);font-size:.85em;background:var(--codebg);padding:1.5px 5px;border-radius:4px}
+  ul{padding-left:22px;margin:0 0 16px}li{margin:7px 0}
+  svg{display:block;max-width:100%;height:auto}text{font-family:var(--mono)}
+
+  .hero{padding:70px 0 26px;position:relative;overflow:hidden}
+  .hero::before{content:"";position:absolute;inset:-40% 25% auto -10%;height:480px;
+    background:radial-gradient(60% 60% at 30% 30%,var(--glow),transparent 70%);pointer-events:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin:0 0 18px;position:relative}
+  h1{font-size:clamp(32px,5.4vw,54px);line-height:1.06;font-weight:600;letter-spacing:-.015em;margin:0 0 20px;text-wrap:balance;position:relative}
+  .lede{font-size:20.5px;color:var(--muted);max-width:64ch;margin:0 0 28px;position:relative}
+  .lede em{color:var(--ink);font-style:normal}
+  .stats{display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel);position:relative;max-width:900px}
+  .stat{flex:1 1 200px;padding:18px 20px;border-right:1px solid var(--line)}
+  .stat:last-child{border-right:none}
+  .stat .k{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+  .stat .v{font-family:var(--serif);font-size:25px;font-weight:600;line-height:1.05;font-variant-numeric:tabular-nums}
+  .stat .v.acc{color:var(--accent)}.stat .v.a3{color:var(--accent3)}
+  .stat .sub{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:6px;line-height:1.4}
+  @media (max-width:640px){.stat{flex-basis:50%;border-bottom:1px solid var(--line)}}
+
+  section{padding:36px 0;border-top:1px solid var(--line)}
+  .num{font-family:var(--mono);font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent2);margin:0 0 10px}
+  h2{font-size:clamp(23px,3.6vw,31px);font-weight:600;letter-spacing:-.01em;margin:0 0 14px;text-wrap:balance}
+  h3{font-size:18px;font-weight:600;margin:22px 0 8px}
+  .chip{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.09em;text-transform:uppercase;padding:3px 9px;border-radius:999px;font-weight:600;vertical-align:middle;margin-left:4px;color:#fff}
+  .chip.a{background:var(--accent)}.chip.b{background:var(--accent2)}.chip.c{background:var(--accent3)}
+  :root[data-theme="dark"] .chip{color:#0f1620}@media (prefers-color-scheme:dark){.chip{color:#0f1620}}
+  :root[data-theme="light"] .chip{color:#fff}
+
+  figure{margin:24px 0}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .svgpanel{padding:20px 16px}
+  figcaption{font-family:var(--mono);font-size:12.5px;line-height:1.6;color:var(--muted);padding:12px 16px;border-top:1px solid var(--line);background:var(--panel2)}
+  figcaption b{color:var(--accent);font-weight:600}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:4px}
+  .lg{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+  .sw{width:14px;height:14px;border-radius:3px;display:inline-block}
+
+  .eq{font-family:var(--mono);font-size:14.5px;background:var(--codebg);border:1px solid var(--line);border-radius:8px;padding:15px 17px;margin:18px 0;overflow-x:auto;line-height:1.55}
+  .eq .c{color:var(--muted)}.eq .acc{color:var(--accent)}.eq .a2{color:var(--accent2)}.eq .a3{color:var(--accent3)}
+  .note{border-left:3px solid var(--accent);background:var(--panel);padding:14px 18px;border-radius:0 8px 8px 0;margin:22px 0}
+  .note.warn{border-left-color:var(--accent2)}
+  .note .lab{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:5px}
+  .note.warn .lab{color:var(--accent2)}
+  .tablewrap{overflow-x:auto;margin:20px 0;border:1px solid var(--line);border-radius:10px}
+  table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:13.5px;font-variant-numeric:tabular-nums}
+  th,td{padding:9px 13px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  thead th{background:var(--panel2);color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.02em}
+  tbody tr:last-child td{border-bottom:none}
+  td.good{color:var(--accent);font-weight:600}td.bad{color:var(--accent2);font-weight:600}td.dim{color:var(--faint)}
+  .cellwin{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent);font-weight:600}
+  .cellzero{color:var(--faint)}
+  footer{border-top:1px solid var(--line);padding:28px 0 56px;color:var(--faint);font-family:var(--mono);font-size:12px}
+  footer .col{max-width:var(--wide);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+</style>
+
+<div class="wrap">
+
+  <header class="hero col">
+    <p class="eyebrow">CognitiveMaps++ &middot; guarded-graph distances</p>
+    <h1>Learning distances on guarded graphs</h1>
+    <p class="lede">A state made of components, each with its own graph, where moving one component may require another to be in the right place first. We wanted an embedding distance that reflects the <em>real</em> shortest path, detours included, and learns it from examples. It works: distance as a <em>sum of gated pieces</em>, one piece per move and one per detour.</p>
+    <div class="stats">
+      <div class="stat"><div class="k">Held-out accuracy</div><div class="v acc">RMSE ~0.01</div><div class="sub">cyclic / 2-D grid / nested guards</div></div>
+      <div class="stat"><div class="k">Dependency graph</div><div class="v">not wired</div><div class="sub">discovered, not given</div></div>
+      <div class="stat"><div class="k">Structure recovery</div><div class="v a3">possible</div><div class="sub">but trades away accuracy</div></div>
+    </div>
+  </header>
+
+  <section class="col">
+    <p class="num">The problem</p>
+    <h2>Components, internal graphs, and guarded edges</h2>
+    <p>A state is a tuple <code>(s_0, ..., s_F)</code>. Each component has its own graph of legal internal moves: a chain, a cycle, a 2-D grid, anything. The twist: an internal edge of one component is traversable only if a <strong>guard</strong> holds, meaning some other component sits in an enabling set of its own states. The classic case: an agent can move only while its knob reads 5.</p>
+    <p>That makes the true geodesic <strong>piecewise with detours</strong>. To move a guarded component you first steer its guard into an enabling state, move, and usually steer it back; and that enabling step may itself be guarded, so detours can nest. The distance has to account for all of it.</p>
+  </section>
+
+  <section class="col">
+    <p class="num">How the attention works</p>
+    <h2>Distance as a sum of gated pieces</h2>
+    <p>The head never runs a search. It builds the distance from small learned terms, each a "piece" of the path, and <strong>adds</strong> them:</p>
+    <div class="eq">
+d(x, y) = <span class="acc">&Sigma;</span><sub class="c">components f</sub> gate&middot;<span class="acc">move<sub>f</sub></span>(s<sub>f</sub><sup>x</sup>, s<sub>f</sub><sup>y</sup>)
+        + <span class="a2">&Sigma;</span><sub class="c">deps f&larr;g</sub> gate&middot;<span class="a2">detour<sub>f&larr;g</sub></span>(s<sub>g</sub><sup>x</sup>, s<sub>g</sub><sup>y</sup>)
+<span class="c">          gate = sigmoid(&middot;)  &mdash; INDEPENDENT, not softmax</span>
+    </div>
+    <p><strong>move<sub>f</sub></strong> learns the internal geodesic of component f (works for a cycle or a grid, not just a line). <strong>detour<sub>f&larr;g</sub></strong> learns the cost to bring guard component g into an enabling state and back. The gates decide which pieces are live for this pair of states.</p>
+    <div class="note">
+      <span class="lab">Why sigmoid, not softmax</span>
+      Softmax normalizes the weights to sum to one, so the output is a weighted <strong>average</strong> and can never exceed its largest term: it cannot build a detour. Independent sigmoid gates let the pieces <strong>accumulate</strong>, so a dial-up plus a move plus a dial-back stack into one distance. This single change is what made the attention work.
+    </div>
+    <p>On the two-chain warm-up (position plus a knob that gates it), this reproduces the exact detour geodesic: <code>(0,0)&rarr;(5,0)</code> = dial up 5 + move 5 + dial back 5 = <strong>15</strong>, with overall RMSE <strong>0.00</strong>.</p>
+  </section>
+
+  <section class="col">
+    <p class="num">Accuracy <span class="chip a">the good result</span></p>
+    <h2>Near-exact on held-out pairs, across geometries</h2>
+    <p>We enumerate each space, compute the exact all-pairs geodesic, train on 70% of pairs, and score the <strong>held-out</strong> 30%. Compared against a free per-state embedding with no structure (a lookup table trained on the same targets):</p>
+    <figure>
+      <div class="panel svgpanel">
+        <div class="legend" style="font-family:var(--mono);font-size:12.5px;color:var(--muted);margin-bottom:10px">
+          <span class="lg"><span class="sw" style="background:var(--accent2)"></span> free embedding (no structure)</span>
+          <span class="lg"><span class="sw" style="background:var(--accent)"></span> gated-pieces head (ours)</span>
+        </div>
+        <svg viewBox="0 0 640 310" role="img" aria-label="Held-out RMSE by environment: free embedding vs gated-pieces head">
+          <g class="sl" stroke="var(--line)" stroke-width="1">
+            <line x1="60" y1="270" x2="620" y2="270"/>
+            <line x1="60" y1="210" x2="620" y2="210"/><line x1="60" y1="150" x2="620" y2="150"/>
+            <line x1="60" y1="90" x2="620" y2="90"/><line x1="60" y1="30" x2="620" y2="30"/>
+          </g>
+          <g fill="var(--muted)" font-size="12" text-anchor="end">
+            <text x="52" y="274">0.0</text><text x="52" y="214">0.1</text><text x="52" y="154">0.2</text>
+            <text x="52" y="94">0.3</text><text x="52" y="34">0.4</text>
+          </g>
+          <!-- group1 cycle_key -->
+          <rect x="101" y="180" width="44" height="90" fill="var(--accent2)"/><text x="123" y="172" fill="var(--ink)" font-size="12" text-anchor="middle">.15</text>
+          <rect x="155" y="268" width="44" height="2" fill="var(--accent)"/><text x="177" y="262" fill="var(--accent)" font-size="12" text-anchor="middle">.00</text>
+          <text x="150" y="290" fill="var(--muted)" font-size="12.5" text-anchor="middle">cycle_key</text>
+          <text x="150" y="304" fill="var(--faint)" font-size="11" text-anchor="middle">cyclic internal</text>
+          <!-- group2 grid_key -->
+          <rect x="291" y="90" width="44" height="180" fill="var(--accent2)"/><text x="313" y="82" fill="var(--ink)" font-size="12" text-anchor="middle">.30</text>
+          <rect x="345" y="258" width="44" height="12" fill="var(--accent)"/><text x="367" y="250" fill="var(--accent)" font-size="12" text-anchor="middle">.02</text>
+          <text x="340" y="290" fill="var(--muted)" font-size="12.5" text-anchor="middle">grid_key</text>
+          <text x="340" y="304" fill="var(--faint)" font-size="11" text-anchor="middle">2-D grid internal</text>
+          <!-- group3 nested -->
+          <rect x="481" y="42" width="44" height="228" fill="var(--accent2)"/><text x="503" y="34" fill="var(--ink)" font-size="12" text-anchor="middle">.38</text>
+          <rect x="535" y="264" width="44" height="6" fill="var(--accent)"/><text x="557" y="256" fill="var(--accent)" font-size="12" text-anchor="middle">.01</text>
+          <text x="530" y="290" fill="var(--muted)" font-size="12.5" text-anchor="middle">nested</text>
+          <text x="530" y="304" fill="var(--faint)" font-size="11" text-anchor="middle">A&larr;B&larr;C guards</text>
+          <line x1="60" y1="270" x2="620" y2="270" stroke="var(--muted)" stroke-width="1.4"/>
+          <text x="20" y="150" fill="var(--muted)" font-size="12.5" text-anchor="middle" transform="rotate(-90 20 150)">held-out RMSE</text>
+        </svg>
+      </div>
+      <figcaption>The gated-pieces head sits at <b>0.00&ndash;0.02</b> everywhere, including a cyclic component, a 2-D grid component, and two levels of nested guards (geodesics up to 16 hops). The free embedding memorizes the training pairs but generalizes poorly (0.15&ndash;0.38): structure, not capacity, is what lets unseen pairs be predicted.</figcaption>
+    </figure>
+    <h3>The dependency graph is discovered, not wired in</h3>
+    <p>We do not tell the head which component guards which. It gets a detour piece for <em>every</em> ordered pair, and the gates learn which are real. This "learn the dependencies" version matches the wired one on held-out fit (grid <strong>0.01</strong>, nested <strong>0.01</strong>). The only structural input is the factorization itself, which the state already provides.</p>
+  </section>
+
+  <section class="col">
+    <p class="num">Can we read the structure back out? <span class="chip b">the hard part</span></p>
+    <h2>The distance is right, but it hides how</h2>
+    <p>Getting the distance right is not the same as exposing the guard graph. We tried to recover the true dependencies from the trained pieces, and most attempts failed for the same reason:</p>
+    <div class="tablewrap col">
+      <table>
+        <thead><tr><th>attempt</th><th>outcome</th></tr></thead>
+        <tbody>
+          <tr><td>read each piece's contribution</td><td class="dim">smears: transitive and spurious pieces both carry cost</td></tr>
+          <tr><td>L1 / group sparsity</td><td class="bad">fails: cost just relocates into the move-terms</td></tr>
+          <tr><td>ablate a piece, no retrain</td><td class="dim">confounded: parked cost looks necessary</td></tr>
+          <tr><td>leave-one-out + retrain, flexible head</td><td class="bad">nothing is necessary: fully non-identifiable</td></tr>
+          <tr><td>+ component-local move-terms (rigid)</td><td class="bad">still nothing: free gates re-route across pieces</td></tr>
+          <tr class="" ><td>+ gates tied to each piece's own move (constrained)</td><td class="good">recovers A&larr;B and B&larr;C exactly</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><strong>Why it hides.</strong> The distance is a <em>sum</em>, so cost is fungible: many different assignments of cost to pieces produce the same total. A flexible head has no reason to prefer the true decomposition. Only when each piece is constrained to a unique role, meaning a component-local move-term plus a detour gate that fires only when <em>that</em> component moves, does the sum become identifiable.</p>
+    <h3>The constrained head recovers the guard graph</h3>
+    <p>Leave-one-out retraining on the constrained head: forbid one dependency, retrain, and measure how much held-out error it cannot recover. The two necessary dependencies are exactly the true direct guards.</p>
+    <div class="tablewrap col">
+      <table>
+        <thead><tr><th>move f &darr; &nbsp; via g &rarr;</th><th>A (0)</th><th>B (1)</th><th>C (2)</th></tr></thead>
+        <tbody>
+          <tr><td>A (0)</td><td class="cellzero">&mdash;</td><td class="cellwin">+0.65 &#9733;</td><td class="cellzero">+0.04</td></tr>
+          <tr><td>B (1)</td><td class="cellzero">&minus;0.00</td><td class="cellzero">&mdash;</td><td class="cellwin">+0.12 &#9733;</td></tr>
+          <tr><td>C (2) &middot; free</td><td class="cellzero">&minus;0.00</td><td class="cellzero">+0.00</td><td class="cellzero">&mdash;</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-family:var(--mono);font-size:12.5px;color:var(--muted)">held-out RMSE increase when the dependency is removed and the model retrains. &#9733; = true direct guard. Every non-guard, including the free component C, collapses to zero.</p>
+  </section>
+
+  <section class="col">
+    <p class="num">The tradeoff <span class="chip c">the real conclusion</span></p>
+    <h2>Accuracy or interpretability, pick a point on the knob</h2>
+    <p>Making the head identifiable costs expressiveness, so it only approximates the geodesic. This is the same "piecewise approximation, sometimes not enough pieces" picture from the start, now made precise:</p>
+    <div class="two" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:18px 0">
+      <div class="panel" style="padding:18px 20px">
+        <div style="font-family:var(--mono);font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">flexible head</div>
+        <div style="font-size:30px;font-weight:600;color:var(--accent)">0.02</div>
+        <div style="font-family:var(--mono);font-size:12.5px;color:var(--muted);margin-top:4px">held-out RMSE &mdash; near exact</div>
+        <div style="margin-top:10px;font-size:15px">Structure hidden. Many equivalent decompositions; the guard graph is not identifiable.</div>
+      </div>
+      <div class="panel" style="padding:18px 20px">
+        <div style="font-family:var(--mono);font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">constrained head</div>
+        <div style="font-size:30px;font-weight:600;color:var(--accent3)">0.43</div>
+        <div style="font-family:var(--mono);font-size:12.5px;color:var(--muted);margin-top:4px">held-out RMSE &mdash; approximate</div>
+        <div style="margin-top:10px;font-size:15px">Structure recovered. Each piece has a unique role, so the guard graph reads out cleanly.</div>
+      </div>
+    </div>
+    <div class="note warn">
+      <span class="lab">The bottom line</span>
+      From geodesic distances alone you cannot have both. The accurate model has many equivalent internal decompositions; forcing a single interpretable one costs accuracy. Which side of the knob you want depends on the goal: accurate navigation, or a readable dependency graph.
+    </div>
+  </section>
+
+  <section class="col">
+    <p class="num">In one paragraph</p>
+    <h2>What we learned</h2>
+    <p>An embedding distance built as a <strong>sum of independently-gated pieces</strong>, one per component-move and one per guard-detour, reproduces the shortest-path geodesic of a guarded product graph, across cyclic and grid internal geometries and nested guards, to held-out RMSE around 0.01, and it discovers which dependencies exist rather than being told. Reading the guard graph back out is a separate problem: the sum is non-identifiable, so recovery needs a constrained, uniquely-decomposable head, which recovers the true guards at the cost of some distance accuracy. Accuracy and interpretability sit at opposite ends of one knob.</p>
+  </section>
+
+  <footer>
+    <div class="col">
+      <span>CognitiveMaps++ &middot; guarded-graph distances</span>
+      <span>probe/mini4_detour.py &middot; mini5_general.py &middot; mini6_recover.py</span>
+    </div>
+  </footer>
+
+</div>

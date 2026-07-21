@@ -453,3 +453,92 @@ coordinates. THE EMBEDDING SPACE IS STRATIFIED, and its own local geometry (no g
 Takeaway: to make the embedding respect the constraints you must COLLAPSE the immovable coordinates
 (quotient), not just repel illegal moves; and the collapse has to be in the encoder's structure (a
 knob-gated factored encoder), not only a loss on an image encoder.
+
+# Attention distance on factored / guarded graphs (mini3-mini7)
+
+A separate thread: instead of a fixed Euclidean distance on an embedding, LEARN the distance with an
+attention-style head over factored components, and ask how far that goes. All harnesses are fully
+enumerable so the exact geodesic (or exact local structure) is known. Explainers published:
+docs/attn_sum.html and docs/guarded_graphs.html.
+
+## mini3_dist.py -- the distance, not the embedding, should carry the gating
+1 agent / 8x8 torus / knob {all,horiz,vert}. Keep a FAITHFUL factored embedding (stores full
+position, not stratified) and let a knob-gated distance do the gating. Trained by regressing the
+exact geodesic. Heads: euclid, gated-L2, gated-L1, attn.
+- Euclidean CANNOT fit: the graph geodesic is Manhattan (L1) and one shared row_emb table must make a
+  row move cost 1 in the all-block yet be unreachable in the horiz-block. geo_RMSE ~1.9, reads dim
+  ~2 everywhere (no stratification).
+- **Knob-gated L1** (sum of per-factor norms, weights from the knob) wins: geo_RMSE 0.26, d_legal
+  ~1.2 vs d_illegal ~12 (FAR = faithful to the disconnection, NOT 0 like encoder-collapse), dim_all
+  2.4 vs dim_horiz separated. L1 combine beats L2 (matches the additive/Manhattan geodesic);
+  attention over-powered and unstable here.
+Takeaway: a knob-gated **L1** distance on a faithful embedding stratifies the metric AND stays
+faithful (illegal = far, not identified), which encoder-collapse (d_illegal=0) does not.
+
+## mini4_detour.py -- attention must be a SUM, not a softmax average
+State (pos 0..9, knob 0..5); agent movable only when knob==5, so (0,0)->(5,0) = dial up 5 + move 5 +
+dial back 5 = 15 (a detour geodesic). Regress the exact 60x60 geodesic.
+- mds_l1 (free embedding + L1 norm) 0.12 ; factored gated-additive 0.65 (can't add the fixed detour
+  offset) ; **attn_softmax FAILS (RMSE 1.00)** -- softmax normalises to a weighted AVERAGE, which can
+  never exceed its largest term, so it cannot accumulate a detour.
+- **Fix = attn_sum (RMSE 0.00, exact):** independent sigmoid gates (not softmax) so terms ACCUMULATE,
+  plus a detour token whose value is a function of both knobs and whose gate fires when position
+  changes. Learned decomposition: d ~ |dknob| + |dpos| + [dpos>0]*((5-kx)+(5-ky)). attn_add (neural
+  additive, same idea) also exact (0.01).
+
+## mini5_general.py -- generalizes to arbitrary guarded product graphs
+Components each with their OWN internal graph; an internal edge of f is guarded by another component
+g being in an enabling set. Exact all-pairs geodesic; regress with a general head
+    d(x,y) ~ sum_f gate*move_f(sx_f,sy_f) + sum_f gate*detour_f(guard states)
+(one gated MOVE piece per component learning its internal geodesic; one gated DETOUR piece per guard).
+Held-out (30% unseen pairs) RMSE:
+| env       | internal geometry | guard depth | mds_l1(free) | nodetour | attnsumG | learndep(no guard prior) |
+|-----------|-------------------|-------------|-------------:|---------:|---------:|-------------------------:|
+| cycle_key | cyclic            | 1           | 0.15         | 0.02     | 0.00     | 0.05 |
+| grid_key  | 2-D grid          | 1           | 0.30         | 0.01     | 0.02     | 0.01 |
+| nested    | chains A<-B<-C     | 2 (nested)  | 0.38         | 0.09     | 0.01     | 0.01 |
+- The gated-pieces head is near-exact on held-out pairs across cyclic, 2-D grid, and nested guards.
+- The free embedding (mds_l1) memorises train pairs but generalises worst: structure, not capacity,
+  buys generalisation.
+- The dependency graph does NOT need to be wired: learndep gives a detour token for EVERY ordered
+  pair and the gates learn which are real; it matches the wired head (grid/nested 0.01).
+
+## mini6_recover.py -- can we read the guard graph back out? (identifiability)
+Non-trivial. The distance is a SUM, so cost is fungible; many decompositions give the same total.
+- contribution readout: smears (transitive A<-C carries real cost; some spurious too).
+- L1/group sparsity: FAILS -- relocates all detour cost into the move-terms, still fits.
+- ablation without retrain: confounded (parked cost looks necessary).
+- leave-one-out + RETRAIN (causal), flexible head: NOTHING is necessary (fully non-identifiable);
+  adding rigid component-local move-terms still recovers nothing (free gates re-route across pieces).
+- **Fully-constrained head** (rigid move-terms + each detour gate tied to its OWN component's motion):
+  LOO-retrain recovers exactly the true direct guards -- nested necessity A<-B +0.65, B<-C +0.12, all
+  non-guards (incl. free component) ~0. BUT held-out RMSE jumps 0.02 -> 0.43.
+Conclusion: accuracy vs interpretability is one knob. The accurate model has many equivalent internal
+decompositions; forcing a single identifiable one (so the guard graph reads out) costs accuracy. You
+cannot get both from geodesic supervision alone.
+
+## mini7_local_vgt.py -- back to LOCAL training + attention + VGT dimension
+Drop geodesic supervision; return to the original cheap signal: legal 1-step neighbour -> distance 1,
+illegal 1-step / random -> repelled to >= margin. Factored env: NAG agents on cycles + a shared key,
+agent i movable iff key>i (movable count = key = DOF ladder). Gated-L1 attention distance vs plain
+Euclidean factored embedding. Read local dimension with VGT (correlation dim of the k nearest under
+the learned distance, from a pool that jitters ALL agents). Hypothesis: the gate makes a frozen
+agent's move far (repelled), so it drops out of the nearest set and VGT reads the number of free
+agents.
+
+**Result (3 agents / cycle(12) / key 0..3, 5000 steps local training):**
+| head   | key=1 (dim1) | key=2 (dim2) | key=3 (dim3) |
+|--------|-------------:|-------------:|-------------:|
+| attn   | 1.40         | 2.24         | 3.07         |
+| euclid | 2.78         | 2.74         | 2.71         |
+- The attention distance recovers the DOF ladder (1.4/2.2/3.1, monotone and separated); Euclidean is
+  FLAT ~2.7, blind to DOF (the original graph-free failure reproduced).
+- Diagnostics prove the METRIC is right: from local supervision alone the gate learned to weight a
+  frozen agent's 1-step to 23-46 while a free 1-step stays ~1 (w_free ~0.25, w_frozen ~5-8).
+- Measurement note (root-caused, not a model failure): graph-free VGT must CUT the neighbourhood at
+  the free/frozen gap the metric creates (free ~<=1.4, then a big multiplicative jump to frozen ~>=5;
+  take the FIRST such jump). Fixed-k VGT overflows the tiny free cluster of a small cycle into frozen
+  territory and inflates the dimension. dim1 reads ~1.4 (mild ring-curvature overshoot), not 1.0.
+Takeaway: the attention distance turns the CHEAP local signal (neighbour=1, repel) into a stratified
+metric whose own local dimension recovers the DOF -- no geodesic supervision, no graph at measurement
+time -- exactly what the image / Euclidean embedding could not do.

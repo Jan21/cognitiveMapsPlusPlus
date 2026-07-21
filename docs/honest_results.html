@@ -1,0 +1,320 @@
+<title>What We Actually Achieved — An Honest Accounting</title>
+<style>
+  :root{
+    --paper:#f6f7f9; --panel:#ffffff; --panel2:#eef2f5; --ink:#17222c; --muted:#5a6a76; --faint:#8b98a3;
+    --accent:#0e8f8a; --accent2:#d9622f; --accent3:#6b4fb0; --line:#dde3e9; --codebg:#eef1f4;
+    --glow:rgba(14,143,138,.10); --ok:#0e8f8a; --warn:#d9622f;
+    --serif:"Charter","Bitstream Charter","Iowan Old Style","Palatino Linotype",Georgia,serif;
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --measure:70ch; --wide:1020px;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --paper:#0f1620;--panel:#16212c;--panel2:#1b2833;--ink:#dbe4ea;--muted:#8fa0ad;--faint:#6b7b88;
+    --accent:#33b6af;--accent2:#f0885a;--accent3:#9d84e2;--line:#263340;--codebg:#182430;--glow:rgba(51,182,175,.14);
+    --ok:#33b6af;--warn:#f0885a;}}
+  :root[data-theme="dark"]{
+    --paper:#0f1620;--panel:#16212c;--panel2:#1b2833;--ink:#dbe4ea;--muted:#8fa0ad;--faint:#6b7b88;
+    --accent:#33b6af;--accent2:#f0885a;--accent3:#9d84e2;--line:#263340;--codebg:#182430;--glow:rgba(51,182,175,.14);
+    --ok:#33b6af;--warn:#f0885a;}
+  :root[data-theme="light"]{
+    --paper:#f6f7f9;--panel:#ffffff;--panel2:#eef2f5;--ink:#17222c;--muted:#5a6a76;--faint:#8b98a3;
+    --accent:#0e8f8a;--accent2:#d9622f;--accent3:#6b4fb0;--line:#dde3e9;--codebg:#eef1f4;--glow:rgba(14,143,138,.10);
+    --ok:#0e8f8a;--warn:#d9622f;}
+
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  body{background:var(--paper);color:var(--ink);font-family:var(--serif);font-size:18px;line-height:1.62;
+    margin:0;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  .wrap{max-width:var(--wide);margin:0 auto;padding:0 28px}
+  .col{max-width:var(--measure);margin-left:auto;margin-right:auto}
+  p{margin:0 0 16px}.col p,.col ul,.col h3{max-width:var(--measure)}
+  a{color:var(--accent)} strong{font-weight:600}
+  code,.mono{font-family:var(--mono)} code{font-size:.85em;background:var(--codebg);padding:1.5px 5px;border-radius:4px}
+  ul{padding-left:22px;margin:0 0 16px} li{margin:7px 0}
+  svg{display:block;max-width:100%;height:auto} text{font-family:var(--mono)}
+  .s-ink{fill:var(--ink)}.s-mut{fill:var(--muted)}.s-acc{fill:var(--accent)}.s-a2{fill:var(--accent2)}.s-a3{fill:var(--accent3)}
+  .sl-acc{stroke:var(--accent)}.sl-a2{stroke:var(--accent2)}.sl-a3{stroke:var(--accent3)}.sl-mut{stroke:var(--muted)}.sl-line{stroke:var(--line)}.sl-faint{stroke:var(--faint)}
+
+  .hero{padding:74px 0 28px;position:relative;overflow:hidden}
+  .hero::before{content:"";position:absolute;inset:-40% 25% auto -10%;height:520px;
+    background:radial-gradient(60% 60% at 30% 30%,var(--glow),transparent 70%);pointer-events:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin:0 0 20px;position:relative}
+  h1{font-size:clamp(33px,5.6vw,56px);line-height:1.06;font-weight:600;letter-spacing:-.015em;margin:0 0 22px;text-wrap:balance;position:relative}
+  .lede{font-size:20.5px;color:var(--muted);max-width:64ch;margin:0 0 30px;position:relative}
+  .lede em{color:var(--ink);font-style:normal}
+  .stats{display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel);position:relative;max-width:900px}
+  .stat{flex:1 1 170px;padding:18px 20px;border-right:1px solid var(--line)}
+  .stat:last-child{border-right:none}
+  .stat .k{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+  .stat .v{font-family:var(--serif);font-size:26px;font-weight:600;line-height:1.05;font-variant-numeric:tabular-nums}
+  .stat .v.acc{color:var(--accent)}.stat .v.warn{color:var(--accent2)}.stat .v.a3{color:var(--accent3)}
+  .stat .sub{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:6px;line-height:1.4}
+  @media (max-width:640px){.stat{flex-basis:50%;border-bottom:1px solid var(--line)}}
+
+  section{padding:36px 0;border-top:1px solid var(--line)}
+  .num{font-family:var(--mono);font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent2);margin:0 0 10px}
+  h2{font-size:clamp(23px,3.6vw,31px);font-weight:600;letter-spacing:-.01em;margin:0 0 14px;text-wrap:balance}
+  h3{font-size:18px;font-weight:600;margin:24px 0 8px}
+
+  .chip{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+    padding:3px 9px;border-radius:999px;font-weight:600;vertical-align:middle;margin-left:2px}
+  .chip.solid{color:#fff;background:var(--accent)}
+  .chip.limit{color:#fff;background:var(--accent2)}
+  .chip.fixed{color:#fff;background:var(--accent3)}
+  @media (prefers-color-scheme:dark){.chip.solid,.chip.limit,.chip.fixed{color:#0f1620}}
+  :root[data-theme="dark"] .chip.solid,:root[data-theme="dark"] .chip.limit,:root[data-theme="dark"] .chip.fixed{color:#0f1620}
+  :root[data-theme="light"] .chip.solid,:root[data-theme="light"] .chip.limit,:root[data-theme="light"] .chip.fixed{color:#fff}
+
+  figure{margin:26px 0}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .svgpanel{padding:18px 14px}
+  figcaption{font-family:var(--mono);font-size:12.5px;line-height:1.6;color:var(--muted);padding:12px 16px;border-top:1px solid var(--line);background:var(--panel2)}
+  figcaption b{color:var(--accent);font-weight:600}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:6px}
+  .lg{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+  .sw{width:22px;height:0;border-top-width:3px;border-top-style:solid;display:inline-block}
+  .sw.dash{border-top-style:dashed}
+
+  .eq{font-family:var(--mono);font-size:14px;background:var(--codebg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin:18px 0;overflow-x:auto}
+  .note{border-left:3px solid var(--accent);background:var(--panel);padding:14px 18px;border-radius:0 8px 8px 0;margin:22px 0}
+  .note.warn{border-left-color:var(--accent2)}
+  .note .lab{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:5px}
+  .note.warn .lab{color:var(--accent2)}
+  .tablewrap{overflow-x:auto;margin:22px 0;border:1px solid var(--line);border-radius:10px}
+  table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:13.5px;font-variant-numeric:tabular-nums}
+  th,td{padding:9px 13px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  thead th{background:var(--panel2);color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.02em}
+  tbody tr:last-child td{border-bottom:none}
+  td.good{color:var(--accent);font-weight:600}
+  td.bad{color:var(--accent2);font-weight:600}
+  .win td{background:color-mix(in srgb,var(--accent) 9%,transparent)}
+
+  .ledger{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:24px 0}
+  @media (max-width:720px){.ledger{grid-template-columns:1fr}}
+  .card{border:1px solid var(--line);border-radius:12px;padding:18px 20px;background:var(--panel)}
+  .card h3{margin:0 0 12px;font-size:15px;font-family:var(--mono);letter-spacing:.05em;text-transform:uppercase}
+  .card.can h3{color:var(--accent)} .card.cant h3{color:var(--accent2)}
+  .card ul{list-style:none;padding:0;margin:0}
+  .card li{position:relative;padding-left:26px;margin:12px 0;font-size:15.5px;line-height:1.5}
+  .card li::before{position:absolute;left:0;top:0;font-family:var(--mono);font-weight:700}
+  .card.can li::before{content:"\2713";color:var(--accent)}
+  .card.cant li::before{content:"\2717";color:var(--accent2)}
+
+  footer{border-top:1px solid var(--line);padding:30px 0 60px;color:var(--muted);font-family:var(--mono);font-size:12.5px}
+  footer .col{max-width:var(--wide);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+</style>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="col">
+      <p class="eyebrow">CognitiveMaps++ &middot; honest results memo</p>
+      <h1>What we actually achieved</h1>
+      <p class="lede">Two results that hold up, and one honest limit. An embedding trained only on <em>which moves are legal</em> encodes a state space whose local dimension matches the true degrees of freedom. A gated encoder then learns to make that dimension readable from the embedding's <em>own</em> geometry. Here is exactly how far that goes, and where it still leans on a crutch.</p>
+    </div>
+    <div class="col">
+      <div class="stats">
+        <div class="stat"><div class="k">Pure-movement strata</div><div class="v acc">2.1&nbsp;vs&nbsp;4.3</div><div class="sub">2D and 4D states, clean factor-2 gap</div></div>
+        <div class="stat"><div class="k">DOF ladder 0&ndash;8</div><div class="v">tracks ideal</div><div class="sub">image embedding, graph-defined ball</div></div>
+        <div class="stat"><div class="k">Frozen-coord invariance</div><div class="v a3">0.00</div><div class="sub">factored encoder, d_illegal</div></div>
+        <div class="stat"><div class="k">The gate is learned</div><div class="v">&asymp;&nbsp;hand-set</div><div class="sub">learned matches hardwired upper bound</div></div>
+      </div>
+    </div>
+  </header>
+
+  <section>
+    <div class="col">
+      <p class="num">The setup</p>
+      <h2>A world with a knob on its degrees of freedom</h2>
+      <p>Agents sit on a torus grid. Each agent carries a <strong>knob</strong> that sets which moves it can make: both axes (2 DOF), one axis (1 DOF), or frozen (0 DOF). The knob can be flipped <strong>only</strong> when the agent is standing on that knob's control cell, so far from the control cell you are genuinely locked into your current movement mode. The knob's value is always visible as a pixel the agent never stands on.</p>
+      <p>That gating is the whole point: it manufactures states of <em>truly different local dimension</em> in one shared space. A configuration of four agents can have total DOF anywhere from 0 to 8. The model never sees the DOF label. It is trained on adjacency alone: a multi-scale isometry loss on legal moves (embedding distance should equal flat-torus geodesic distance), gated flip edges at distance 1, and a repulsion term to keep far states far.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="col">
+      <p class="num">The whole story in one figure</p>
+      <h2>Measured local dimension vs true DOF</h2>
+      <p>Every claim below is one line on this chart. We pick states of a known DOF, measure the local dimension of the embedding around each one, and plot measured against true. The dashed diagonal is the ideal target.</p>
+    </div>
+    <figure class="col">
+      <div class="panel svgpanel">
+        <svg viewBox="0 0 900 470" role="img" aria-label="Measured local dimension versus true degrees of freedom, four measurement methods">
+          <!-- y gridlines + labels -->
+          <g class="sl-line" stroke-width="1">
+            <line x1="58" y1="346.6" x2="884" y2="346.6"/>
+            <line x1="58" y1="261.2" x2="884" y2="261.2"/>
+            <line x1="58" y1="175.8" x2="884" y2="175.8"/>
+            <line x1="58" y1="90.3"  x2="884" y2="90.3"/>
+          </g>
+          <g class="s-mut" font-size="12" text-anchor="end">
+            <text x="48" y="436">0</text><text x="48" y="350.6">2</text><text x="48" y="265.2">4</text>
+            <text x="48" y="179.8">6</text><text x="48" y="94.3">8</text>
+          </g>
+          <!-- axes -->
+          <line x1="58" y1="22" x2="58" y2="432" class="sl-mut" stroke-width="1.4"/>
+          <line x1="58" y1="432" x2="884" y2="432" class="sl-mut" stroke-width="1.4"/>
+          <!-- x labels -->
+          <g class="s-mut" font-size="12" text-anchor="middle">
+            <text x="58" y="452">1</text><text x="176" y="452">2</text><text x="294" y="452">3</text><text x="412" y="452">4</text>
+            <text x="530" y="452">5</text><text x="648" y="452">6</text><text x="766" y="452">7</text><text x="884" y="452">8</text>
+          </g>
+          <text x="471" y="468" class="s-mut" font-size="12.5" text-anchor="middle">true degrees of freedom (DOF)</text>
+          <text x="16" y="227" class="s-mut" font-size="12.5" text-anchor="middle" transform="rotate(-90 16 227)">measured local dimension</text>
+
+          <!-- diagonal target y=x (dashed) -->
+          <polyline points="58.0,389.3 884.0,90.3" fill="none" class="sl-faint" stroke-width="1.6" stroke-dasharray="6 5"/>
+
+          <!-- image embedding, graph-free NN: FAILS (flat ~8) -->
+          <polyline points="58.0,89.5 176.0,81.4 294.0,83.1 412.0,69.0 530.0,54.5 648.0,75.8 766.0,83.9 884.0,72.0" fill="none" class="sl-a2" stroke-width="2.6"/>
+          <g class="s-a2">
+            <circle cx="58" cy="89.5" r="3.3"/><circle cx="176" cy="81.4" r="3.3"/><circle cx="294" cy="83.1" r="3.3"/><circle cx="412" cy="69" r="3.3"/>
+            <circle cx="530" cy="54.5" r="3.3"/><circle cx="648" cy="75.8" r="3.3"/><circle cx="766" cy="83.9" r="3.3"/><circle cx="884" cy="72" r="3.3"/>
+          </g>
+
+          <!-- image embedding, graph ball: WORKS -->
+          <polyline points="58.0,389.3 176.0,336.8 294.0,288.5 412.0,246.2 530.0,206.1 648.0,177.0 766.0,154.0 884.0,139.0" fill="none" class="sl-acc" stroke-width="3"/>
+          <g class="s-acc">
+            <circle cx="58" cy="389.3" r="3.5"/><circle cx="176" cy="336.8" r="3.5"/><circle cx="294" cy="288.5" r="3.5"/><circle cx="412" cy="246.2" r="3.5"/>
+            <circle cx="530" cy="206.1" r="3.5"/><circle cx="648" cy="177" r="3.5"/><circle cx="766" cy="154" r="3.5"/><circle cx="884" cy="139" r="3.5"/>
+          </g>
+
+          <!-- factored encoder, graph-free NN: WORKS -->
+          <polyline points="58.0,390.1 176.0,341.9 294.0,297.5 412.0,259.0 530.0,212.9 648.0,161.2 766.0,107.4 884.0,44.2" fill="none" class="sl-a3" stroke-width="2.6"/>
+          <g class="s-a3">
+            <circle cx="58" cy="390.1" r="3.3"/><circle cx="176" cy="341.9" r="3.3"/><circle cx="294" cy="297.5" r="3.3"/><circle cx="412" cy="259" r="3.3"/>
+            <circle cx="530" cy="212.9" r="3.3"/><circle cx="648" cy="161.2" r="3.3"/><circle cx="766" cy="107.4" r="3.3"/><circle cx="884" cy="44.2" r="3.3"/>
+          </g>
+        </svg>
+      </div>
+      <figcaption>
+        <div class="legend">
+          <span class="lg"><span class="sw dash" style="border-top-color:var(--faint)"></span> true DOF (target, y = x)</span>
+          <span class="lg"><span class="sw" style="border-top-color:var(--accent)"></span> image embedding, <b style="color:var(--accent)">graph ball</b> &mdash; works</span>
+          <span class="lg"><span class="sw" style="border-top-color:var(--accent2)"></span> image embedding, graph-free NN &mdash; fails</span>
+          <span class="lg"><span class="sw" style="border-top-color:var(--accent3)"></span> factored encoder, graph-free NN &mdash; works</span>
+        </div>
+        Teal tracks the target closely; its shortfall at DOF 7&ndash;8 is the finite-sample ceiling (an 8-D ball needs a radius you cannot fill with finite points), not a model error. Orange is flat near 8 for every state: the strata are invisible to it. Purple restores the ladder without the graph.
+      </figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <div class="col">
+      <p class="num">Result 1 &middot; <span class="chip solid">solid</span></p>
+      <h2>The environment makes genuinely low-dimensional states, and the embedding reads them</h2>
+      <p>First, the states are real. A frozen agent sitting far from its control cell contributes exactly <strong>zero</strong> dimensions: a "one agent free, one agent frozen" state reads local dimension ~2.1, that is, only the free agent. This is not an artifact of measurement; the gating truly removes degrees of freedom.</p>
+      <p>Second, an image-trained embedding recovers them. We read local dimension at a chosen state by embedding only that state's <strong>legal neighbourhood</strong> (exact BFS enumeration of the legal ball) and taking the correlation-dimension slope. No global projection, no UMAP. Pure-movement 2D and 4D states separate with a clean factor-2 gap (2.1 vs 4.3), and the full DOF ladder from 0 to 8 comes out monotone and separated.</p>
+      <div class="tablewrap col">
+        <table>
+          <thead><tr><th>true DOF</th><th>measured (seed 2)</th><th>ideal ceiling</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td class="good">~1</td><td>0.96</td><td></td></tr>
+            <tr><td>2</td><td class="good">2.23</td><td>2.00</td><td></td></tr>
+            <tr><td>3</td><td class="good">3.36</td><td>3.00</td><td></td></tr>
+            <tr><td>4</td><td class="good">4.35</td><td>4.00</td><td></td></tr>
+            <tr><td>5</td><td class="good">5.29</td><td>5.00</td><td></td></tr>
+            <tr><td>6</td><td class="good">5.97</td><td>5.78</td><td></td></tr>
+            <tr><td>7</td><td class="good">6.51</td><td>6.34</td><td></td></tr>
+            <tr><td>8</td><td class="good">6.86</td><td>6.75</td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The measured column tracks the <strong>ideal ceiling</strong>, not the naive <code>y = x</code>. That is the honest way to read it: the embedding is about as accurate as the geometry itself allows given finite points. The compression at high DOF is the curse of dimensionality, and the ideal geometry compresses identically.</p>
+      <div class="note">
+        <span class="lab">The one caveat on Result 1</span>
+        This measurement uses the <strong>graph</strong>. The neighbourhood is defined by BFS over legal moves, so we are partly measuring the transition graph, not the embedding's geometry alone. That is a real result about a learned map, but it is not yet "the embedding space is stratified on its own."
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="col">
+      <p class="num">Result 2 &middot; the hard question &middot; <span class="chip limit">honest negative</span></p>
+      <h2>Drop the graph, and the image embedding forgets the strata</h2>
+      <p>The interesting claim is stronger: can local dimension be read from the embedding's <em>own</em> nearest neighbours, with no graph at all? For the image encoder, the answer is <strong>no</strong>. Building a neighbourhood by jittering all agents and taking the k nearest in embedding space returns dimension ~8 flat, for every DOF and for the junctions.</p>
+      <div class="tablewrap col">
+        <table>
+          <thead><tr><th>true DOF</th><th>graph ball</th><th>graph-free NN</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td class="good">1.19</td><td class="bad">8.02</td></tr>
+            <tr><td>2</td><td class="good">2.19</td><td class="bad">8.21</td></tr>
+            <tr><td>4</td><td class="good">3.89</td><td class="bad">8.50</td></tr>
+            <tr><td>6</td><td class="good">5.66</td><td class="bad">8.34</td></tr>
+            <tr><td>8</td><td class="good">6.19</td><td class="bad">8.43</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The reason is precise. The isometry loss only supervised <em>legal</em> moves, so the image encoder maps <em>any</em> small pixel move, legal or not, to a small embedding move. Displacing a frozen agent was never pushed apart. So the embedding is locally almost isometric to the full 8-D position space, and Euclidean k-NN reads that ambient 8 everywhere. The gate lived in the graph, never in the metric.</p>
+      <p>We pinned this on fully enumerable minimal harnesses rather than guessing. One agent on an 8x8 torus (192 states, all embedded) showed the embedding <em>does</em> respect a single illegal step (an illegal row move reads 5.65 vs a legal column move 1.09). Two agents showed the smoking gun: the legal ball reads 2.25 (correct), but a graph-free jitter pool reads 5.98. The embedding was fine; the graph-free <strong>measurement</strong> leaks. A negative result that located the bug exactly is the useful kind.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="col">
+      <p class="num">Result 3 &middot; the fix &middot; <span class="chip fixed">solved</span></p>
+      <h2>A knob-gated encoder learns to make the metric itself stratified</h2>
+      <p>To fix the metric you must <strong>collapse</strong> the immovable coordinates (quotient them away), not merely repel illegal moves. An ideal pre-check confirmed the fork: collapse-distance tracks DOF, repel-distance is non-monotone garbage graph-free. And crucially, collapse cannot be bolted on as a loss over an image encoder; the image encoder will not stop reading a frozen agent's pixel.</p>
+      <p>It has to live in the <strong>encoder structure</strong>. A factored encoder builds one token per agent (agent id + knob + row + column) and gates each agent's row and column contribution by its knob. Freeze an axis and that axis leaves the representation entirely. The result:</p>
+      <div class="tablewrap col">
+        <table>
+          <thead><tr><th>true DOF</th><th>hardwired gate</th><th>learned gate</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>0.97</td><td class="good">0.98</td></tr>
+            <tr><td>2</td><td>2.18</td><td class="good">2.11</td></tr>
+            <tr><td>3</td><td>3.19</td><td class="good">3.15</td></tr>
+            <tr><td>4</td><td>4.01</td><td class="good">4.05</td></tr>
+            <tr><td>5</td><td>5.22</td><td class="good">5.13</td></tr>
+            <tr><td>6</td><td>6.28</td><td class="good">6.34</td></tr>
+            <tr><td>7</td><td>7.56</td><td class="good">7.60</td></tr>
+            <tr><td>8</td><td>9.09</td><td class="good">9.08</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Two things matter here. First, <code>d_illegal</code>, the embedding distance produced by moving a frozen agent, is <strong>0.00</strong>: the embedding is literally invariant to immovable coordinates, so its own geometry is stratified. Second, the <strong>learned</strong> gate (a sigmoid the network trains on adjacency) matches the <strong>hardwired</strong> gate almost exactly. The model is not told which axes to drop; it learns to drop them. That is the genuine "the embedding space is stratified" result, and it holds graph-free across the whole ladder 1 to 8.</p>
+      <div class="note warn">
+        <span class="lab">The honest caveats on Result 3</span>
+        Three things keep this from being a blank-check claim. <strong>(1)</strong> The clean low-DOF read uses an <em>axis-guided pool</em>: the neighbourhood is jittered along knob-allowed axes, which peeks at the observable knob. The fully-generic pool tracks DOF 3&ndash;8 on its own; the lowest one or two strata still need that hint. <strong>(2)</strong> The factorization is an architectural <em>prior</em>: we hand the model a per-agent, per-axis representation, and it learns the gating within that. The image encoder, with no such prior, could not. <strong>(3)</strong> DOF 8 reads 9.1, a mild overshoot from correlation-dim noise on a small curved patch. So: the metric is genuinely stratified, but the cleanest dimension read still relies on knowing the knob.
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="col">
+      <p class="num">The bottom line</p>
+      <h2>What we can and cannot claim</h2>
+    </div>
+    <div class="ledger col">
+      <div class="card can">
+        <h3>Can claim</h3>
+        <ul>
+          <li>A gated environment manufactures states of genuinely different local dimension in one shared space; a frozen agent contributes exactly 0 DOF.</li>
+          <li>An embedding trained only on adjacency recovers the full DOF ladder 0&ndash;8 to the finite-sample ceiling, using a graph-defined local ball. No UMAP, no dimension labels.</li>
+          <li>A factored knob-gated encoder makes the embedding's own metric stratified: it is invariant to immovable coordinates (d_illegal = 0.00), so dimension is readable from embedding neighbours without the graph.</li>
+          <li>That gating is <em>learned</em> from adjacency, not hand-set: the learned gate matches the hardwired upper bound.</li>
+        </ul>
+      </div>
+      <div class="card cant">
+        <h3>Cannot claim (yet)</h3>
+        <ul>
+          <li>That a plain image embedding is stratified on its own. It is not; graph-free k-NN reads ambient 8 everywhere.</li>
+          <li>A fully blind, knob-free graph-free dimension read at the lowest strata. DOF 1&ndash;2 still need a knob-guided pool; only DOF 3&ndash;8 come out of a generic pool unaided.</li>
+          <li>That any architecture self-stratifies. The result needs the factored per-agent, per-axis prior; the collapse must be structural, not a loss.</li>
+          <li>Exact dimension at the top of the ladder. High DOF compresses (graph ball) or mildly overshoots (graph-free), both expected from finite samples.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="col">
+      <p style="margin-top:6px">The single sentence: <strong>an embedding can be trained so that its geometry, not just its graph, respects the constraints of the state space, and the model learns which degrees of freedom are live rather than being told.</strong> The honest asterisk is that reading the very lowest strata cleanly still uses the observable knob.</p>
+    </div>
+  </section>
+
+  <footer>
+    <div class="col">
+      <span>CognitiveMaps++ &middot; stratified state spaces</span>
+      <span>probe/stratified_gated_probe.py &middot; mini_strat.py &middot; mini2_strat.py</span>
+    </div>
+  </footer>
+
+</div>
