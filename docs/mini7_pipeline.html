@@ -1,0 +1,205 @@
+<title>Dimension from a Learned Distance</title>
+<style>
+  :root{
+    --paper:#f6f7f9;--panel:#ffffff;--panel2:#eef2f5;--ink:#17222c;--muted:#5a6a76;--faint:#8b98a3;
+    --accent:#0e8f8a;--accent2:#d9622f;--accent3:#6b4fb0;--line:#dde3e9;--codebg:#eef1f4;--glow:rgba(14,143,138,.10);
+    --serif:"Charter","Bitstream Charter","Iowan Old Style","Palatino Linotype",Georgia,serif;
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --measure:70ch;--wide:900px;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --paper:#0f1620;--panel:#16212c;--panel2:#1b2833;--ink:#dbe4ea;--muted:#8fa0ad;--faint:#6b7b88;
+    --accent:#33b6af;--accent2:#f0885a;--accent3:#9d84e2;--line:#263340;--codebg:#182430;--glow:rgba(51,182,175,.14);}}
+  :root[data-theme="dark"]{
+    --paper:#0f1620;--panel:#16212c;--panel2:#1b2833;--ink:#dbe4ea;--muted:#8fa0ad;--faint:#6b7b88;
+    --accent:#33b6af;--accent2:#f0885a;--accent3:#9d84e2;--line:#263340;--codebg:#182430;--glow:rgba(51,182,175,.14);}
+  :root[data-theme="light"]{
+    --paper:#f6f7f9;--panel:#ffffff;--panel2:#eef2f5;--ink:#17222c;--muted:#5a6a76;--faint:#8b98a3;
+    --accent:#0e8f8a;--accent2:#d9622f;--accent3:#6b4fb0;--line:#dde3e9;--codebg:#eef1f4;--glow:rgba(14,143,138,.10);}
+
+  *{box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);font-family:var(--serif);font-size:18px;line-height:1.62;
+    margin:0;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  .wrap{max-width:var(--wide);margin:0 auto;padding:0 28px}
+  .col{max-width:var(--measure);margin-left:auto;margin-right:auto}
+  p{margin:0 0 16px}.col p,.col ul,.col h3{max-width:var(--measure)}
+  a{color:var(--accent)}strong{font-weight:600}
+  code{font-family:var(--mono);font-size:.85em;background:var(--codebg);padding:1.5px 5px;border-radius:4px}
+  ul{padding-left:22px;margin:0 0 16px}li{margin:7px 0}
+  svg{display:block;max-width:100%;height:auto}text{font-family:var(--mono)}
+
+  .hero{padding:70px 0 24px;position:relative;overflow:hidden}
+  .hero::before{content:"";position:absolute;inset:-40% 25% auto -10%;height:460px;
+    background:radial-gradient(60% 60% at 30% 30%,var(--glow),transparent 70%);pointer-events:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin:0 0 18px;position:relative}
+  h1{font-size:clamp(31px,5.2vw,50px);line-height:1.07;font-weight:600;letter-spacing:-.015em;margin:0 0 20px;text-wrap:balance;position:relative}
+  .lede{font-size:20px;color:var(--muted);max-width:64ch;margin:0 0 26px;position:relative}
+  .lede em{color:var(--ink);font-style:normal}
+  .steps{display:flex;flex-wrap:wrap;gap:8px;font-family:var(--mono);font-size:12.5px;position:relative}
+  .stepchip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 13px;color:var(--muted)}
+  .stepchip b{color:var(--accent);font-weight:600}
+
+  section{padding:34px 0;border-top:1px solid var(--line)}
+  .num{font-family:var(--mono);font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent2);margin:0 0 10px}
+  h2{font-size:clamp(22px,3.4vw,30px);font-weight:600;letter-spacing:-.01em;margin:0 0 14px;text-wrap:balance}
+  h3{font-size:17.5px;font-weight:600;margin:22px 0 8px}
+
+  figure{margin:22px 0}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .svgpanel{padding:18px 14px}
+  figcaption{font-family:var(--mono);font-size:12.5px;line-height:1.6;color:var(--muted);padding:12px 16px;border-top:1px solid var(--line);background:var(--panel2)}
+  figcaption b{color:var(--accent);font-weight:600}
+
+  .eq{font-family:var(--mono);font-size:14px;background:var(--codebg);border:1px solid var(--line);border-radius:8px;padding:15px 17px;margin:16px 0;overflow-x:auto;line-height:1.6}
+  .eq .c{color:var(--muted)}.eq .acc{color:var(--accent)}.eq .a2{color:var(--accent2)}.eq .a3{color:var(--accent3)}
+  .note{border-left:3px solid var(--accent);background:var(--panel);padding:14px 18px;border-radius:0 8px 8px 0;margin:20px 0}
+  .note .lab{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:5px}
+  .tablewrap{overflow-x:auto;margin:20px 0;border:1px solid var(--line);border-radius:10px}
+  table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:13.5px;font-variant-numeric:tabular-nums}
+  th,td{padding:9px 13px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  thead th{background:var(--panel2);color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.02em}
+  tbody tr:last-child td{border-bottom:none}
+  td.good{color:var(--accent);font-weight:600}td.bad{color:var(--accent2);font-weight:600}td.dim{color:var(--faint)}
+  .steplabel{display:inline-block;font-family:var(--mono);font-size:12px;background:var(--accent);color:#fff;border-radius:6px;padding:2px 9px;margin-right:8px;vertical-align:middle}
+  @media (prefers-color-scheme:dark){.steplabel{color:#0f1620}}:root[data-theme="dark"] .steplabel{color:#0f1620}:root[data-theme="light"] .steplabel{color:#fff}
+  footer{border-top:1px solid var(--line);padding:26px 0 54px;color:var(--faint);font-family:var(--mono);font-size:12px}
+  footer .col{max-width:var(--wide);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+</style>
+
+<div class="wrap">
+
+  <header class="hero col">
+    <p class="eyebrow">CognitiveMaps++ &middot; mini7</p>
+    <h1>Reading dimension from a learned distance</h1>
+    <p class="lede">Train a distance the old cheap way, neighbours at distance one and everything else pushed away, then ask its <em>own</em> local geometry how many degrees of freedom a state has. With a gated attention distance it answers correctly. With plain Euclidean it cannot.</p>
+    <div class="steps">
+      <span class="stepchip"><b>1</b> environment</span>
+      <span class="stepchip"><b>2</b> distance model</span>
+      <span class="stepchip"><b>3</b> local training</span>
+      <span class="stepchip"><b>4</b> VGT dimension</span>
+    </div>
+  </header>
+
+  <section class="col">
+    <p class="num"><span class="steplabel">1</span> the environment</p>
+    <h2>Three agents, a key that frees them</h2>
+    <p>A state is <code>(pos_0, pos_1, pos_2, key)</code>. Each agent lives on a 12-node <strong>cycle</strong>, a one-dimensional component. The shared <strong>key</strong> takes values 0 to 3. Agent <code>i</code> can move only when <code>key &gt; i</code>, so the key controls <em>how many</em> agents are free, and therefore the local dimension of the state.</p>
+    <div class="tablewrap col">
+      <table>
+        <thead><tr><th>key</th><th>free agents</th><th>true local dimension</th></tr></thead>
+        <tbody>
+          <tr><td>0</td><td class="dim">none</td><td class="dim">0 (dead)</td></tr>
+          <tr><td>1</td><td>agent 0</td><td class="good">1</td></tr>
+          <tr><td>2</td><td>agents 0, 1</td><td class="good">2</td></tr>
+          <tr><td>3</td><td>agents 0, 1, 2</td><td class="good">3</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><strong>Legal moves</strong> (each cost 1): step a <em>free</em> agent one cell along its cycle, or turn the key one notch (always allowed). Moving a <strong>frozen</strong> agent is illegal. The number of legal move directions at a state equals the key, which is exactly its degrees of freedom.</p>
+  </section>
+
+  <section class="col">
+    <p class="num"><span class="steplabel">2</span> the distance model</p>
+    <h2>A gated sum of per-component distances</h2>
+    <p>The distance is not fixed; it is learned. Each component gets its own embedding table, and the distance is a <strong>weighted sum of per-component distances</strong>, where the weights come from the key through a small gate (this is the attention part):</p>
+    <div class="eq">
+d(x, y) = <span class="acc">&Sigma;</span><sub class="c">agents i</sub> <span class="a2">w<sub>i</sub>(key)</span> &middot; &#8741; e<sub>i</sub>(pos<sub>i</sub><sup>x</sup>) &minus; e<sub>i</sub>(pos<sub>i</sub><sup>y</sup>) &#8741;  +  &#8741; e<sub>key</sub>(key<sup>x</sup>) &minus; e<sub>key</sub>(key<sup>y</sup>) &#8741;
+
+<span class="a2">w<sub>i</sub></span> = softplus( MLP( [ e<sub>key</sub><sup>x</sup>+e<sub>key</sub><sup>y</sup> ,  |e<sub>key</sub><sup>x</sup>&minus;e<sub>key</sub><sup>y</sup>| ] ) )<sub class="c">i</sub>   <span class="c"># one weight per agent, from the key</span>
+    </div>
+    <p>It is a sum of L1 pieces, one per component. The gate <code>w_i</code> is the whole point: it lets the key decide how much each agent's displacement <em>costs</em>. If the gate learns to make a frozen agent's weight large, moving that agent becomes expensive, so it leaves the local neighbourhood. Plain Euclidean has no such gate: every agent's displacement always counts the same, which is why it stays blind to the key.</p>
+  </section>
+
+  <section class="col">
+    <p class="num"><span class="steplabel">3</span> training</p>
+    <h2>Local signal only: neighbour is 1, everything else is far</h2>
+    <p>No shortest paths, no geodesic. We only teach the one-step structure and repel the rest. Per batch:</p>
+    <div class="eq">
+x   <span class="c"># random state</span>
+x'  = one random LEGAL move from x           loss += ( <span class="acc">d(x, x')</span> &minus; 1 )<sup>2</sup>      <span class="c"># neighbour -&gt; distance 1</span>
+x'' = move a FROZEN agent one step (illegal) loss += softplus( <span class="a2">margin</span> &minus; d(x, x'') )   <span class="c"># push far</span>
+r   = another random state                   loss += softplus( <span class="a2">margin</span> &minus; d(x, r) )       <span class="c"># push far</span>
+                                             margin = 15
+    </div>
+    <p>That is the entire supervision. It never sees that two frozen positions are unreachable from each other; it only sees that the move is not a neighbour, so it repels it. From this the gate learns, on its own, to make a frozen agent's step expensive.</p>
+    <div class="note">
+      <span class="lab">What the gate learned</span>
+      After training, a <strong>free</strong> agent's one-step distance is <strong>~1</strong> (as taught), while a <strong>frozen</strong> agent's one-step distance is <strong>23 to 46</strong> (repelled). The learned weights: <code>w_free &asymp; 0.25</code>, <code>w_frozen &asymp; 5 to 8</code>. The metric is now stratified: staying on the free directions is cheap, leaving them is a cliff.
+    </div>
+  </section>
+
+  <section class="col">
+    <p class="num"><span class="steplabel">4</span> the VGT measurement</p>
+    <h2>How the neighbours are obtained</h2>
+    <p>We want the local dimension at a probe state, read from the learned distance alone, with no graph. The subtle part is picking the neighbourhood. We do <strong>not</strong> use the transition graph, and we do <strong>not</strong> use a fixed count of nearest points. We let the metric select the neighbours:</p>
+    <ul>
+      <li><strong>Build a pool.</strong> Take the probe and make 60,000 copies, each with <em>every</em> agent jittered by up to &plusmn;5 cells on its cycle (the key is held fixed). Legality is never checked; the pool is a blind cloud around the probe.</li>
+      <li><strong>Score by the learned distance.</strong> Compute <code>d(probe, point)</code> for every pool point. Because the gate makes frozen displacements expensive, points that jitter a frozen agent land <em>far</em>; points that only jitter free agents stay <em>near</em>.</li>
+      <li><strong>Cut at the gap.</strong> Sort the distances. They are bimodal: a near <span style="color:var(--accent)">free cluster</span>, then a big multiplicative jump, then the <span style="color:var(--accent2)">frozen</span> points. Take everything before the first big jump. That set is the neighbourhood, and the metric drew its boundary for us.</li>
+      <li><strong>Read the dimension.</strong> On that free cluster, the VGT correlation dimension is the slope of <code>log(rank)</code> against <code>log(distance)</code>. One free agent gives slope ~1, two give ~2, three give ~3.</li>
+    </ul>
+    <figure>
+      <div class="panel svgpanel">
+        <svg viewBox="0 0 720 360" role="img" aria-label="Pool points sorted by learned distance: a near free cluster, a gap, then far frozen points">
+          <!-- shading -->
+          <rect x="70" y="40" width="288" height="260" fill="var(--accent)" opacity="0.07"/>
+          <rect x="358" y="40" width="332" height="260" fill="var(--accent2)" opacity="0.07"/>
+          <!-- y gridlines: d=0.1,1,10 -->
+          <g stroke="var(--line)" stroke-width="1">
+            <line x1="70" y1="282" x2="690" y2="282"/><line x1="70" y1="192" x2="690" y2="192"/><line x1="70" y1="103" x2="690" y2="103"/>
+          </g>
+          <g fill="var(--muted)" font-size="11.5" text-anchor="end">
+            <text x="62" y="286">0.1</text><text x="62" y="196">1</text><text x="62" y="107">10</text>
+          </g>
+          <!-- axes -->
+          <line x1="70" y1="40" x2="70" y2="300" stroke="var(--muted)" stroke-width="1.3"/>
+          <line x1="70" y1="300" x2="690" y2="300" stroke="var(--muted)" stroke-width="1.3"/>
+          <!-- free cluster curve -->
+          <polyline points="70,282 150,250 240,216 320,188 355,180" fill="none" stroke="var(--accent)" stroke-width="3"/>
+          <!-- gap (dashed vertical jump) -->
+          <line x1="357" y1="180" x2="357" y2="131" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="4 4"/>
+          <!-- frozen curve -->
+          <polyline points="360,131 450,106 560,76 690,49" fill="none" stroke="var(--accent2)" stroke-width="3"/>
+          <!-- cut line -->
+          <line x1="357" y1="40" x2="357" y2="300" stroke="var(--accent3)" stroke-width="1.6" stroke-dasharray="2 4"/>
+          <!-- labels -->
+          <text x="200" y="120" fill="var(--accent)" font-size="12.5" text-anchor="middle">free cluster</text>
+          <text x="200" y="137" fill="var(--muted)" font-size="11.5" text-anchor="middle">= neighbours kept</text>
+          <text x="530" y="205" fill="var(--accent2)" font-size="12.5" text-anchor="middle">frozen jitters</text>
+          <text x="530" y="222" fill="var(--muted)" font-size="11.5" text-anchor="middle">repelled far, excluded</text>
+          <text x="363" y="60" fill="var(--accent3)" font-size="11.5">cut at first big gap</text>
+          <text x="380" y="330" fill="var(--muted)" font-size="12" text-anchor="middle">pool points, sorted by learned distance to the probe &rarr;</text>
+          <text x="20" y="170" fill="var(--muted)" font-size="12" text-anchor="middle" transform="rotate(-90 20 170)">learned distance (log)</text>
+        </svg>
+      </div>
+      <figcaption>Neighbours are not the k nearest and not graph edges; they are the pool points below the <b>gap that the trained metric itself creates</b>. Jittering a frozen agent costs 5 or more, jittering a free agent costs at most about 1.4, so the split is unambiguous. Take the first big multiplicative jump, keep the left side, read its correlation dimension.</figcaption>
+    </figure>
+  </section>
+
+  <section class="col">
+    <p class="num">the result</p>
+    <h2>The dimension ladder, from a distance trained only on adjacency</h2>
+    <div class="tablewrap col">
+      <table>
+        <thead><tr><th>head</th><th>key=1 (dim 1)</th><th>key=2 (dim 2)</th><th>key=3 (dim 3)</th></tr></thead>
+        <tbody>
+          <tr><td>gated attention</td><td class="good">1.40</td><td class="good">2.24</td><td class="good">3.07</td></tr>
+          <tr><td>plain Euclidean</td><td class="bad">2.78</td><td class="bad">2.74</td><td class="bad">2.71</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The gated attention distance recovers the ladder, monotone and separated. Plain Euclidean on the identical training is flat near 2.7: with no gate it reads every agent's position as a real dimension, so it cannot tell a 1-DOF state from a 3-DOF one. The gate, and the fact that the metric repels illegal moves, is what turns the cheap local signal into a geometry whose own local dimension equals the degrees of freedom.</p>
+    <div class="note">
+      <span class="lab">Honest caveat</span>
+      Dimension 1 reads 1.40, not 1.00, a mild overshoot from the curvature of a small 12-node ring. The ladder is clearly monotone and separated, but not razor sharp at the bottom; larger cycles would tighten it. The gap-cut is the load-bearing measurement step: a fixed count of nearest points overflows the tiny free cluster into frozen territory and inflates the dimension.
+    </div>
+  </section>
+
+  <footer>
+    <div class="col">
+      <span>CognitiveMaps++ &middot; local training + gated attention distance + VGT</span>
+      <span>probe/mini7_local_vgt.py</span>
+    </div>
+  </footer>
+
+</div>

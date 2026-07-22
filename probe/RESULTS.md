@@ -542,3 +542,154 @@ agents.
 Takeaway: the attention distance turns the CHEAP local signal (neighbour=1, repel) into a stratified
 metric whose own local dimension recovers the DOF -- no geodesic supervision, no graph at measurement
 time -- exactly what the image / Euclidean embedding could not do.
+
+## mini8_bank.py -- reusable GLOBAL bank (rollouts) instead of per-probe jitter
+Collect ONE big bank of states by running legal rollouts from many random starts (+ optional jitter),
+and REUSE it for every probe: score the bank with the learned distance, cut near/far, VGT. Probes are
+states actually visited (drawn from the bank).
+
+**Result (best config: plain rollout bank 180k, nearest-K=4000 then gap-cut):**
+| key | dim (mean over 8 probes) | near-count |
+|-----|-------------------------:|-----------:|
+| 1   | 1.53                     | 376        |
+| 2   | 2.07                     | 4000       |
+| 3   | 2.29                     | 4000       |
+- **Works.** Rollouts give the on-stratum DENSITY that uniform sampling couldn't (a frozen agent
+  can't move within a fixed-key segment, so a trajectory stays on one stratum). Near-counts are ample.
+- **Need locality AND the gap.** The top stratum (key=3, all free) has NO frozen gap, so gap-cut alone
+  kept the whole bank and read 0.45. Adding a nearest-K bound before the gap-cut restores 2.29.
+- **Jitter HURTS.** Jittered banks came out worse (key=2 -> ~1.6): jitter adds near-duplicate points
+  that compress the distance distribution and lower the VGT slope. Plain rollouts suffice.
+- **Caveat (key=3 undershoot 2.29 vs ~3):** small-cycle saturation. A 3-DOF stratum on 12-cycles has
+  only 12^3=1728 states; fixed K=4000 oversamples it into saturation. Fix = larger cycles or a
+  stratum-size-aware K, not the bank method.
+Takeaway: a reusable rollout bank + (nearest-K then gap-cut) recovers the DOF ladder without
+re-sampling per probe; rollouts beat uniform (density) and beat jitter (no compression).
+
+# Image-input, shared canvas (mini17-mini19) -- autonomous cluster exploration
+
+Goal: make the recipe (multi-scale isometry + repel, gate-guided VGT) work with a single shared IMAGE
+instead of factored indices -- the binding challenge the original ImageEnc failed. Env: N agents as
+DISTINCT markers (value i+1) on a GxG torus + a key token; agent 0 always free (mover), agent j free
+iff key>=j, key changes only at a control cell; DOF=2*(1+#free), ladder 2/4/6. Encoder emits N+1
+component vectors from the canvas; the gated-L1 distance runs on them. Swept on the cluster (Slurm,
+Volta100). Files: probe/mini17_image.py, mini18_image_factors.py, mini19_dof2debug.py.
+
+## Core result: the image encoder STRATIFIES (original failure fixed)
+A frozen agent's 1-pixel move reads FAR (strat 13-62x), a free move ~1. The shared-canvas encoder
+recovers the stratification the monolithic ImageEnc could not (ImageEnc read ambient dim graph-free).
+Fixed by learned per-component extraction + gated distance + multi-scale isometry.
+
+## Encoder comparison (binding is the bottleneck)
+- mha (learned query + attention): entangled, queries drift to the key token, leakage 7-56; weakest.
+- marker (query + marker-id): BEST ladder -- G16 DOF4~4.5 DOF6~5.9 mae 0.28; some queries still hit key.
+- gather/gather2 (soft value-match): grid-adjacency 1.0 but unstable/misaligned; worse ladder.
+- hgather (deterministic marker gather): perfect binding, but gate cheats -> worse ladder + DOF2 nan.
+Internal factors (mini18): position IS encoded per agent (grid-adjacent-NN 0.94-1.0), but soft binding
+is unstable (exactly one query collapses onto the key token per run), and with clean components the
+gate CHEATS (infers position from comp^x+comp^y, sets w ~ 1/dist, canceling isometry). G is the
+dominant ladder lever; ~30k steps optimal, MORE steps HURT.
+
+## Persistent gap: DOF-2 (single 2-D mover)
+Mover-only stratum nans everywhere: the mover's component collapses to ~equidistant (any move ->
+constant ~1.4, logrange 0 -> vgt nan). Resisted key-only gate, hard-gather, and dedicated
+mover-isometry (mover_boost). Higher strata (DOF4/6) stay clean+monotone (corr 1.0).
+
+## Status: image (shared canvas) WORKS for the higher strata -- strong stratification, near-perfect
+position binding, monotone ladder tracking DOF-4/6 (marker G16, mae 0.28). Open: DOF-2 lone mover,
+and N=4/5 scaling.
+
+## CORRECTION (internal-factors check on the BEST-ladder model): the ladder works via ENTANGLEMENT
+Pulled the best marker model (G16, 30k, ladder mae 0.35 DOF4~4.5 DOF6~6.15) and ran mini18 on it. Its
+per-agent components are DEGENERATE, not clean: grid-adjacent-NN 0.02-0.15 (position barely encoded),
+leakage 5-205, dcomp~0, and the PCA manifolds collapse to points (agent 2 fully collapsed). So the good
+DOF ladder is read from the ENTANGLED/leakage structure (moving one agent perturbs all components), NOT
+from interpretable per-agent position factoring. There is an INVERSE relationship: the G8 marker models
+bound cleaner (grid-adj 0.69-1.0) but read a WORSE ladder (mae 0.94); the best-ladder G16 model is
+entangled. So the honest claim is: gate-guided VGT recovers a monotone DOF ladder from a shared-canvas
+image (works up to DOF-8 with N=4 at G20), but the learned representation is a black-box entangled
+metric, NOT a clean interpretable per-agent factorization. Clean binding and a good ladder are at odds
+here -- an open question for future work.
+
+## Seed robustness (marker G16, 30k): HIGH variance in absolute calibration
+Across seeds 0-3 the ladder is ALWAYS monotone (corr 1.0) but the absolute values swing:
+DOF4 = 4.55 / 2.95 / 3.66 / 2.83 (seed 0/1/2/3), DOF6 = 6.15 / 5.21 / 5.64 / 5.68, mae = 0.28 / 0.92 /
+0.35 / 0.74. So the earlier "mae 0.28" was a favorable seed; TYPICAL is mae ~0.5-0.9 with DOF4 ~2.8-3.7.
+DOF6 is more stable (~5.2-6.2). N=4/G20 seed 1 reached DOF8 = 8.1 (near-exact) and DOF2 n=5 (partly
+measurable for once). Honest headline: MONOTONE ladder tracking DOF, DOF-8 reachable, but seed-variable
+absolute calibration and DOF-2 usually nan. The monotone-but-variable behaviour is consistent with the
+entangled-metric finding above (the black-box metric's exact scale is not pinned down).
+
+## PROBE: 1-D-agent image (mini20) -- falsifies "2-D agents were the limiter"
+Hypothesis: the 2-D-agent measurement (curse of dim, DOF-2 nan) was the limiter; render agents as
+distinct markers on a 1-D STRIP (DOF ladder 1..N, easy to measure like the clean factored 1-D case) and
+the ladder should come out clean. Result (true DOF = 1+key = 1..5):
+  N5 G48 s0  [nan, 1.90, 4.34, 6.09, 7.81]
+  N5 G48 s1  [nan, 2.69, 4.35, 6.49, 8.06]
+  N5 G64 s0  [nan, 1.81, 4.10, 5.95, 7.87]   (bigger G: no fix)
+  N5 keygate [3.16, 1.86, 7.67, 7.68, 7.50]  (DOF-1 non-nan but monotonicity wrecked)
+  N3 G32 s0  [nan, 1.79, 3.67]               (fewer agents: cleaner)
+Verdict FALSIFIED. Two robust findings:
+1. The lone always-free mover NANS in 1-D too (DOF-1 here == DOF-2 in the 2-D env). The mover-component
+   collapse is DIMENSION-INDEPENDENT -- intrinsic to the always-free mover, not a 2-D artifact. keygate
+   recovers it (3.16) but breaks monotonicity: SAME tradeoff as the 2-D case.
+2. The image ladder OVERSHOOTS (reads ~1.5x at high DOF, overshoot grows with DOF), worse than the
+   factored-1-D recipe (which read ~clean 1.4/2.2/3.1). So the shared-image binding adds apparent
+   dimension EVEN with easy 1-D measurement. The entanglement (per the 2-D internal-factors finding) is
+   intrinsic to reading dimension from a shared image, NOT a 2-D-measurement artifact. Fewer agents (N=3)
+   overshoot less, consistent with entanglement scaling with agent count.
+Bottom line: image input is fundamentally a BLACK-BOX entangled metric -- monotone ordering, inflated
+absolute scale, lone-mover collapse -- and this is NOT curable by making the measurement easier (1-D).
+The clean-binding-vs-good-ladder tension is intrinsic to shared-image input.
+
+## CORRECTION (factored control, mini20 --factored): overshoot + lone-mover-nan are MEASUREMENT, not image
+The prior 1-D-probe section attributed the ladder overshoot and the lone-mover nan to the image encoder's
+entanglement. A proper control -- IDENTICAL distance + training + VGT measurement, only the encoder swapped
+for CLEAN per-agent position embeddings (--factored) -- shows that is largely WRONG:
+  head-to-head N5 G48 (true DOF 2/3/4/5):     DOF2  DOF3  DOF4  DOF5   DOF1
+    image     [nan, 1.90, 4.34, 6.09, 7.81]   1.90  4.34  6.09  7.81   nan
+    factored  [nan, 2.11, 4.14, 5.74, 7.23]   2.11  4.14  5.74  7.23   nan
+    factored+keygate [nan, 1.60, 2.90, 4.57, 6.10]                     nan  (CLEANEST ladder)
+    factored N3 G32  [nan, 1.59, 2.79]
+Corrected conclusions:
+1. OVERSHOOT is mostly MEASUREMENT, not the image encoder. Clean embeddings (no binding problem)
+   overshoot nearly as much (DOF5 -> 7.23 vs image 7.81); the image adds only ~0.3-0.6 extra dims. The
+   growing-with-DOF overshoot is the rank-based VGT slope estimator inflating high-dimensional
+   weighted-L1 balls (heterogeneous gate weights make the ball a weighted polytope; count-in-ball fit
+   overshoots). keygate REDUCES overshoot (factored+keygate is the cleanest ladder: 1.6/2.9/4.57/6.1).
+2. LONE-MOVER NAN is NOT image-specific. Factored nans DOF-1 too. It is a measurement DISCRETENESS
+   artifact at the thinnest stratum: a single free coordinate jittered by W gives only ~(2W+1) distinct
+   gated-L1 distances (e.g. W=16 -> 17 values), so the slope estimator has near-zero log-range -> nan.
+   Same mechanism explains the 2-D DOF-2 nan (single 2-D mover, ~2W+1 distinct L1 values). NOT model
+   collapse. (Fix would be a tie-tolerant / smoothed estimator or larger W with denser sampling.)
+3. Net: the image encoder sits CLOSE to the clean-factored measurement ceiling -- the ceiling itself is
+   imperfect. The genuine image-specific cost of shared-canvas binding is SMALL (~0.3-0.6 dims), not the
+   dramatic entanglement the raw image numbers suggested. (The 2-D internal-factors degeneracy -- collapsed
+   components, high leakage -- is still a real observation, but it is NOT what drives the ladder numbers.)
+This is probe-first working as intended: a ~10-min control probe corrected an over-attribution.
+
+## Measurement-knob sweep (mini20 --W --L --M --qlo --qhi): overshoot is intrinsic estimator bias
+Tested whether tuning the VGT band/window pulls the ladder toward true 1/2/3/4/5. It does NOT -- wider
+band inflates ALL readings (factored N5 G48):
+  q.05-.6 W16 : [nan, 2.11, 4.14, 5.74, 7.23]
+  q.02-.75 W24: [nan, 2.96, 4.87, 6.53, 7.89]   (wider band -> MORE overshoot)
+  q.02-.80 W32: [nan, 3.26, 5.34, 6.98, 8.42]   (even more)
+  image q.02-.75 W24: [3.36, 2.55, 5.13, 6.99, 8.71]  (DOF-1 now finite)
+Findings:
+1. The overshoot is an INTRINSIC bias of the rank-VGT slope estimator on this distance geometry (gated-L1
+   sum of box-uniform jitter), NOT tunable away by band/window. The count-vs-radius curve is not a clean
+   r^d power law: local slope rises with radius, so a wider quantile band reads a higher dimension.
+   Reproduced identically by the clean factored control -> confirms not-model / not-image, but ALSO not a
+   knob problem. A real fix needs a different intrinsic-dimension estimator (fit the true small-r scaling
+   region, or MLE on a proper manifold sample) -- an open methodological problem.
+2. DOF-1 nan is discreteness of TOO-CLEAN distances: factored (cleanest, most discrete) nans hardest;
+   the image's own noise breaks the ties -> finite (3.36) but inflated. So entanglement HELPS the thinnest
+   stratum. Bigger W alone does not save factored DOF-1 (still nan at W24/W32).
+3. Ordering (monotone ladder) is robust across every setting; only the ABSOLUTE calibration moves, and it
+   is estimator-dependent + biased high. keygate reads cleanest at the low end (DOF2 1.9, DOF3 3.8).
+4. At matched measurement, image sits ~0.3-0.8 dims above factored -> consistent with the small
+   image-binding cost (~0.3-0.6) found earlier.
+NET (final, image direction): the recipe recovers a robust MONOTONE DOF ladder from a shared image, sitting
+close to the clean-factored ceiling. The absolute-calibration overshoot and the lowest-stratum nan are
+properties of the VGT ESTIMATOR (biased high, discreteness-sensitive), not of the image encoder. The next
+real lever is a better dimension estimator, not more model/architecture work.

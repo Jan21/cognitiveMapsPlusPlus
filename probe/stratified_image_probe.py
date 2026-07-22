@@ -172,8 +172,12 @@ def measure_vgt(model, device, R, N, per_dof, seed):
                 continue
             pos = rng.integers(0, NPOS, NAGENTS)
             ball = local_ball(pos, knob, R, N, rng); M = ball.shape[0]
-            E = model.embed(torch.tensor(ball, device=device),
-                            torch.tensor(np.tile(knob, (M, 1)), device=device)).cpu().numpy()
+            E = []
+            for i in range(0, M, 8192):                    # chunk to avoid OOM on large balls
+                b = ball[i:i + 8192]
+                E.append(model.embed(torch.tensor(b, device=device),
+                                     torch.tensor(np.tile(knob, (len(b), 1)), device=device)).cpu().numpy())
+            E = np.concatenate(E)
             q = model.embed(torch.tensor(pos[None], device=device),
                             torch.tensor(knob[None], device=device)).cpu().numpy()[0]
             rows.append((dof, vgt_slope(np.linalg.norm(E - q, axis=1))))
