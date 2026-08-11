@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=distModel
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:Volta100:1
+#SBATCH --gres=gpu:A40:1
 #SBATCH --time=6:00:00
 #SBATCH --mem=16G
 #SBATCH --cpus-per-task=6
