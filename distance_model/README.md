@@ -4,6 +4,29 @@ A recall-flow integrator trained to predict the **BFS geodesic distance** betwee
 gridworld, evaluated for **distance accuracy** and **generalization to held-out constraint configurations**.
 Input can be factored or a rendered image. Self-contained: everything is in `integ_distance.py`.
 
+## Contents
+
+| file | what it is |
+|---|---|
+| `integ_distance.py` | the entire experiment — environment, model, training, evaluation (single self-contained file) |
+| `README.md` | this file |
+| `results.html` | plain-language write-up of the setup and results (open in any browser) |
+| `run_best.sbatch` | Slurm batch script for the best configs (optional; runs the same commands) |
+| `requirements.txt` | dependencies |
+
+## Requirements
+
+- Python 3.9+
+- PyTorch >= 2.0 (any CUDA GPU; also runs on CPU for small settings)
+- NumPy
+
+```bash
+pip install -r requirements.txt   # or: pip install "torch>=2.0" numpy
+```
+
+`integ_distance.py` imports only the standard library, `numpy`, and `torch` — no other files from the repository
+are needed to reproduce the results.
+
 ## The task
 
 A state is `[positions (N), mobility_key, link_key]`:
