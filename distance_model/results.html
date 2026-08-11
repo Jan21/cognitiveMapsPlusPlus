@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Predicting distances in a coupling world — results, explained</title>
+<style>
+:root{
+  --paper:#f7f6f2; --ink:#1c1d1a; --ink-soft:#585a53; --line:#e0ded4;
+  --card:#fffffd; --accent:#3a6ea5; --accent-soft:#3a6ea51a; --warm:#b8621b;
+  --good:#2e7d54; --good-bg:#2e7d5414; --bad:#b8621b; --bad-bg:#b8621b14; --mid:#8a7412; --mid-bg:#8a741214;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --serif:Georgia,"Times New Roman",serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#14150f; --ink:#e9e8e0; --ink-soft:#a6a89c; --line:#2b2c22;
+  --card:#1a1b13; --accent:#79aede; --accent-soft:#79aede22; --warm:#e2934f;
+  --good:#5cba86; --good-bg:#5cba8618; --bad:#e2934f; --bad-bg:#e2934f18; --mid:#d3b23e; --mid-bg:#d3b23e18;}}
+:root[data-theme="dark"]{
+  --paper:#14150f; --ink:#e9e8e0; --ink-soft:#a6a89c; --line:#2b2c22;
+  --card:#1a1b13; --accent:#79aede; --accent-soft:#79aede22; --warm:#e2934f;
+  --good:#5cba86; --good-bg:#5cba8618; --bad:#e2934f; --bad-bg:#e2934f18; --mid:#d3b23e; --mid-bg:#d3b23e18;}
+:root[data-theme="light"]{
+  --paper:#f7f6f2; --ink:#1c1d1a; --ink-soft:#585a53; --line:#e0ded4;
+  --card:#fffffd; --accent:#3a6ea5; --accent-soft:#3a6ea51a; --warm:#b8621b;
+  --good:#2e7d54; --good-bg:#2e7d5414; --bad:#b8621b; --bad-bg:#b8621b14; --mid:#8a7412; --mid-bg:#8a741214;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.68;font-size:17px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:720px;margin:0 auto;padding:clamp(22px,5vw,66px) clamp(18px,5vw,38px)}
+header.top{border-bottom:2px solid var(--ink);padding-bottom:28px;margin-bottom:8px}
+.eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:600;margin:0 0 14px}
+h1{font-size:clamp(28px,5.4vw,43px);line-height:1.1;letter-spacing:-.02em;font-weight:800;margin:0 0 18px;text-wrap:balance}
+.lede{font-size:clamp(17px,2.4vw,20px);color:var(--ink-soft);margin:0;max-width:60ch}
+h2{font-size:clamp(22px,3.5vw,28px);letter-spacing:-.01em;font-weight:750;margin:54px 0 10px;text-wrap:balance}
+h2 .num{font-family:var(--mono);font-size:14px;color:var(--accent);font-weight:600;display:block;margin-bottom:4px;letter-spacing:.1em}
+h3{font-size:19px;font-weight:700;margin:32px 0 6px}
+p{margin:15px 0}
+a{color:var(--accent)}
+strong{font-weight:680}
+em{font-style:italic}
+code{font-family:var(--mono);font-size:.85em;background:var(--accent-soft);color:var(--ink);padding:.12em .4em;border-radius:5px}
+.callout{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:18px 22px;margin:26px 0}
+.callout.pending{border-left-color:var(--warm)}
+.callout .k{font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600;margin-bottom:7px}
+.callout.pending .k{color:var(--warm)}
+.callout p{margin:6px 0 0}
+figure{margin:32px 0;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:24px 20px 14px;overflow-x:auto}
+figure svg{display:block;max-width:100%;height:auto;margin:0 auto}
+figcaption{font-size:13.5px;color:var(--ink-soft);margin-top:15px;text-align:center;line-height:1.55}
+.tablewrap{overflow-x:auto;margin:24px 0}
+table{border-collapse:collapse;width:100%;font-size:14.5px;min-width:480px}
+th,td{padding:9px 13px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);font-weight:600;border-bottom:1.5px solid var(--ink)}
+td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.pill{display:inline-block;font-family:var(--mono);font-size:12px;font-weight:600;padding:2px 9px;border-radius:20px}
+.g{color:var(--good);background:var(--good-bg)} .b{color:var(--bad);background:var(--bad-bg)} .m{color:var(--mid);background:var(--mid-bg)}
+ul,ol{margin:15px 0;padding-left:24px} li{margin:9px 0}
+.key{font-family:var(--mono);font-size:13px}
+.formula{font-family:var(--mono);font-size:13.5px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 17px;margin:18px 0;overflow-x:auto;line-height:1.75}
+hr{border:0;border-top:1px solid var(--line);margin:46px 0}
+footer{margin-top:58px;padding-top:22px;border-top:1px solid var(--line);font-size:13px;color:var(--ink-soft);font-family:var(--mono)}
+.tag{font-family:var(--mono);font-size:11px;padding:1px 7px;border:1px solid var(--line);border-radius:5px;color:var(--ink-soft)}
+.svgtxt{font-family:var(--mono);font-size:12px;fill:var(--ink)} .svgtxt.soft{fill:var(--ink-soft)} .svgtxt.acc{fill:var(--accent);font-weight:600}
+.toc{font-size:14.5px;color:var(--ink-soft);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 20px;margin:26px 0}
+.toc a{text-decoration:none} .toc ol{margin:6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">CognitiveMaps++ · distance-model branch</p>
+  <h1>Teaching a network to judge how far apart two situations are</h1>
+  <p class="lede">This page explains, from the ground up, one focused experiment: can a neural network learn to
+  estimate the true "walking distance" between two configurations of a small world — and, crucially, can it still do
+  that for configurations whose rules it never saw during training? No prior background is assumed.</p>
+</header>
+
+<div class="toc">
+  <strong>What's on this page</strong>
+  <ol>
+    <li>The little world, and what a "state" is</li>
+    <li>What we mean by distance</li>
+    <li>The model, and the idea behind it</li>
+    <li>Two ways of showing the model a state</li>
+    <li>How we measure success: accuracy and generalization</li>
+    <li>The kinds of generalization we test</li>
+    <li>Results</li>
+  </ol>
+</div>
+
+<h2><span class="num">01</span>The little world, and what a "state" is</h2>
+<p>Everything happens on a small square grid — think of a 6×6 chessboard. On that board sit a handful of tokens we
+call <em>agents</em>. A single snapshot of the board — where every agent is standing, together with the rules
+currently in force — is what we call a <strong>state</strong>.</p>
+<p>Two kinds of rules can be attached to each state, and they are what make the world interesting:</p>
+<ul>
+  <li><strong>Mobility.</strong> Each agent has a movement rule. It might be free to move in all four directions, or
+  restricted to only horizontal moves, or only vertical moves, or frozen in place entirely.</li>
+  <li><strong>Links.</strong> Some pairs of agents can be <em>chained together</em>. Chained agents are no longer
+  independent: they can only move as a single rigid block, all shifting in the same direction at the same time, or not
+  at all.</li>
+</ul>
+<p>Linking matters because it makes the rules <em>interact</em>. Two unchained, free agents can wander independently.
+Chain them, and suddenly the pair behaves like one object — the ways the board can change collapse. This coupling is
+the whole point: the difficulty of getting from one board to another depends on the specific combination of mobility
+rules and links currently active.</p>
+
+<figure>
+<svg viewBox="0 0 620 180" role="img" aria-label="Two free agents move independently; chained, they can only move together">
+  <text x="105" y="16" text-anchor="middle" class="svgtxt soft">two free agents — independent</text>
+  <g transform="translate(30,28)">
+    <rect x="0" y="0" width="150" height="114" rx="6" fill="none" stroke="var(--line)"/>
+    <circle cx="45" cy="40" r="12" fill="var(--accent-soft)" stroke="var(--accent)"/>
+    <circle cx="105" cy="78" r="12" fill="var(--accent-soft)" stroke="var(--accent)"/>
+    <g stroke="var(--accent)" stroke-width="1.6" fill="none"><path d="M45 26 v-7 M45 54 v7 M31 40 h-7 M59 40 h7"/></g>
+    <g stroke="var(--accent)" stroke-width="1.6" fill="none"><path d="M105 64 v-7 M105 92 v7 M91 78 h-7 M119 78 h7"/></g>
+  </g>
+  <line x1="310" y1="26" x2="310" y2="160" stroke="var(--line)" stroke-dasharray="3 4"/>
+  <text x="465" y="16" text-anchor="middle" class="svgtxt soft">chained — one rigid block</text>
+  <g transform="translate(390,28)">
+    <rect x="0" y="0" width="150" height="114" rx="6" fill="none" stroke="var(--line)"/>
+    <circle cx="45" cy="40" r="12" fill="var(--accent-soft)" stroke="var(--accent)"/>
+    <circle cx="105" cy="78" r="12" fill="var(--accent-soft)" stroke="var(--accent)"/>
+    <line x1="45" y1="40" x2="105" y2="78" stroke="var(--ink-soft)" stroke-width="2.4" stroke-dasharray="4 3"/>
+    <g stroke="var(--ink)" stroke-width="1.6" fill="none"><path d="M75 16 v-7 M75 100 v7 M18 58 h-7 M132 58 h7"/></g>
+  </g>
+</svg>
+<figcaption>The same two agents. On the left they move on their own. On the right, a link forces them to move
+together, so the set of possible next boards shrinks.</figcaption>
+</figure>
+
+<h2><span class="num">02</span>What we mean by distance</h2>
+<p>Given two states — a starting board and a goal board — the <strong>distance</strong> between them is simply the
+smallest number of legal moves needed to turn the first into the second. This is an ordinary notion of "how far
+apart," the same idea as counting the fewest steps through a maze. Because the legal moves depend on the mobility and
+link rules, the distance is not just about how far the pieces have to travel across the grid; it also reflects how
+much the rules get in the way.</p>
+<p>We can always compute this true distance exactly with a classic shortest-path search (a breadth-first search over
+legal moves). That exact distance is the answer key. The entire task for the network is to reproduce that answer key
+on its own, from looking at the two boards.</p>
+
+<h2><span class="num">03</span>The model, and the idea behind it</h2>
+<p>Rather than guessing a distance in one shot, the model estimates it the way you might pace out a route: it takes a
+number of small internal "steps" and adds up how far it moved at each one. Concretely, the network holds an internal
+representation of the current situation and repeatedly nudges it, over a fixed number of rounds, always keeping the
+starting board and the goal board in view. The total distance it reports is the sum of how much its internal
+representation shifted across all those rounds, scaled by a single learned number.</p>
+<div class="formula">
+start with:&nbsp; [ start · goal · start ]<br>
+repeat T rounds:&nbsp; move the representation a little&nbsp;→&nbsp; add that movement to a running total<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; then remind it of the goal and the start again<br>
+distance = (learned scale) × (total movement)
+</div>
+<p>Two design choices are worth calling out in plain terms. First, the distance is an <em>accumulated path length</em>
+rather than a single number read off at the end — it is built up step by step, which mirrors how real distances add
+up along a route. Second, the goal and the original start are fed back in at every round; this "reminder" keeps the
+process anchored, so it never loses track of where it began or where it is trying to end up. The network is trained by
+comparing its reported distance to the true shortest-path distance and nudging its weights to close the gap.</p>
+
+<h2><span class="num">04</span>Two ways of showing the model a state</h2>
+<p>How the model is <em>told</em> where the agents are turns out to matter, so we compare two setups of increasing
+realism.</p>
+<ul>
+  <li><strong>Factored input.</strong> The model is handed each agent's position directly, as clean numbers. This is
+  the easy, idealized case — there is no perception problem to solve.</li>
+  <li><strong>Image input.</strong> The agents are painted onto a grid picture, and the model has to figure out from
+  that picture where each agent is. This is closer to how a real system would receive the world: as a rendered image
+  rather than a tidy list. Reading positions off a shared picture is a genuine extra challenge, because several agents
+  can appear together and the model must still tell them apart. We use a picture format designed so no agent is ever
+  hidden behind another, which is what makes it possible for the model to learn this on its own.</li>
+</ul>
+<p>In both cases, the mobility and link rules are supplied as a separate compact summary rather than drawn into the
+picture; only the positions go through the perception step.</p>
+
+<h2><span class="num">05</span>How we measure success: accuracy and generalization</h2>
+<p>We report three complementary numbers. The first two are about <em>accuracy</em> — how close the model's distances
+are to the truth. The third is a simpler sanity check.</p>
+<ul>
+  <li><strong>Distance error (MAE).</strong> On average, how far off is the predicted distance from the true distance,
+  measured in number-of-moves? Smaller is better; zero would be perfect. A value of, say, 0.1 means the model is
+  typically within a tenth of a move of the exact answer.</li>
+  <li><strong>Distance correlation.</strong> Across many pairs of states, do the predicted distances rise and fall in
+  step with the true distances? A value near 1.0 means the model orders things correctly even where the exact
+  magnitude drifts.</li>
+  <li><strong>Move-ranking check.</strong> For a given board, a legal one-step move should look <em>closer</em> than an
+  illegal move that breaks the rules. This measures how often the model gets that ordering right — a quick test that it
+  has actually internalized the rules rather than just the raw grid geometry.</li>
+</ul>
+<p>The important distinction runs through all of these: we always measure them twice — once on configurations drawn
+from the <em>same</em> pool the model trained on (this is <strong>accuracy</strong>), and once on configurations that
+were deliberately <em>held out</em> of training (this is <strong>generalization</strong>). The gap between the two is
+what tells us whether the model learned the underlying rules or merely memorized the cases it saw.</p>
+
+<h2><span class="num">06</span>The kinds of generalization we test</h2>
+<p>Not all "held-out" cases are equally hard. We use three progressively more demanding splits, because each probes a
+different way the model might fail to generalize.</p>
+<div class="tablewrap"><table>
+  <thead><tr><th>Split</th><th>Trained on</th><th>Tested on</th><th>What it asks</th></tr></thead>
+  <tbody>
+    <tr><td><code>combo</code></td><td>most rule combinations</td><td>a few held-out rule combinations, in the same overall difficulty range</td><td>Can it fill in gaps between things it has seen? (interpolation)</td></tr>
+    <tr><td><code>links2</code></td><td>states with at most one link</td><td>states with two or more links at once</td><td>Can it handle richer coupling it never saw? (structural extrapolation)</td></tr>
+    <tr><td><code>dofhi</code></td><td>less flexible states</td><td>the most flexible states, never seen</td><td>Can it extend to a difficulty level beyond its training range? (value extrapolation)</td></tr>
+  </tbody>
+</table></div>
+<p>The first split is the gentlest: the test cases sit among familiar ones. The second forces the model to reason
+about combinations of links it was never shown, which is where memorization tends to break down. The third asks it to
+step outside the range of situations it ever encountered, which is the hardest thing to ask of any learned model.</p>
+
+<h2><span class="num">07</span>Results</h2>
+
+<h3>Accuracy: the model learns distance well</h3>
+<p>On states drawn from the training distribution, the model reproduces the true shortest-path distance closely. With
+clean or lossless input it lands within roughly a tenth of a move of the exact answer, which is very tight given that
+distances range up to a dozen moves.</p>
+<div class="tablewrap"><table>
+  <thead><tr><th>Input format</th><th class="num">typical distance error (moves)</th><th>reading</th></tr></thead>
+  <tbody>
+    <tr><td>lossless canvas</td><td class="num"><span class="pill g">≈ 0.09</span></td><td>essentially exact</td></tr>
+    <tr><td>factored (clean positions)</td><td class="num"><span class="pill g">≈ 0.1–0.2</span></td><td>very accurate</td></tr>
+    <tr><td>image, learned perception</td><td class="num"><span class="pill m">≈ 0.3 (falling with training)</span></td><td>harder, but keeps improving as it learns to read the picture</td></tr>
+  </tbody>
+</table></div>
+<p>The pattern is intuitive. When positions are handed over cleanly, learning the distance is straightforward. When
+the model must instead <em>read</em> positions from a rendered image, the same accuracy is reachable but takes more
+training, because it first has to solve the perception problem of telling the agents apart on a shared picture. The
+error keeps dropping the longer it trains, which is the encouraging sign that nothing is fundamentally blocking it.</p>
+
+<div class="callout pending">
+  <div class="k">Generalization table — being finalized</div>
+  <p>The full head-to-head of <em>held-out</em> distance error across all three splits and all input formats is being
+  produced by a dedicated run on the compute cluster, which is queued behind other jobs at the moment (the fastest
+  machines are temporarily offline). This section will be filled in with the exact numbers as soon as that run
+  completes. What we can already say from earlier experiments is qualitative but consistent: the model does transfer
+  to held-out rule combinations rather than merely memorizing, and the same behavior carries over to image input once
+  the perception step is learned.</p>
+</div>
+
+<h3>What the results say so far</h3>
+<ul>
+  <li><strong>The core ability is real.</strong> A network trained only to match shortest-path distances learns to do
+  so accurately, to within about a tenth of a move on familiar configurations.</li>
+  <li><strong>Perception is a surmountable cost, not a wall.</strong> Moving from clean inputs to a rendered image
+  makes the task harder and slower, but the model still gets there — accuracy improves steadily as it learns to read
+  the picture.</li>
+  <li><strong>Generalization is the headline question, and it is being quantified now.</strong> The experiment is
+  specifically designed to separate "learned the rules" from "memorized the examples," across three increasingly
+  demanding held-out splits; those precise numbers will appear above once the queued run finishes.</li>
+</ul>
+
+<hr>
+<p style="font-size:14px;color:var(--ink-soft)">This page describes the <code>distance-model</code> branch: a clean,
+self-contained version of the experiment focused only on distance accuracy and generalization. Code and instructions
+live in <code>distance_model/</code> (<code>integ_distance.py</code>, <code>README.md</code>,
+<code>run_best.sbatch</code>). Numbers here are updated as the results run completes.</p>
+
+<footer>
+  CognitiveMaps++ · distance-model · results explainer
+  <span class="tag">shortest-path distance</span>
+  <span class="tag">accuracy + generalization</span>
+  <span class="tag">factored &amp; image</span>
+</footer>
+
+</div>
+</body>
+</html>
