@@ -1,0 +1,10 @@
+
+## Run 8 (order + calibration, clean checkpoints) -- refinement: spatial routing, NOT temporal ordering.
+Calibration: c_i vs path-moves slope = 0.81 (dgx_D20n5) / 0.89 (w11_n5D18_s2); per-factor 0.76-0.99. So each factor
+cost is a near-linear count of its true path-moves (slightly under 1:1).
+Topological ORDER: parent reaches the unlock cell BEFORE the child first moves only 17-25% of the time; median step-gap = 0.
+=> The transient is NOT a temporally-ordered sequential simulation. The parent visiting the unlock cell and the child
+moving happen in the SAME ~3-step jump. So the earlier unlock-routing (0.96 visit-rate) is SPATIAL (the token passes
+through the unlock position) but NOT temporal -- the flow amortizes the whole guarded path into one simultaneous jump
+whose geometry routes tokens through unlock cells; it does not re-enact the path step by step. This is consistent with
+the amortized-oracle picture and slightly walks back any "compressed sequential simulation" reading.

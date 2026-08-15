@@ -1,0 +1,15 @@
+TAG dgx_D20n5
+{
+  "ckpt": "dgx_D20n5.pt",
+  "n": 5,
+  "calib_slope_per_factor": [
+    0.788,
+    0.829,
+    0.829,
+    0.821,
+    0.805
+  ],
+  "calib_slope_mean": 0.814,
+  "order_parent_before_child_frac": 0.166,
+  "order_gap_median": 0.0
+}

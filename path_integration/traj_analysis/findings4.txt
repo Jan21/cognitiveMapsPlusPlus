@@ -1,0 +1,13 @@
+
+## Run 4 (index robustness) -- KEY: two internal solutions (clean vs entangled), same total accuracy.
+All predict total geodesic perfectly (r=1.0), but per-factor decomposition varies:
+  dgx_D20n5  : c_i vs path-moves 0.94  unlock-routing 0.96/0.36  -> CLEAN
+  w10_n5D24  : 0.96  unlock 0.98/0.41                            -> CLEAN
+  w10_n5D18  : 0.47  unlock 0.49/0.45 (none)                     -> ENTANGLED
+  w10_n6D14  : 0.27  unlock 0.48/0.39 (none)                     -> ENTANGLED
+=> Getting the TOTAL right does NOT imply a clean per-factor decomposition. Two mechanisms exist:
+   (1) DISENTANGLED: each factor cost = its true guarded-path traversal, and the transient routes through the unlock
+       cell (visit0 0.96-0.98 when a descendant must be freed).
+   (2) ENTANGLED: total exact but per-factor costs redistributed; NO unlock-routing signal.
+The unlock-routing gap (needs vs not) cleanly discriminates: ~0.6 gap = clean, ~0.05 = entangled.
+OPEN: what determines which? seed? D? Ttest? convergence? -> testing seeds of the same config next.

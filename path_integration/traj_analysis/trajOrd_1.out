@@ -1,0 +1,15 @@
+TAG w11_n5D18_Tt35_s2
+{
+  "ckpt": "w11_n5D18_Tt35_s2.pt",
+  "n": 5,
+  "calib_slope_per_factor": [
+    0.929,
+    0.764,
+    0.907,
+    0.854,
+    0.992
+  ],
+  "calib_slope_mean": 0.889,
+  "order_parent_before_child_frac": 0.254,
+  "order_gap_median": 0.0
+}

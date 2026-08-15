@@ -1,0 +1,513 @@
+<title>Distance as Accumulated Latent Displacement: Prior-Work Survey</title>
+<style>
+  :root {
+    --ground: #f4f6f8;
+    --surface: #ffffff;
+    --ink: #1a1f26;
+    --muted: #5b636f;
+    --accent: #0e7488;
+    --accent-soft: #e3eff2;
+    --border: #d9dee5;
+    --chip-far: #eceef1;
+    --chip-far-ink: #5b636f;
+    --chip-mid: #e7ecdc;
+    --chip-mid-ink: #4a5b2e;
+    --chip-near: #f4e3d3;
+    --chip-near-ink: #8a4b1d;
+    --chip-hot: #f3d9d6;
+    --chip-hot-ink: #93332a;
+    --verdict-bg: #eaf2ef;
+    --verdict-edge: #2c7a5b;
+    --warn-bg: #f7efe4;
+    --warn-edge: #a8722a;
+    --code-bg: #eef1f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #14171c;
+      --surface: #1c2027;
+      --ink: #e6e9ee;
+      --muted: #9aa3b0;
+      --accent: #55b7c9;
+      --accent-soft: #1d2e33;
+      --border: #2c323b;
+      --chip-far: #262b33;
+      --chip-far-ink: #9aa3b0;
+      --chip-mid: #2a3122;
+      --chip-mid-ink: #a9bd7e;
+      --chip-near: #392d1f;
+      --chip-near-ink: #d9a066;
+      --chip-hot: #3a2523;
+      --chip-hot-ink: #e08a80;
+      --verdict-bg: #1d2924;
+      --verdict-edge: #4da983;
+      --warn-bg: #2b2519;
+      --warn-edge: #c79a55;
+      --code-bg: #232830;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #14171c;
+    --surface: #1c2027;
+    --ink: #e6e9ee;
+    --muted: #9aa3b0;
+    --accent: #55b7c9;
+    --accent-soft: #1d2e33;
+    --border: #2c323b;
+    --chip-far: #262b33;
+    --chip-far-ink: #9aa3b0;
+    --chip-mid: #2a3122;
+    --chip-mid-ink: #a9bd7e;
+    --chip-near: #392d1f;
+    --chip-near-ink: #d9a066;
+    --chip-hot: #3a2523;
+    --chip-hot-ink: #e08a80;
+    --verdict-bg: #1d2924;
+    --verdict-edge: #4da983;
+    --warn-bg: #2b2519;
+    --warn-edge: #c79a55;
+    --code-bg: #232830;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    padding: 0 16px 80px;
+  }
+  main { max-width: 920px; margin: 0 auto; }
+  h1, h2, h3 {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    line-height: 1.25;
+    text-wrap: balance;
+  }
+  h1 { font-size: 2rem; margin: 0 0 6px; }
+  h2 { font-size: 1.45rem; margin: 0 0 12px; padding-top: 8px; }
+  h3 { font-size: 1.1rem; margin: 24px 0 8px; }
+  p { max-width: 70ch; }
+  a { color: var(--accent); }
+  code, .formula {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.88em;
+    background: var(--code-bg);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  .formula {
+    display: block;
+    padding: 12px 16px;
+    margin: 14px 0;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  header.page {
+    padding: 44px 0 8px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+  .eyebrow {
+    font-size: 0.74rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .meta { color: var(--muted); font-size: 0.9rem; margin-top: 8px; }
+  .pathmotif { display: block; margin: 18px 0 4px; }
+  nav.toc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    padding: 14px 0 18px;
+    font-size: 0.86rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 34px;
+  }
+  nav.toc a { text-decoration: none; color: var(--muted); }
+  nav.toc a:hover, nav.toc a:focus { color: var(--accent); text-decoration: underline; }
+  section { margin-bottom: 52px; }
+  .verdict {
+    background: var(--verdict-bg);
+    border-left: 4px solid var(--verdict-edge);
+    border-radius: 0 8px 8px 0;
+    padding: 18px 22px;
+    margin: 16px 0;
+  }
+  .verdict p { margin: 8px 0; }
+  .warnbox {
+    background: var(--warn-bg);
+    border-left: 4px solid var(--warn-edge);
+    border-radius: 0 8px 8px 0;
+    padding: 14px 20px;
+    margin: 16px 0;
+  }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+  th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-top: 1px solid var(--border); }
+  thead th {
+    border-top: none;
+    font-size: 0.72rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: color-mix(in srgb, var(--surface) 92%, var(--ink) 8%);
+  }
+  td.work { min-width: 200px; }
+  td.work strong { display: block; }
+  td.work span { color: var(--muted); font-size: 0.82rem; }
+  .chip {
+    display: inline-block;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
+    padding: 1px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .c1 { background: var(--chip-far); color: var(--chip-far-ink); }
+  .c2 { background: var(--chip-mid); color: var(--chip-mid-ink); }
+  .c3 { background: var(--chip-near); color: var(--chip-near-ink); }
+  .c4 { background: var(--chip-hot); color: var(--chip-hot-ink); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px; margin-top: 16px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+  }
+  .card h3 { margin: 0 0 6px; font-size: 1rem; }
+  .card .venue { color: var(--muted); font-size: 0.8rem; margin-bottom: 8px; }
+  .card p { font-size: 0.88rem; margin: 6px 0; }
+  .card .lbl { font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+  ul { max-width: 75ch; }
+  li { margin-bottom: 6px; }
+  .catlead { color: var(--muted); font-size: 0.95rem; max-width: 75ch; margin: 4px 0 12px; }
+  .axis { font-weight: 600; color: var(--accent); }
+  dt { font-weight: 600; margin-top: 14px; }
+  dd { margin: 4px 0 0 0; max-width: 72ch; color: var(--ink); }
+  dl { margin: 12px 0; }
+  footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--border); padding-top: 16px; }
+</style>
+
+<main>
+<header class="page">
+  <div class="eyebrow">Novelty survey · cognitiveMapsPlusPlus / distance_model</div>
+  <h1>Distance as Accumulated Latent Displacement</h1>
+  <p class="meta">Has anyone computed a goal-conditioned value function as the summed per-step displacement norms of a recurrent network's own hidden trajectory? Four independent deep-research runs (ChatGPT, Claude, Gemini, Grok), 2026-08-11. Raw reports in <code>distance_model/raw/</code>.</p>
+  <svg class="pathmotif" width="360" height="46" viewBox="0 0 360 46" role="img" aria-label="A polyline whose segment lengths are summed into a distance">
+    <polyline points="8,38 62,30 118,34 168,18 222,24 276,10 336,14" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round"/>
+    <g fill="var(--accent)">
+      <circle cx="8" cy="38" r="3.4"/><circle cx="62" cy="30" r="2.4"/><circle cx="118" cy="34" r="2.4"/>
+      <circle cx="168" cy="18" r="2.4"/><circle cx="222" cy="24" r="2.4"/><circle cx="276" cy="10" r="2.4"/>
+      <circle cx="336" cy="14" r="3.4"/>
+    </g>
+    <text x="8" y="14" font-size="11" fill="var(--muted)" font-family="ui-monospace, Menlo, monospace">D = softplus(s) * &#931;&#8321;..&#84; &#8214;&#916;z&#8214;</text>
+  </svg>
+</header>
+
+<nav class="toc" aria-label="Sections">
+  <a href="#verdict">Verdict</a>
+  <a href="#method">The mechanism</a>
+  <a href="#discriminators">Why it holds up</a>
+  <a href="#components">What is already taken</a>
+  <a href="#closest">Closest neighbors</a>
+  <a href="#catalog">Paper catalog</a>
+  <a href="#threats">Threats to the claim</a>
+  <a href="#framing">How to frame it</a>
+  <a href="#open">Open search directions</a>
+  <a href="#providers">The four reports</a>
+</nav>
+
+<section id="verdict">
+  <h2>Verdict</h2>
+  <div class="verdict">
+    <p><strong>All four reports independently reach the same conclusion: no exact precedent exists.</strong> The specific mechanism, reading a goal-conditioned distance out as the accumulated per-step latent displacement norm of the network's own recurrent trajectory, does not appear in the surveyed literature across goal-conditioned RL, quasimetric learning, iterative reasoning networks, latent-space geometry, PDE-based distance fields, or computational neuroscience.</p>
+    <p>The consensus qualification: the method is <strong>partially novel, strongly novel on the readout</strong>. The target quantity (shortest-path distance as value function), the substrate (weight-shared recurrent transformer), and even the re-injection trick (Bansal et al.'s "recall") are all established. The quantity <code>&#931;&#8214;&#916;z&#8214;</code> itself also appears repeatedly, but always in a non-output role: as a regularizer, a diagnostic, or a halting signal. Using it as the supervised prediction target is the crux of the novelty.</p>
+  </div>
+  <p>A second, arguably stronger novelty surfaced by two reports independently: <strong>budget-free extrapolation</strong>. The entire iterative-reasoning literature extrapolates by running <em>more iterations</em> on harder problems. Here the step count T is fixed and the distance magnitude is carried by per-step increment <em>size</em>. ChatGPT's slogan: "distance magnitude is carried by latent velocity rather than computational duration," and it rates this inversion as possibly a bigger conceptual contribution than the sum-of-norms formula itself.</p>
+</section>
+
+<section id="method">
+  <h2>The mechanism under test</h2>
+  <p>From <code>integ_distance.py</code>: a shared encoder maps state s and goal g to token sets. One weight-shared transformer block runs for T recurrent steps; goal and start tokens are re-injected every step (recall). No scalar head, no embedding-pair norm. The prediction is the arc length of the latent trajectory itself:</p>
+  <code class="formula">cost += &#931;&#7522; &#8214;z&#7522;(t+1) &#8722; z&#7522;(t)&#8214;&#8322;  for t = 1..T;   D(s,g) = softplus(scale) &#183; cost</code>
+  <p>Training supervises only ground-truth BFS geodesic distances (in some settings only local, short-range pairs); evaluation tests extrapolation to longer distances and unseen environments. No policy is learned; the network is a pure distance oracle.</p>
+  <p>One non-obvious property (ChatGPT): because the norm is taken <em>before</em> the sum, this is not the telescoping identity <code>z(T) &#8722; z(0) = &#931; &#916;z</code>. Turns in the latent trajectory do not cancel; the readout measures path length, not displacement.</p>
+</section>
+
+<section id="discriminators">
+  <h2>Why the claim holds up: five discriminating lenses</h2>
+  <p>Each report converged on the same way of separating the method from its neighbors. These lenses are the skeleton of a related-work section.</p>
+  <dl>
+    <dt>1. Refine vs. sum</dt>
+    <dd>Iterative networks (VIN, GPPN, Deep Thinking, Universal Transformers, DEQ, recurrent-depth LLMs) refine an answer and read it from the <em>final</em> state. This method <em>sums a quantity across</em> the iterations. DEQ is the sharpest contrast: it deliberately discards the trajectory and keeps only the fixed point.</dd>
+    <dt>2. The role of &#931;&#8214;&#916;z&#8214; (Claude's taxonomy)</dt>
+    <dd>Where the quantity does appear, it is a <strong>regularizer</strong> (Neural ODE kinetic energy, OT-Flow transport cost), a <strong>diagnostic</strong> (trajectory-length expressivity measures, "Truth as a Trajectory"), or a <strong>halting signal</strong> (recurrent-depth transformer exit criteria). Never the supervised output. The contribution can be pitched as promoting a known regularizer/diagnostic to the readout.</dd>
+    <dt>3. The summation axis</dt>
+    <dd>Plenty of methods sum local costs, but over the wrong index: environment or replay-graph paths (Search on the Replay Buffer), explicit graph edges (Bellman-Ford GNNs, NBFNet, Neural A*), an optimized geodesic curve (Riemannian latent geometry), or ODE time on a fixed flow (OT-Flow). Here the index runs over <span class="axis">computational depth</span>: the network's own inference trajectory.</dd>
+    <dt>4. Who produces the curve</dt>
+    <dd>Riemannian latent-space methods integrate speed along a curve found by a separate per-pair geodesic solve on a frozen generator. Here the network is simultaneously the metric and the curve producer, amortized in one forward pass.</dd>
+    <dt>5. Velocity vs. duration</dt>
+    <dd>Deep Thinking, Huginn, and neural algorithmic reasoners need more iterations for larger instances; drift-diffusion models accumulate to a bound and encode the answer in stopping time. This method is the inverse on both counts: fixed horizon, magnitude in the increments. Doubling the predicted distance does not double compute.</dd>
+  </dl>
+</section>
+
+<section id="components">
+  <h2>What is already taken (component-by-component)</h2>
+  <p>The design decomposes into components with very different prior-art status. Established components must be cited, not claimed.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Component</th><th>Status</th><th>Prior owner</th></tr></thead>
+    <tbody>
+      <tr><td>Goal-conditioned value = shortest-path distance</td><td>Established</td><td>QRL (Wang et al. 2023): V*(s,g) = &#8722;d*(s,g); UVFA; DDL</td></tr>
+      <tr><td>Weight-shared recurrent block, easy-to-hard extrapolation</td><td>Established</td><td>Universal Transformers; Schwarzschild et al. 2021; Geiping et al. 2025</td></tr>
+      <tr><td>Re-injection of the problem instance each step ("recall")</td><td>Established</td><td>Bansal et al., NeurIPS 2022 (the specific start+goal token form may be original)</td></tr>
+      <tr><td>Distance as integral of local latent speed (the math)</td><td>Established</td><td>Arvanitidis et al. 2018 and the Riemannian latent-geometry line</td></tr>
+      <tr><td>&#931;&#8214;&#916;h&#8214; computed on hidden states (as analysis)</td><td>Established</td><td>Raghu et al. 2017; Liquid Time-constant Networks; "Truth as a Trajectory" (2026)</td></tr>
+      <tr><td>&#931;&#8214;&#916;z&#8214; as the supervised output</td><td><strong>Not found</strong></td><td></td></tr>
+      <tr><td>Goal-conditioned distance = this sum</td><td><strong>Not found</strong></td><td></td></tr>
+      <tr><td>Fixed T, magnitude-carrying extrapolation</td><td><strong>Not found</strong></td><td></td></tr>
+      <tr><td>Distance-only labels + no policy + unseen-environment extrapolation, with arc-length readout</td><td><strong>Not found</strong></td><td></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="closest">
+  <h2>Closest neighbors: cite and distinguish</h2>
+  <p>The must-cite set, merged across all four reports. Scores are the highest closeness any report assigned.</p>
+  <div class="cards">
+    <div class="card">
+      <span class="lbl">Recall mechanism · 4/5</span>
+      <h3>Deep Thinking with Recall</h3>
+      <div class="venue">Bansal et al., NeurIPS 2022; Schwarzschild et al., NeurIPS 2021</div>
+      <p>Weight-shared recurrent block with input re-injection and easy-to-hard extrapolation: the substrate and the recall trick.</p>
+      <p><strong>Missing:</strong> answer decoded from final state; extrapolation by running more iterations, the opposite of fixed-T magnitude carrying.</p>
+    </div>
+    <div class="card">
+      <span class="lbl">The math · 4/5</span>
+      <h3>Riemannian latent geodesics</h3>
+      <div class="venue">Arvanitidis et al., ICLR 2018 ("Latent Space Oddity"); Shao et al. 2017; Chen et al., AISTATS 2018</div>
+      <p>Distance defined literally as &#8747;&#8214;&#947;&#775;&#8214; dt along a latent curve; discretized as a sum of local displacement norms. The most dangerous prior art if the claim is phrased broadly.</p>
+      <p><strong>Missing:</strong> the curve comes from a per-pair geodesic solve on a frozen generator, not from an amortized recurrent pass; unsupervised, not goal-conditioned RL.</p>
+    </div>
+    <div class="card">
+      <span class="lbl">Exact operator, wrong role · 4/5</span>
+      <h3>"Truth as a Trajectory"</h3>
+      <div class="venue">arXiv, March 2026</div>
+      <p>Uses the identical discrete operator S = &#931;&#8467;&#8214;h(&#8467;+1) &#8722; h(&#8467;)&#8214;&#8322; as a post-hoc descriptor of LLM hidden trajectories.</p>
+      <p><strong>Missing:</strong> diagnostic only, never a trained output. Blocks the claim "first to sum hidden-state displacements across depth"; does not block the readout claim.</p>
+    </div>
+    <div class="card">
+      <span class="lbl">Closest mechanical neighbor · 3/5</span>
+      <h3>Two-Scale Latent Dynamics</h3>
+      <div class="venue">Pappone, Crisostomi, Rodol&#224;, NeurIPS 2025 (arXiv:2509.23314)</div>
+      <p>Computes per-step &#8214;&#916;z&#8214; and step angles in recurrent-depth transformers and builds an exit criterion that halts when updates stop changing.</p>
+      <p><strong>Missing:</strong> the quantity gates compute; it is never summed into a supervised prediction. Claude's report: "must be cited and distinguished."</p>
+    </div>
+    <div class="card">
+      <span class="lbl">Same target, different readout · 3/5</span>
+      <h3>Quasimetric RL + IQE / MRN</h3>
+      <div class="venue">Wang, Torralba, Isola, Zhang, ICML 2023; Wang &amp; Isola, NeurReps 2022; Liu et al., AAAI 2023</div>
+      <p>Same value-as-distance target, same local-supervision-to-global-distance philosophy; IQE even sums nonnegative components (over latent dimensions).</p>
+      <p><strong>Missing:</strong> one-shot embedding-pair readout, no iterative flow. Expected reviewer attack: "your sum over steps is a temporal generalization of IQE's sum over dimensions." Prepare the rebuttal and the head-to-head baseline.</p>
+    </div>
+    <div class="card">
+      <span class="lbl">Same quantity as loss · 3/5</span>
+      <h3>OT-Flow / Neural ODE kinetic energy</h3>
+      <div class="venue">Onken et al., AAAI 2021; Finlay et al., ICML 2020</div>
+      <p>&#8747;&#8214;v&#8214;&#178; dt over the flow's own compute steps: the exact accumulated object, differentiated through during training.</p>
+      <p><strong>Missing:</strong> a soft penalty "to encourage straight trajectories," never the prediction; no distance task, no goal conditioning.</p>
+    </div>
+  </div>
+</section>
+
+<section id="catalog">
+  <h2>Paper catalog by category</h2>
+  <p>Everything the four reports surfaced, deduplicated. The closeness chip is the highest score any report gave (1 = context only, 5 = same method; nothing anywhere scored 5, and only three lines reached 4).</p>
+
+  <h3>Quasimetric RL</h3>
+  <p class="catlead">Same problem, same local-to-global philosophy, and the strongest architectural bias toward valid distances. All read distance from a static embedding pair in one shot. Note a structural difference that cuts both ways: these architectures guarantee the triangle inequality; the accumulated-increment readout does not, since each (s,g) query induces its own latent flow.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Work</th><th>Closeness</th><th>Readout, and why it is not ours</th></tr></thead>
+    <tbody>
+      <tr><td class="work"><strong>QRL: Optimal Goal-Reaching RL via Quasimetric Learning</strong><span>Wang, Torralba, Isola, Zhang · ICML 2023</span></td><td><span class="chip c3">3/5</span></td><td>V*(s,g) as a quasimetric over static latents, trained from one-step local constraints. Same target and supervision philosophy; one-shot pairwise readout.</td></tr>
+      <tr><td class="work"><strong>Interval Quasimetric Embeddings (IQE)</strong><span>Wang &amp; Isola · NeurReps 2022</span></td><td><span class="chip c2">2.5/5</span></td><td>Sum of interval-union lengths across latent coordinate axes: a genuine sum of nonnegative pieces, but over embedding dimensions in one pass, not over compute steps.</td></tr>
+      <tr><td class="work"><strong>Poisson Quasimetric Embeddings / Learnability of Quasimetrics</strong><span>Wang &amp; Isola · ICLR 2022</span></td><td><span class="chip c2">2.5/5</span></td><td>Poisson-process tail probabilities over latent coordinates; static pairwise formula.</td></tr>
+      <tr><td class="work"><strong>Metric Residual Networks (MRN)</strong><span>Liu, Feng, Liu, Stone · AAAI 2023</span></td><td><span class="chip c3">3/5</span></td><td>Q = &#8722;&#8214;&#966;(s)&#8722;&#966;(g)&#8214; &#8722; max&#7522; relu(h&#7522;(s)&#8722;h&#7522;(g)): symmetric metric plus asymmetric residual, single pass. Its "sum" is over two architectural terms, not compute time.</td></tr>
+      <tr><td class="work"><strong>DeepNorm / WideNorm</strong><span>Pitis, Chan, Jamali, Ba · ICLR 2020</span></td><td><span class="chip c1">2/5</span></td><td>Learned norms respecting the triangle inequality, applied to embedding differences; no recurrence, no accumulation.</td></tr>
+      <tr><td class="work"><strong>MetricRL; Offline GCRL with Quasimetric Representations</strong><span>arXiv:2402.10820 (2024); arXiv:2509.20478 (2025)</span></td><td><span class="chip c1">2/5</span></td><td>V(s) = &#947;^d over a static latent quasimetric; embedding readout.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Goal-conditioned distance learning</h3>
+  <p class="catlead">The task lineage: distance-to-goal as the learned quantity. Readouts are scalar heads, embedding norms, or contrastive similarities, exactly the two mechanisms the method disclaims plus their statistical cousin.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Work</th><th>Closeness</th><th>Readout, and why it is not ours</th></tr></thead>
+    <tbody>
+      <tr><td class="work"><strong>Universal Value Function Approximators</strong><span>Schaul et al. · ICML 2015</span></td><td><span class="chip c1">1.5/5</span></td><td>The canonical goal-conditioned scalar head.</td></tr>
+      <tr><td class="work"><strong>Hindsight Experience Replay (+ descendants)</strong><span>Andrychowicz et al. · NeurIPS 2017</span></td><td><span class="chip c1">1.5/5</span></td><td>Changes goal relabeling in training, not the readout; still a scalar head.</td></tr>
+      <tr><td class="work"><strong>Dynamical Distance Learning</strong><span>Hartikainen et al. · ICLR 2020</span></td><td><span class="chip c3">3/5</span></td><td>Regresses expected step count between states: very close target, ordinary regression head.</td></tr>
+      <tr><td class="work"><strong>Search on the Replay Buffer (SoRB)</strong><span>Eysenbach, Salakhutdinov, Levine · NeurIPS 2019</span></td><td><span class="chip c3">3.5/5</span></td><td>Long distance = graph-search sum of learned local edge costs: an important "sum of local costs" precedent, but the sum runs over an external replay graph, not internal compute.</td></tr>
+      <tr><td class="work"><strong>Contrastive RL</strong><span>Eysenbach et al. · NeurIPS 2022</span></td><td><span class="chip c1">2/5</span></td><td>Value from an inner product of contrastive representations; implicit one-shot distance.</td></tr>
+      <tr><td class="work"><strong>Temporal Distances via Contrastive Successor Features</strong><span>Myers, Zheng, Dragan, Levine, Eysenbach · ICML 2024</span></td><td><span class="chip c3">3/5</span></td><td>Triangle-inequality temporal distance from contrastive successor features; embedding readout, stitching-based generalization.</td></tr>
+      <tr><td class="work"><strong>Horizon Generalization in RL</strong><span>Myers, Ji, Eysenbach · ICLR 2025</span></td><td><span class="chip c3">3/5</span></td><td>Formalizes exactly the train-short/test-long property, achieved via quasimetric structure and planning invariance, not an accumulated readout. Closest precedent for the evaluation claim.</td></tr>
+      <tr><td class="work"><strong>TLDR: Temporal-Distance-Aware Representations</strong><span>Bae, Park, Lee · CoRL 2024</span></td><td><span class="chip c2">2.5/5</span></td><td>Temporal-distance representations for exploration; embedding readout.</td></tr>
+      <tr><td class="work"><strong>VIP; R3M; Time-Contrastive Networks</strong><span>Ma et al. ICLR 2023; Nair et al. CoRL 2022; Sermanet et al. ICRA 2018</span></td><td><span class="chip c1">2/5</span></td><td>Value literally = &#8722;&#8214;&#966;(o)&#8722;&#966;(g)&#8214;&#8322;; the embedding-norm family.</td></tr>
+      <tr><td class="work"><strong>Minimum Action Distance (MAD)</strong><span>arXiv:2506.09276 (2025)</span></td><td><span class="chip c1">2/5</span></td><td>Asymmetric embedding-distance head with trajectory-derived bounds; pairwise readout.</td></tr>
+      <tr><td class="work"><strong>Successor / Laplacian representations as distance</strong><span>Dayan 1993; Stachenfeld et al. 2017; spectral lines</span></td><td><span class="chip c1">2/5</span></td><td>Distance from precomputed occupancy or spectral coordinates; nothing is integrated at query time (the near-opposite strategy).</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Iterative computation and thinking networks</h3>
+  <p class="catlead">The substrate lineage: weight-shared recurrence, adaptive depth, algorithm execution. The uniform pattern: iterate to refine, then decode the final state; harder instance means more iterations. Both halves are what the method inverts.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Work</th><th>Closeness</th><th>Readout, and why it is not ours</th></tr></thead>
+    <tbody>
+      <tr><td class="work"><strong>Deep Thinking with Recall</strong><span>Bansal et al. · NeurIPS 2022</span></td><td><span class="chip c4">4/5</span></td><td>Weight-shared block + re-injection of the problem each step; extrapolates 9&#215;9 to 201&#215;201 mazes by iterating hundreds of steps more. Final-state decode.</td></tr>
+      <tr><td class="work"><strong>Can You Learn an Algorithm? (Deep Thinking)</strong><span>Schwarzschild et al. · NeurIPS 2021</span></td><td><span class="chip c3">3/5</span></td><td>Recurrent easy-to-hard extrapolation by thinking longer; final-state decode.</td></tr>
+      <tr><td class="work"><strong>Two-Scale Latent Dynamics for Recurrent-Depth Transformers</strong><span>Pappone, Crisostomi, Rodol&#224; · NeurIPS 2025, arXiv:2509.23314</span></td><td><span class="chip c3">3/5</span></td><td>Explicitly computes per-step &#8214;&#916;z&#8214; and angles; uses them as a second-order halting criterion. The identical quantity, gating compute instead of being the prediction.</td></tr>
+      <tr><td class="work"><strong>Value Iteration Networks; Gated Path Planning Networks; DT-VIN</strong><span>Tamar et al. NeurIPS 2016; Lee et al. ICML 2018</span></td><td><span class="chip c3">3.5/5</span></td><td>Differentiable Bellman sweeps over a spatial value map; scalar values are overwritten by relaxation, not summed, and depth must cover the horizon.</td></tr>
+      <tr><td class="work"><strong>Neural Execution of Graph Algorithms; CLRS-30</strong><span>Veli&#269;kovi&#263; et al. · ICLR 2020; ICML 2022</span></td><td><span class="chip c3">3.5/5</span></td><td>GNN imitates Bellman-Ford: min-plus relaxation of a dedicated scalar node attribute over explicit edges; extrapolates, but overwrites rather than accumulates, with steps tied to hops.</td></tr>
+      <tr><td class="work"><strong>Neural Bellman-Ford Networks</strong><span>Zhu, Zhang, Xhonneux, Tang · NeurIPS 2021</span></td><td><span class="chip c3">3/5</span></td><td>Generalized path algebra over learned edge representations; accumulation runs along graph paths, not hidden displacement.</td></tr>
+      <tr><td class="work"><strong>Adaptive Computation Time; PonderNet</strong><span>Graves 2016; Banino et al. 2021</span></td><td><span class="chip c2">2.5/5</span></td><td>Genuine cross-step accumulation, but of halting probability mass; the accumulated scalar is a compute budget, not the prediction.</td></tr>
+      <tr><td class="work"><strong>Universal Transformers</strong><span>Dehghani et al. · ICLR 2019</span></td><td><span class="chip c3">3/5</span></td><td>The closest backbone (weight-shared transformer over depth); output from final or ACT-combined state.</td></tr>
+      <tr><td class="work"><strong>Huginn: recurrent-depth latent reasoning</strong><span>Geiping et al. · 2025, arXiv:2502.05171</span></td><td><span class="chip c1">2/5</span></td><td>Recurrent-depth block, KL-based exit, decode from final latent; test-time compute scales with difficulty.</td></tr>
+      <tr><td class="work"><strong>Deep Equilibrium Models (+ DEQ algorithmic reasoner)</strong><span>Bai, Kolter, Koltun · NeurIPS 2019; arXiv:2402.06445</span></td><td><span class="chip c2">2.5/5</span></td><td>Reads the converged fixed point and discards the trajectory: the anti-pattern of an accumulated readout.</td></tr>
+      <tr><td class="work"><strong>Inner Thinking Transformer; LoopMTP; Learning to Stop Overthinking</strong><span>ACL 2025; preprints 2025</span></td><td><span class="chip c1">2/5</span></td><td>Looped transformers with adaptive depth or per-loop supervision; terminal readouts, compute control.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Latent path integrals and trajectory geometry</h3>
+  <p class="catlead">The math lineage: length of a latent curve as a meaningful scalar. Identical arc-length formula on the wrong axis (a geodesic curve, ODE time, or a diagnostic), never a trained output.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Work</th><th>Closeness</th><th>Readout, and why it is not ours</th></tr></thead>
+    <tbody>
+      <tr><td class="work"><strong>Latent Space Oddity</strong><span>Arvanitidis, Hansen, Hauberg · ICLR 2018</span></td><td><span class="chip c4">4/5</span></td><td>d(x,y) = inf over curves of &#8747;&#8214;&#947;&#775;&#8214;_G dt under the decoder pullback metric; discretized as summed local displacement norms. Per-pair numerical geodesic solve on a frozen generator; unsupervised.</td></tr>
+      <tr><td class="work"><strong>Riemannian Geometry of Deep Generative Models; Metrics for Deep Generative Models; Geometrically Enriched Latent Spaces</strong><span>Shao et al. 2017; Chen et al. AISTATS 2018; Arvanitidis et al. AISTATS 2021</span></td><td><span class="chip c3">3.5/5</span></td><td>The same pullback-metric geodesic program; curve optimization, not amortized inference.</td></tr>
+      <tr><td class="work"><strong>How to Train Your Neural ODE</strong><span>Finlay, Jacobsen, Nurbekyan, Oberman · ICML 2020</span></td><td><span class="chip c3">3.5/5</span></td><td>Kinetic energy &#931;&#8214;f(z,t)&#8214;&#178;&#916;t accumulated over solver steps, as a regularizer for cheap dynamics.</td></tr>
+      <tr><td class="work"><strong>OT-Flow; Flow Matching; dynamic OT (Benamou-Brenier)</strong><span>Onken et al. AAAI 2021; Lipman et al. ICLR 2023</span></td><td><span class="chip c3">3/5</span></td><td>Transport cost &#8747;&#8214;v&#8214;&#178;dt along the flow, as objective; endpoints are distributions, not state-goal pairs.</td></tr>
+      <tr><td class="work"><strong>Liquid Time-constant Networks</strong><span>Hasani, Lechner, Amini, Rus, Grosu · AAAI 2021</span></td><td><span class="chip c4">4/5 mech.</span></td><td>Trajectory length of continuous hidden dynamics as an expressivity measure: same object, diagnostic role.</td></tr>
+      <tr><td class="work"><strong>On the Expressive Power of Deep Networks</strong><span>Raghu et al. · ICML 2017</span></td><td><span class="chip c2">2.5/5</span></td><td>Trajectory length across depth as an expressivity observable.</td></tr>
+      <tr><td class="work"><strong>"Truth as a Trajectory"</strong><span>arXiv, March 2026</span></td><td><span class="chip c4">4/5 mech.</span></td><td>Exactly S = &#931;&#8214;h(&#8467;+1)&#8722;h(&#8467;)&#8214;&#8322;, as a post-hoc descriptor of LLM trajectories; not learned, not an output.</td></tr>
+      <tr><td class="work"><strong>Diffusion-latent geodesics; Generative Geodesics</strong><span>CVPR 2025; arXiv:2407.11244</span></td><td><span class="chip c3">3/5</span></td><td>Geodesic distances in diffusion latents; optimization on a frozen model.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Eikonal and PDE distance fields</h3>
+  <p class="catlead">Distance emerges from local consistency (&#8214;&#8711;T&#8214; = 1/v) enforced as a loss on a feedforward field. Gemini's framing: our architecture is a discrete analogue of Eikonal line integration (ds = &#8214;&#916;z&#8214;) implemented by token flow instead of PDE residual minimization. Two recent works already marry Eikonal constraints with GCRL, so this community is moving toward the same territory from the PDE side.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Work</th><th>Closeness</th><th>Readout, and why it is not ours</th></tr></thead>
+    <tbody>
+      <tr><td class="work"><strong>EikoNet; Neural Eikonal Solver; PINNeik; eikonal-loss SDFs (IGR)</strong><span>Smith et al. 2020; Grubas et al. 2022; bin Waheed et al. 2021; Gropp et al. ICML 2020</span></td><td><span class="chip c2">2.5/5</span></td><td>Travel-time or signed-distance fields regressed under a unit-gradient PDE residual; feedforward field readout, no accumulation over compute.</td></tr>
+      <tr><td class="work"><strong>Riemannian distance fields in robotics</strong><span>Li, Qiu, Calinon · IJRR 2026 (arXiv 2024)</span></td><td><span class="chip c3">3.5/5</span></td><td>PINN solves the Riemannian Eikonal PDE; geodesics recovered by gradient flow whose displacements are never summed into the readout. Label-free.</td></tr>
+      <tr><td class="work"><strong>NTFields</strong><span>Ni &amp; Qureshi · ICLR 2023</span></td><td><span class="chip c3">3/5</span></td><td>Arrival-time field under a physics constraint; trajectories from field gradients.</td></tr>
+      <tr><td class="work"><strong>Physics-informed Value Learner; Eik-QRL</strong><span>Giammarino et al. 2025; ICLR 2026</span></td><td><span class="chip c3">3.5/5</span></td><td>Eikonal constraints imposed on goal-conditioned values / quasimetric heads: right task, PDE-side mechanism, scalar or pairwise readout.</td></tr>
+      <tr><td class="work"><strong>Physics-Informed TD Metric Learning; Planning Neural Operators</strong><span>ICLR 2025</span></td><td><span class="chip c2">2.5/5</span></td><td>Frames eikonal solving as offline GCRL / operator learning; PDE-trained field readout with zero-shot environment generalization.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Cognitive science and neuroscience</h3>
+  <p class="catlead">Motivation, not prior art: biology supplies "distance = accumulated internal simulation effort," which the architecture turns into a mechanism. Best used as intro narrative; there is no precedent for the identity "estimated distance = arc length of an internal hidden trajectory."</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Work</th><th>Closeness</th><th>Relation</th></tr></thead>
+    <tbody>
+      <tr><td class="work"><strong>Mental scanning</strong><span>Kosslyn, Ball, Reiser · 1978</span></td><td><span class="chip c1">2/5</span></td><td>Reaction time scales linearly with imagined map distance: bounded-velocity internal simulation with accumulated time as the distance signal. The conceptual ancestor.</td></tr>
+      <tr><td class="work"><strong>Hippocampal forward replay to goals</strong><span>Pfeiffer &amp; Foster · Nature 2013</span></td><td><span class="chip c1">2/5</span></td><td>Goal distance tracks replay sweep duration; accumulation along represented environment states, not an abstract compute trajectory.</td></tr>
+      <tr><td class="work"><strong>Predictive map / successor representation</strong><span>Stachenfeld et al. 2017; Momennejad et al. 2017</span></td><td><span class="chip c1">2/5</span></td><td>The contrast case: SR precomputes discounted occupancy so nothing is integrated at query time.</td></tr>
+      <tr><td class="work"><strong>Replay-as-planning models</strong><span>Mattar &amp; Daw 2018; Jensen, Hennequin, Mattar · Nat. Neuro. 2024</span></td><td><span class="chip c3">3/5</span></td><td>Recurrent agents generate replay-like internal sequences for planning; dynamics length is never read out as a distance.</td></tr>
+      <tr><td class="work"><strong>Drift-diffusion / evidence accumulation</strong><span>classic DDM literature</span></td><td><span class="chip c1">2/5</span></td><td>Integrates a per-step quantity to a bound, encoding the answer in stopping time: the exact inverse of fixed-horizon magnitude coding.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Other near-misses</h3>
+  <p class="catlead">Same template ("output = accumulated nonnegative local quantity") on other axes; residual-risk areas the reports flagged rather than cleared.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Work / area</th><th>Closeness</th><th>Relation</th></tr></thead>
+    <tbody>
+      <tr><td class="work"><strong>Path-integral control</strong><span>Kappen 2005; Todorov 2006</span></td><td><span class="chip c1">2/5</span></td><td>Value = &#8722;log of a path integral over environment trajectories, not latent compute.</td></tr>
+      <tr><td class="work"><strong>Neural A*; differentiable Dijkstra / Bellman-Ford layers</strong><span>Yonetani et al. · ICML 2021</span></td><td><span class="chip c1">2/5</span></td><td>Accumulate explicit edge costs over a given grid or graph.</td></tr>
+      <tr><td class="work"><strong>DistanceNet</strong><span>arXiv:1904.08105 (2019)</span></td><td><span class="chip c1">2/5</span></td><td>Recurrent net outputs cumulative traveled distance from video: cumulative, but over observed frames and not goal-conditioned.</td></tr>
+      <tr><td class="work"><strong>Neural survival models / temporal point processes</strong><span>flagged by ChatGPT, unsearched</span></td><td><span class="chip c1">?</span></td><td>Cumulative hazard = integral of a nonnegative intensity; the same output template in a distant field.</td></tr>
+      <tr><td class="work"><strong>Amortized geodesic solvers</strong><span>flagged by Gemini, unsearched</span></td><td><span class="chip c2">?</span></td><td>Single-pass geodesic prediction on unknown manifolds: named the likeliest place a true collision could still hide.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="threats">
+  <h2>Threats to the novelty claim</h2>
+  <div class="warnbox">
+    <p><strong>Do not claim</strong> (each is blocked by specific prior art):</p>
+    <ul>
+      <li>"First to represent distance as a latent path length": blocked by the Riemannian latent-geometry line.</li>
+      <li>"First to sum hidden-state displacements across network depth": blocked by "Truth as a Trajectory" and the trajectory-length diagnostics.</li>
+      <li>"We introduce recall in iterative networks": directly conflicts with Bansal et al. 2022.</li>
+    </ul>
+  </div>
+  <ul>
+    <li><strong>The IQE/MRN reviewer attack.</strong> IQE sums nonnegative components over latent dimensions; MRN sums two architectural terms. A skeptical reviewer will call the step-wise accumulation "a temporal generalization" of these. Prepare an explicit articulation of why summing across compute steps differs materially (the increments are produced sequentially by a goal-conditioned flow and support magnitude-based extrapolation), plus head-to-head baselines.</li>
+    <li><strong>Triangle inequality is not guaranteed.</strong> Each (s,g) query induces its own latent flow, so nothing enforces d(a,c) &#8804; d(a,b) + d(b,c) across queries, unlike PQE/IQE/DeepNorm/MRN where it is architectural. Report it honestly; it doubles as the structural difference from the quasimetric family.</li>
+    <li><strong>Unverified recent preprints.</strong> The most mechanically relevant items are 2025-2026 preprints read partly from abstracts (arXiv:2509.23314, "Truth as a Trajectory", temporal-distance JEPA work, looped-transformer halting papers). Claude's falsification criterion: if any of them sums per-step displacements into a supervised distance or value output, downgrade the claim from "novel readout" to "partial anticipation" and cite it as the primary baseline. Read the primary texts, not the abstracts.</li>
+    <li><strong>Unsearched communities.</strong> Neural survival analysis (cumulative hazard), amortized geodesic solvers, action-functional learning, sub-Riemannian metrics: same scalar under different names may exist there.</li>
+  </ul>
+</section>
+
+<section id="framing">
+  <h2>How to frame the contribution</h2>
+  <p>Merged recommendation across reports: claim the <strong>readout, not the task</strong>; present it as a new <em>parameterization</em> of goal-conditioned distance, not a new notion of distance, a new recurrent architecture, or a new latent path integral.</p>
+  <p>ChatGPT's suggested claim sentence, worth adopting nearly verbatim:</p>
+  <div class="verdict">
+    <p>"Prior goal-conditioned distance models read values directly from state-goal embeddings or scalar value heads, while iterative planners and recurrent reasoning networks read their predictions from the final recurrent state. In contrast, we parameterize the goal-conditioned distance as the discrete arc length of the model's own recurrent latent inference trajectory, summing nonnegative hidden-state displacement magnitudes across a fixed number of weight-shared iterations."</p>
+  </div>
+  <p>Structure related work along two axes: (i) accumulation-as-output vs. regularizer / diagnostic / halting / final-state; (ii) fixed-T magnitude-based extrapolation vs. iteration-count-based extrapolation.</p>
+  <p><strong>Baselines the paper needs</strong> (Claude, explicit): head-to-head against IQE, MRN, and a scalar-head regressor, showing the increment-sum readout extrapolates to longer distances and unseen environments where they do not. This preempts the "why not just a quasimetric embedding?" review.</p>
+  <p><strong>Must-cite-and-distinguish set:</strong> QRL + IQE; Bansal et al. (recall); Schwarzschild et al.; Arvanitidis et al.; OT-Flow / Finlay et al.; arXiv:2509.23314; "Truth as a Trajectory"; and for the evaluation claim, Horizon Generalization (Myers et al. 2025).</p>
+</section>
+
+<section id="open">
+  <h2>Open search directions</h2>
+  <p>Union of the terms the reports suggest running before a final priority claim, targeting communities where the same scalar may wear a different name:</p>
+  <ul>
+    <li>"activation trajectory arc length", "representation path length", "latent trajectory length", "total variation across depth", "latent kinetic distance", "computational trajectory length", "residual-flow length", "neural path length as prediction"</li>
+    <li>"arc length readout", "accumulated hidden-state displacement", "kinetic energy as prediction target", "learned line integral", "monotone additive recurrent output", "anytime cumulative evidence network", "input-injected recurrent value function"</li>
+    <li>Amortized geodesic solvers; neural Hamilton-Jacobi-Bellman solvers integrating along characteristics; action-minimizing networks / least-action principles; sub-Riemannian (Carnot-Caratheodory) metrics; flow-matching planners where transport cost is the value; grid-cell velocity path integration</li>
+    <li>Neural survival models and temporal point processes (cumulative hazard as accumulated nonnegative intensity)</li>
+    <li>Venues: RLC, CoRL, L4DC, the CLRS/NAR community, NeurReps</li>
+  </ul>
+</section>
+
+<section id="providers">
+  <h2>The four reports</h2>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Provider</th><th>Character</th><th>Distinct contribution</th><th>Verdict phrase</th></tr></thead>
+    <tbody>
+      <tr><td><strong>ChatGPT</strong><br><span class="chip c1">15 min</span></td><td>Deep research, in Czech; strictest scoring rubric ("what counts as accumulation")</td><td>"Truth as a Trajectory" (exact operator); triangle-inequality caveat; velocity-vs-duration framing; do-not-claim list; ready claim sentence</td><td>High probability of architectural novelty for the combination; medium-to-high for the arc-length readout itself</td></tr>
+      <tr><td><strong>Claude</strong><br><span class="chip c1">19 min</span></td><td>Deep research; strongest recent-preprint coverage</td><td>arXiv:2509.23314 as closest mechanical neighbor; regularizer/diagnostic/halting taxonomy; IQE reviewer attack; falsification criterion; baseline demands</td><td>Partially novel, leaning strongly toward novel on the readout</td></tr>
+      <tr><td><strong>Gemini</strong><br><span class="chip c1">5 min</span></td><td>Deep research; widest sweep (also most retrieval noise)</td><td>Four-family readout taxonomy (ours = fifth); Eikonal-line-integration analogy; cognitive ancestors (Kosslyn, Pfeiffer &amp; Foster); amortized-geodesic-solver warning</td><td>Structurally novel; six components jointly unaccounted for</td></tr>
+      <tr><td><strong>Grok</strong><br><span class="chip c1">2 min</span></td><td>Fast mode (no deep research); family-level citations</td><td>Refine-vs-sum discriminator stated cleanly; "who produces the curve" distinction</td><td>Novel as a package; no single score above 3/5</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="catlead" style="margin-top:12px">Known extraction errors to keep in mind: Grok conflates PQE with the learnability paper; Gemini conflates IGR with DeepSDF and omits a dedicated Bansal et al. row; several 2025/2026 venue attributions are unverified.</p>
+</section>
+
+<footer>
+  <p>Produced from four parallel deep-research runs on the query in <code>distance_model/prior_work_query.txt</code>; full reports and <code>run.json</code> in <code>distance_model/raw/</code>. Model under test: <code>integ_distance.py</code> (Integrator, T weight-shared steps, recall re-injection, softplus-scaled &#931;&#8214;&#916;z&#8214; readout). Absence of prior art cannot be proven by survey; this is a research positioning document, not a patent opinion.</p>
+</footer>
+</main>

@@ -1,0 +1,281 @@
+<title>Switchyard: a Grid Benchmark with Interdependent Factors</title>
+<style>
+  :root {
+    --ground: #f6f7fa;
+    --surface: #ffffff;
+    --ink: #242b34;
+    --muted: #67717e;
+    --accent: #2e5fb7;
+    --accent-soft: #e8eefb;
+    --worker: #d97a33;
+    --crate: #8a6440;
+    --goal: #3e8e5c;
+    --lever: #7a5fb0;
+    --plate: #3e8e8c;
+    --wall: #4a5462;
+    --border: #dde2ea;
+    --gridline: #e4e9f1;
+    --code-bg: #edf0f5;
+    --s1: #2e5fb7;   /* chart series: integrator */
+    --s2: #c06a22;   /* chart series: scalar head */
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #151920; --surface: #1d222b; --ink: #e7eaf0; --muted: #98a2b0;
+      --accent: #7fa4e8; --accent-soft: #212c40; --worker: #e5975c; --crate: #b08a5e;
+      --goal: #6bbf8e; --lever: #a98fd6; --plate: #5fb3ae; --wall: #8b96a5;
+      --border: #2c333e; --gridline: #222933; --code-bg: #242b36;
+      --s1: #5f88d6; --s2: #bd7a3a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #151920; --surface: #1d222b; --ink: #e7eaf0; --muted: #98a2b0;
+    --accent: #7fa4e8; --accent-soft: #212c40; --worker: #e5975c; --crate: #b08a5e;
+    --goal: #6bbf8e; --lever: #a98fd6; --plate: #5fb3ae; --wall: #8b96a5;
+    --border: #2c333e; --gridline: #222933; --code-bg: #242b36;
+    --s1: #5f88d6; --s2: #bd7a3a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--ground);
+    background-image: linear-gradient(var(--gridline) 1px, transparent 1px),
+                      linear-gradient(90deg, var(--gridline) 1px, transparent 1px);
+    background-size: 28px 28px;
+    color: var(--ink);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    margin: 0; padding: 0 16px 80px;
+  }
+  main { max-width: 920px; margin: 0 auto; }
+  h1, h2, h3 { font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; line-height: 1.25; text-wrap: balance; }
+  h1 { font-size: 2.1rem; margin: 44px 0 8px; }
+  h2 { font-size: 1.4rem; margin: 50px 0 10px; }
+  p { max-width: 70ch; }
+  code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.86em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  .eyebrow { font-size: 0.74rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  .lede { font-size: 1.1rem; color: var(--muted); max-width: 64ch; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px 24px; margin: 18px 0; }
+  figure { margin: 18px 0; }
+  figure svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+  figcaption { font-size: 0.83rem; color: var(--muted); margin-top: 10px; text-align: center; max-width: 62ch; margin-left: auto; margin-right: auto; line-height: 1.5; }
+  .imgnote { background: var(--accent-soft); border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0; padding: 10px 18px; margin: 16px 0; max-width: 72ch; font-size: 0.92rem; }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+  th, td { text-align: left; vertical-align: top; padding: 9px 13px; border-top: 1px solid var(--border); }
+  thead th { border-top: none; font-size: 0.7rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 18px 0; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile .v { font-size: 1.6rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .tile .l { font-size: 0.78rem; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+  .legend { display: flex; gap: 18px; font-size: 0.82rem; color: var(--muted); justify-content: center; margin-top: 6px; flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .chip { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+  ul { max-width: 70ch; }
+  li { margin-bottom: 6px; }
+</style>
+
+<main>
+<span class="eyebrow">cognitive maps project · benchmark proposal</span>
+<h1>Switchyard: a grid world where the factors need each other</h1>
+<p class="lede">A worker, a crate, levers, gates, a pressure plate. Every element is borrowed from a published benchmark; the new thing is that they are wired into one dependency web, so the distance between two configurations is a genuinely joint quantity. Built as the comparison stage for goal-conditioned distance models.</p>
+
+<div class="imgnote"><strong>About the images:</strong> every picture on this page is an illustrative schematic drawn for this document (hand-authored SVG), not a screenshot of the environment. Layouts are simplified; real maps are randomly generated 7x7 yards.</div>
+
+<h2>The game</h2>
+<p>A four-room yard. The <strong>worker</strong> moves in four directions and can push the <strong>crate</strong> (never pull: pushes into corners are forever). Room passages are <strong>gates</strong>, open or closed according to gate bits. Standing on a <strong>lever</strong> and pulling it flips a wired subset of gates at once. While the crate sits on the <strong>pressure plate</strong>, the plate's wired gates are forced open regardless of their bits. Some cells are one-way <strong>chutes</strong>. A task is: from this full configuration (worker, crate, gate bits), reach that one, in the fewest moves.</p>
+
+<figure>
+  <svg viewBox="0 0 460 330" role="img" aria-label="Illustrative Switchyard map: four rooms, gates in the walls, two levers wired to gates, a pressure plate, a one-way chute, worker and crate.">
+    <g stroke="var(--gridline)" stroke-width="1">
+      <path d="M20,20 h300 M20,62 h300 M20,104 h300 M20,146 h300 M20,188 h300 M20,230 h300 M20,272 h300 M20,310 h300
+               M20,20 v290 M62,20 v290 M104,20 v290 M146,20 v290 M188,20 v290 M230,20 v290 M272,20 v290 M320,20 v290" fill="none"/>
+    </g>
+    <rect x="20" y="20" width="300" height="290" fill="none" stroke="var(--wall)" stroke-width="4"/>
+    <line x1="170" y1="20" x2="170" y2="120" stroke="var(--wall)" stroke-width="4"/>
+    <line x1="170" y1="162" x2="170" y2="310" stroke="var(--wall)" stroke-width="4"/>
+    <line x1="20" y1="165" x2="80" y2="165" stroke="var(--wall)" stroke-width="4"/>
+    <line x1="122" y1="165" x2="170" y2="165" stroke="var(--wall)" stroke-width="4"/>
+    <line x1="170" y1="165" x2="230" y2="165" stroke="var(--wall)" stroke-width="4"/>
+    <line x1="272" y1="165" x2="320" y2="165" stroke="var(--wall)" stroke-width="4"/>
+    <!-- gates -->
+    <rect x="163" y="122" width="14" height="38" rx="3" fill="var(--accent)" opacity="0.85"/>
+    <text x="185" y="145" font-size="11" fill="var(--accent)">G1</text>
+    <rect x="82" y="158" width="38" height="14" rx="3" fill="var(--accent)" opacity="0.35"/>
+    <text x="93" y="152" font-size="11" fill="var(--accent)">G2</text>
+    <rect x="232" y="158" width="38" height="14" rx="3" fill="var(--accent)" opacity="0.85"/>
+    <text x="243" y="190" font-size="11" fill="var(--accent)">G3</text>
+    <!-- levers -->
+    <g>
+      <circle cx="41" cy="41" r="9" fill="none" stroke="var(--lever)" stroke-width="2.5"/>
+      <line x1="41" y1="41" x2="47" y2="33" stroke="var(--lever)" stroke-width="2.5"/>
+      <text x="41" y="14" text-anchor="middle" font-size="10" fill="var(--lever)">L1</text>
+      <circle cx="299" cy="251" r="9" fill="none" stroke="var(--lever)" stroke-width="2.5"/>
+      <line x1="299" y1="251" x2="305" y2="243" stroke="var(--lever)" stroke-width="2.5"/>
+      <text x="299" y="278" text-anchor="middle" font-size="10" fill="var(--lever)">L2</text>
+    </g>
+    <!-- wiring -->
+    <g stroke-dasharray="4 4" fill="none" stroke-width="1.6">
+      <path d="M50,45 C 100,70 140,100 163,130" stroke="var(--lever)"/>
+      <path d="M52,48 C 70,90 80,130 96,156" stroke="var(--lever)"/>
+      <path d="M290,245 C 265,220 252,195 250,175" stroke="var(--lever)"/>
+      <path d="M292,242 C 240,210 190,170 176,146" stroke="var(--lever)"/>
+    </g>
+    <!-- plate -->
+    <rect x="196" y="238" width="26" height="26" rx="5" fill="none" stroke="var(--plate)" stroke-width="2.5"/>
+    <rect x="202" y="244" width="14" height="14" rx="3" fill="var(--plate)" opacity="0.4"/>
+    <text x="209" y="288" text-anchor="middle" font-size="10" fill="var(--plate)">plate</text>
+    <path d="M216,240 C 240,220 248,195 250,177" stroke="var(--plate)" stroke-width="1.6" stroke-dasharray="2 4" fill="none"/>
+    <!-- chute -->
+    <rect x="63" y="231" width="40" height="40" fill="var(--accent-soft)"/>
+    <path d="M70,251 h22 m0,0 -6,-5 m6,5 -6,5" stroke="var(--accent)" stroke-width="2" fill="none"/>
+    <text x="83" y="288" text-anchor="middle" font-size="10" fill="var(--accent)">chute (one-way)</text>
+    <!-- worker + crate -->
+    <circle cx="83" cy="83" r="11" fill="var(--worker)"/>
+    <rect x="107" y="69" width="26" height="26" rx="4" fill="var(--crate)"/>
+    <path d="M96,83 h6 m0,0 -4,-3 m4,3 -4,3" stroke="var(--surface)" stroke-width="2" fill="none"/>
+    <!-- goal marker -->
+    <rect x="284" y="32" width="20" height="20" rx="4" fill="none" stroke="var(--goal)" stroke-width="2.5" stroke-dasharray="4 3"/>
+    <text x="294" y="66" text-anchor="middle" font-size="10" fill="var(--goal)">goal cfg</text>
+    <!-- legend -->
+    <g font-size="11" fill="var(--ink)">
+      <circle cx="352" cy="40" r="7" fill="var(--worker)"/><text x="366" y="44">worker</text>
+      <rect x="345" y="60" width="14" height="14" rx="3" fill="var(--crate)"/><text x="366" y="71">crate (push only)</text>
+      <rect x="345" y="86" width="14" height="10" rx="2" fill="var(--accent)" opacity="0.85"/><text x="366" y="95">gate closed</text>
+      <rect x="345" y="108" width="14" height="10" rx="2" fill="var(--accent)" opacity="0.35"/><text x="366" y="117">gate open</text>
+      <circle cx="352" cy="136" r="6" fill="none" stroke="var(--lever)" stroke-width="2"/><text x="366" y="140">lever</text>
+      <text x="345" y="162" fill="var(--lever)">- - -</text><text x="380" y="162">wiring (XOR)</text>
+      <rect x="345" y="174" width="14" height="14" rx="3" fill="none" stroke="var(--plate)" stroke-width="2"/><text x="366" y="185">pressure plate</text>
+    </g>
+  </svg>
+  <figcaption><span style="font-style:italic">Illustrative schematic drawn for this document.</span> L1 is wired to gates G1 and G2; L2 to G1 and G3; the plate also holds G3. One pull flips several gates at once, and the crate's position overrides bits: the factors interlock.</figcaption>
+</figure>
+
+<h2>Every element is borrowed; only the wiring is new</h2>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Element</th><th>Borrowed from</th><th>Dependency it creates</th></tr></thead>
+  <tbody>
+    <tr><td>Gates (open/closed bits)</td><td>MiniGrid DoorKey; MAD KeyDoorGridWorld</td><td>gate both worker and crate movement</td></tr>
+    <tr><td>Levers with XOR wiring</td><td>OGBench Puzzle (Lights-Out core)</td><td>one pull flips several gates at once</td></tr>
+    <tr><td>Pushable crate</td><td>DeepNorm <code>push</code>; Sokoban</td><td>crate moves only via worker contact; pushes can be irreversible (directed graph, asymmetric distances)</td></tr>
+    <tr><td>Pressure plate</td><td>MiniGrid ObstructedMaze family</td><td>crate position overrides gate bits (factor gates factor)</td></tr>
+    <tr><td>One-way chutes</td><td>PQE/IQE one-way-doors gridworld</td><td>asymmetric worker movement</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Why the distance is a joint quantity</h2>
+<figure>
+  <svg viewBox="0 0 620 190" role="img" aria-label="Dependency graph between the factors: worker pushes crate, crate holds plate, plate and levers set gates, gates gate both movements.">
+    <defs>
+      <marker id="dep" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L8,4 L0,8 z" fill="currentColor"/>
+      </marker>
+    </defs>
+    <g font-size="13" text-anchor="middle">
+      <circle cx="80" cy="60" r="30" fill="none" stroke="var(--worker)" stroke-width="2.5"/><text x="80" y="65">worker</text>
+      <circle cx="240" cy="60" r="30" fill="none" stroke="var(--crate)" stroke-width="2.5"/><text x="240" y="65">crate</text>
+      <circle cx="400" cy="60" r="30" fill="none" stroke="var(--accent)" stroke-width="2.5"/><text x="400" y="65">gates</text>
+      <circle cx="240" cy="150" r="26" fill="none" stroke="var(--lever)" stroke-width="2.5"/><text x="240" y="155">levers</text>
+      <circle cx="545" cy="60" r="30" fill="none" stroke="var(--plate)" stroke-width="2.5"/><text x="545" y="55">plate</text><text x="545" y="72" font-size="10" fill="var(--muted)">(cell)</text>
+    </g>
+    <g stroke="currentColor" stroke-width="1.6" fill="none">
+      <line x1="112" y1="55" x2="207" y2="55" marker-end="url(#dep)"/>
+      <path d="M270,72 C 300,95 340,95 372,78" marker-end="url(#dep)"/>
+      <line x1="264" y1="135" x2="372" y2="80" marker-end="url(#dep)"/>
+      <line x1="110" y1="72" x2="216" y2="140" marker-end="url(#dep)"/>
+      <path d="M430,45 C 470,25 505,30 522,42" marker-end="url(#dep)"/>
+      <path d="M432,78 C 460,95 500,95 525,82" stroke-dasharray="5 4" marker-end="url(#dep)"/>
+    </g>
+    <g font-size="10.5" fill="var(--muted)" text-anchor="middle">
+      <text x="160" y="45">pushes</text>
+      <text x="322" y="103">on plate: overrides bits</text>
+      <text x="305" y="130">pull XORs wired subset</text>
+      <text x="150" y="118">stands on + pulls</text>
+      <text x="478" y="22">closed gates block reaching the plate</text>
+      <text x="480" y="110" >crate must pass gates too (dashed)</text>
+    </g>
+  </svg>
+  <figcaption><span style="font-style:italic">Illustrative diagram.</span> Cycles everywhere: gates gate the routes to the levers and the plate that control the gates. Chains of depth 2-3 arise from random wiring: open gate G3 by parking the crate on the plate, but the plate is behind G2, which only lever L1 flips, which sits behind G1.</figcaption>
+</figure>
+<p>Because of these cycles, the shortest path often parks the crate on the plate purely to hold gates open, detours the worker through lever rooms in an order dictated by the wiring, and only then routes toward the goal. No sum of per-factor distances reproduces this.</p>
+
+<h2>Ground truth and scale</h2>
+<div class="tiles">
+  <div class="tile"><div class="v">~13K</div><div class="l">joint states per map; exact BFS ground truth is instant</div></div>
+  <div class="tile"><div class="v">40</div><div class="l">typical diameter (moves); mean sampled distance ~24</div></div>
+  <div class="tile"><div class="v">17%</div><div class="l">of states reachable from a source: directed graph, irreversible pushes (a feature: asymmetry)</div></div>
+  <div class="tile"><div class="v">7x7</div><div class="l">yard, 3 gates, 2 levers, 1 plate, 1 chute per map; layout + wiring randomized per map</div></div>
+</div>
+<p>State is the factored vector <code>[worker_cell, crate_cell, gate_bits]</code>; the map's wall layout and wiring form the configuration (the analogue of the coupling world's mobility/link keys). Supervision and evaluation mirror our existing protocol exactly: pairs (state, goal, BFS distance), smooth L1, MAE and correlation on held-out configurations.</p>
+
+<h2>Probe: distances really do not factorize</h2>
+<p>For each sampled pair we compare the true BFS distance against the best factorized approximation: independent worker walk (all gates open, crate ghosted) + independent crate distance + minimal lever pulls, summed. If this proxy tracked the truth, the benchmark would be pointless. It does not:</p>
+<div class="tiles">
+  <div class="tile"><div class="v">0.47</div><div class="l">correlation of the factorized proxy with true distance (explains under a quarter of the variance)</div></div>
+  <div class="tile"><div class="v">88%</div><div class="l">of pairs the proxy underestimates by 3+ moves (79% by 6+)</div></div>
+  <div class="tile"><div class="v">&#177;4.3</div><div class="l">std of true distance when only the LEVER WIRING changes, endpoints fixed</div></div>
+  <div class="tile"><div class="v">0.0</div><div class="l">the same wiring-sensitivity for pure Sokoban (no gates/levers): the signature is the wiring, not the pushing</div></div>
+</div>
+<p>The pure-Sokoban control matters: pushing alone already defeats the proxy somewhat (corr 0.66), but only the gate/lever/plate wiring makes distances depend on the configuration at fixed endpoints. That wiring sensitivity is the benchmark's defining interdependence metric.</p>
+
+<h2>First experimental results</h2>
+<p>Two models, identical encoder and training (smooth L1 on distance pairs from 40 maps), evaluated on entirely unseen maps and wirings; run on a V100 (dgx-ciirc), 20k steps, d=128, T=14.</p>
+
+<figure>
+  <svg viewBox="0 0 640 190" role="img" aria-label="Bar chart: on held-out maps the recall-flow integrator reaches test MAE 3.47 and correlation 0.74, the scalar head 4.41 and 0.62.">
+    <g font-size="11" fill="var(--muted)">
+      <text x="10" y="42">test MAE</text>
+      <text x="10" y="66">(lower better)</text>
+      <text x="10" y="126">test corr</text>
+      <text x="10" y="150">(higher better)</text>
+    </g>
+    <!-- MAE bars: scale 0..5 over 400px -->
+    <g>
+      <rect x="120" y="30" width="278" height="18" rx="4" fill="var(--s1)"/>
+      <rect x="120" y="54" width="353" height="18" rx="4" fill="var(--s2)"/>
+      <text x="406" y="44" font-size="12" fill="var(--ink)" font-variant-numeric="tabular-nums">3.47</text>
+      <text x="481" y="68" font-size="12" fill="var(--ink)" font-variant-numeric="tabular-nums">4.41</text>
+    </g>
+    <!-- corr bars: scale 0..1 over 400px -->
+    <g>
+      <rect x="120" y="114" width="296" height="18" rx="4" fill="var(--s1)"/>
+      <rect x="120" y="138" width="248" height="18" rx="4" fill="var(--s2)"/>
+      <text x="424" y="128" font-size="12" fill="var(--ink)" font-variant-numeric="tabular-nums">0.74</text>
+      <text x="376" y="152" font-size="12" fill="var(--ink)" font-variant-numeric="tabular-nums">0.62</text>
+    </g>
+    <line x1="120" y1="20" x2="120" y2="165" stroke="var(--border)" stroke-width="1.5"/>
+    <text x="320" y="185" text-anchor="middle" font-size="10.5" fill="var(--muted)">held-out maps and wirings; mean true distance ~24; train MAE 0.49 (integrator) / 0.65 (scalar)</text>
+  </svg>
+  <figcaption>Chart of measured results (not illustrative). Both models fit the training maps; the gap is generalization to unseen configurations.</figcaption>
+</figure>
+<div class="legend">
+  <span><span class="chip" style="background:var(--s1)"></span>recall-flow integrator (accumulated-displacement readout)</span>
+  <span><span class="chip" style="background:var(--s2)"></span>scalar head (same encoder)</span>
+</div>
+
+<div class="panel">
+  <p style="margin:6px 0"><strong>The scale trend is the headline.</strong> At toy scale (12 maps, small model, 6k steps) the integrator led the scalar head by 0.27 MAE; at full scale (40 maps, d=128, 20k steps) the lead grew to <strong>0.94 MAE</strong> and +0.12 correlation. The benchmark separates the methods in exactly the direction the interdependence thesis predicts, and with test MAE still ~3.5 at mean distance 24, it is nowhere near saturated: room for the full baseline comparison (IQE, MRNFixed, symmetric norm via torchqmet) to be informative.</p>
+</div>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Iteration</th><th>What ran</th><th>Outcome</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>env + probe (8 maps)</td><td>state space 12.5K, diameter 30; proxy corr 0.58, gap &#8805;3 on 84% of pairs; wiring std 11.3</td></tr>
+    <tr><td>2</td><td>pure-Sokoban control; 16-map probe; toy smoke train</td><td>pushing alone: proxy corr 0.66 but wiring std exactly 0; reachability collapsed to 3.5% (flagged); integ 4.24 vs scalar 4.51 test MAE at toy scale</td></tr>
+    <tr><td>3</td><td>connectivity fix; full-scale train (40 maps, d=128, T=14, 20k steps)</td><td>reachable 17%, diameter 40, coupling intact (proxy corr 0.47, gap &#8805;3 on 88%); <strong>integ 3.47 / 0.74 vs scalar 4.41 / 0.62</strong></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Next steps</h2>
+<ul>
+  <li>Wiring-only split (same layouts, unseen wirings): the direct analogue of the coupling world's combo split.</li>
+  <li>Scale to a few hundred maps; layout diversity is the current generalization bottleneck.</li>
+  <li>Wire in the baseline set from the repo audit: IQE, MRNFixed, symmetric norm (torchqmet) + the scalar head already present.</li>
+  <li>Image-rendering mode (shared canvas, same bmask/marker path as the coupling world).</li>
+  <li>Length split (<code>--Rmax</code> cap) once the global-base fix is ported to the integrator.</li>
+</ul>
+
+<p class="meta" style="color:var(--muted); font-size:0.85rem; border-top:1px solid var(--border); padding-top:14px;">Code: <code>distance_model/switchyard.py</code> (environment, BFS ground truth, probe, training harness in one file). Design rationale and full iteration log: <code>switchyard_design.md</code>. Benchmark survey that motivated this: <code>share/research/grid_benchmarks.html</code>.</p>
+</main>

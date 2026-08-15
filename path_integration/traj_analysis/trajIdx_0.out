@@ -1,0 +1,38 @@
+TAG n5m6D18_index_w10_n5D18_Tt30
+{
+  "ckpt": "w10_n5D18_Tt30.pt",
+  "n": 5,
+  "m": 6,
+  "npairs": 1000,
+  "corr_total_geodesic": 1.0,
+  "mae_total": 0.14,
+  "corr_cfactor_cycledist": 0.526,
+  "corr_cfactor_pathmoves": 0.469,
+  "per_factor_corr_vs_pathmoves": [
+    0.394,
+    0.248,
+    0.52,
+    0.694,
+    0.821
+  ],
+  "per_factor_corr_vs_cycledist": [
+    0.887,
+    0.599,
+    0.332,
+    0.44,
+    0.821
+  ],
+  "mean_overhead_per_factor": [
+    1.43,
+    1.41,
+    1.36,
+    1.25,
+    0.0
+  ],
+  "corr_cfactor_overhead": 0.109,
+  "steps_to_50pct": 2,
+  "steps_to_90pct": 4,
+  "visit0_rate_when_needs_unlock": 0.493,
+  "visit0_rate_when_not": 0.45,
+  "corr_embdist_cycledist": 0.844
+}

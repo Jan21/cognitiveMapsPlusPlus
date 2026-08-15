@@ -1,0 +1,45 @@
+TAG n5m6D24_index_w10_n5D24_Tt40
+{
+  "ckpt": "w10_n5D24_Tt40.pt",
+  "n": 5,
+  "m": 6,
+  "npairs": 1000,
+  "corr_total_geodesic": 1.0,
+  "mae_total": 0.176,
+  "corr_cfactor_cycledist": 0.2,
+  "corr_cfactor_pathmoves": 0.959,
+  "per_factor_corr_vs_pathmoves": [
+    0.998,
+    0.997,
+    0.996,
+    0.983,
+    0.935
+  ],
+  "per_factor_corr_vs_cycledist": [
+    0.003,
+    0.041,
+    0.045,
+    0.153,
+    0.935
+  ],
+  "per_factor_corr_vs_total": [
+    0.464,
+    0.561,
+    0.577,
+    0.578,
+    0.522
+  ],
+  "mean_overhead_per_factor": [
+    1.43,
+    1.41,
+    1.36,
+    1.25,
+    0.0
+  ],
+  "corr_cfactor_overhead": 0.753,
+  "steps_to_50pct": 2,
+  "steps_to_90pct": 4,
+  "visit0_rate_when_needs_unlock": 0.977,
+  "visit0_rate_when_not": 0.41,
+  "corr_embdist_cycledist": 0.731
+}

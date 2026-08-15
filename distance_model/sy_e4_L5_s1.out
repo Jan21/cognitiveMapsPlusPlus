@@ -1,0 +1,2 @@
+pool train=49450 test=48711 split=map Rcap=24 maxd_tr=24 maxd_te=24
+integ step 0 loss 657.636

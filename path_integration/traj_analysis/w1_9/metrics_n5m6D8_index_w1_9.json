@@ -1,0 +1,37 @@
+{
+  "ckpt": "w1_9.pt",
+  "n": 5,
+  "m": 6,
+  "npairs": 800,
+  "corr_total_geodesic": 0.928,
+  "mae_total": 0.847,
+  "corr_cfactor_cycledist": 0.603,
+  "corr_cfactor_pathmoves": 0.109,
+  "per_factor_corr_vs_pathmoves": [
+    0.172,
+    0.147,
+    0.043,
+    0.08,
+    0.651
+  ],
+  "per_factor_corr_vs_cycledist": [
+    0.961,
+    0.623,
+    0.667,
+    0.625,
+    0.651
+  ],
+  "mean_overhead_per_factor": [
+    1.42,
+    1.4,
+    1.35,
+    1.22,
+    0.0
+  ],
+  "corr_cfactor_overhead": -0.268,
+  "steps_to_50pct": 2,
+  "steps_to_90pct": 5,
+  "visit0_rate_when_needs_unlock": 0.24,
+  "visit0_rate_when_not": 0.258,
+  "corr_embdist_cycledist": 0.942
+}

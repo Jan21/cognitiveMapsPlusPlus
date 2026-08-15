@@ -1,0 +1,48 @@
+{
+  "query_file": "/home/jan/projects/CIIRC/colabs/Alma/cognitiveMapsPlusPlus/distance_model/prior_work_query.txt",
+  "query": "Prior-work search: is a goal-conditioned value/distance function computed by ACCUMULATING PER-STEP LATENT INCREMENTS of an iterative network a novel idea, or has it been done?\n\nCONTEXT (our method, described precisely so you can judge closeness):\nWe work in goal-conditioned reinforcement learning where the value function is a distance: conditioned on a goal state g, the value of state s is the estimated number of steps (BFS geodesic distance) from s to g. Our architecture computes this distance as follows. A shared encoder maps the current state and the goal state to sets of tokens. A single weight-shared transformer block is then applied for T recurrent steps; the goal and start tokens are re-injected into the sequence at every step (a \"recall\" mechanism). Crucially, the distance is NOT read out by a scalar regression head and NOT computed as a norm between two embeddings. Instead it is the accumulated path length of the latent trajectory itself: at each recurrent step we add the norms of the token displacements, cost += sum_i ||z_i(t+1) - z_i(t)||, and the final prediction is a learned positive scalar times this accumulated cost. In other words, the value is the integral of local latent \"speed\" along a learned iterative flow from the start representation toward the goal representation. Distinctive properties: (a) the number of steps T is fixed, yet the model extrapolates to distances far beyond the training range because the per-step increments carry the magnitude (no compute budget tied to distance); (b) training supervises only ground-truth shortest-path distances, in some settings only local/short-range pairs, and we evaluate extrapolation to longer distances and unseen environments; (c) no policy is learned, the network is a pure distance oracle.\n\nMAIN QUESTION:\nHas anyone previously proposed computing a goal-conditioned value or distance function as the sum/integral of per-iteration displacement norms (or other nonnegative local increments) of a recurrent or iterative network's hidden state? Find the closest prior work, whether an exact match, a partial anticipation, or a clearly related mechanism in a different domain.\n\nSEARCH DIRECTIONS (cover each; report the closest matches with full citations):\n1. Quasimetric and metric approaches to goal-conditioned RL: Quasimetric Reinforcement Learning (Tongzhou Wang, Phillip Isola), Interval Quasimetric Embeddings, Poisson Quasimetric Embeddings, Metric Residual Networks (Bo Liu et al.), DeepNorm/WideNorm (Pitis et al.), and any other asymmetric distance parameterizations for goal reaching. These read distance from an embedding pair, not from accumulated increments; check whether any variant accumulates iterative refinements.\n2. Distance learning in goal-conditioned RL more broadly: Universal Value Function Approximators, Hindsight Experience Replay descendants that regress distances, Dynamical Distance Learning (Hartikainen et al.), Contrastive RL as implicit distance (Eysenbach et al.), Search on the Replay Buffer, successor representations and Laplacian/spectral state representations used as distances.\n3. Iterative networks whose OUTPUT is an accumulation over compute steps: Adaptive Computation Time (Graves), PonderNet, Universal Transformers, deep equilibrium models applied to planning, Value Iteration Networks, Gated Path Planning Networks, neural algorithmic reasoning that executes Bellman-Ford or Dijkstra (Velickovic et al.), and recurrent \"thinking\" networks where iteration count tracks problem difficulty (Schwarzschild et al., Bansal et al.). Distinguish carefully: many of these iterate to refine an answer read out at the end; we instead SUM a quantity across the iterations. Find any that sum per-step costs into the prediction.\n4. Distance as a path integral in a learned latent space: Riemannian geometry of deep generative models (Arvanitidis et al., \"latent space oddity\"), geodesic computation in VAE/GAN latent spaces, metric learning where distance is the integral of a local metric along a curve, neural ODEs where trajectory length or kinetic energy is penalized or read out, optimal transport and flow matching formulations where the transport cost itself is the quantity of interest.\n5. Eikonal and PDE-style neural distance fields: neural eikonal solvers, signed distance functions trained with eikonal losses, physics-informed networks computing geodesic distances on manifolds or graphs, and any architecture whose recurrent dynamics implement front propagation or value iteration with distance accumulated along the propagation.\n6. Cognitive science and neuroscience angles: cognitive map models where distance estimates come from mental simulation, models where estimated time or effort equals accumulated simulation steps, hippocampal replay or recall-based planning models, successor-representation accounts of distance judgments.\n\nFOR EACH CANDIDATE WORK, report: (a) what quantity it computes; (b) the mechanical form of the distance readout (embedding norm, scalar head, accumulated increments, iteration count, PDE solve); (c) whether increments are accumulated across compute steps into the output; (d) whether it is goal-conditioned; (e) whether it trains on local/short-range supervision and tests long-range extrapolation; (f) a closeness score 1-5 relative to our design, with one sentence of justification.\n\nVERDICT SECTION (required): list the 3 closest works overall; state exactly which components of our design they anticipate (iterative flow, increment-sum readout, goal re-injection, budget-free extrapolation, distance-only training) and which components remain unaccounted for in the literature; conclude with a clear novelty assessment and a list of additional search terms or communities we may have missed.\n\nPrefer peer-reviewed ML venues (NeurIPS, ICML, ICLR, RLC, CoRL, AAAI), arXiv preprints, and relevant robotics and computational neuroscience literature. Cite concretely (authors, title, venue, year); do not pad with tangential goal-conditioned RL surveys.",
+  "started_at": "2026-08-11T18:00:33.507890+00:00",
+  "finished_at": "2026-08-11T18:19:56.577691+00:00",
+  "results": [
+    {
+      "provider": "chatgpt",
+      "ok": true,
+      "error": null,
+      "started_at": "2026-08-11T18:00:35.667926+00:00",
+      "finished_at": "2026-08-11T18:15:34.861994+00:00",
+      "elapsed_s": 899.1940811360255,
+      "saved_source": "<provider direct>",
+      "saved_target": "/home/jan/projects/CIIRC/colabs/Alma/cognitiveMapsPlusPlus/distance_model/raw/chatgpt.md"
+    },
+    {
+      "provider": "claude",
+      "ok": true,
+      "error": null,
+      "started_at": "2026-08-11T18:00:35.669281+00:00",
+      "finished_at": "2026-08-11T18:19:56.554848+00:00",
+      "elapsed_s": 1160.8855748749338,
+      "saved_source": "/home/jan/projects/personalWiki/labMemory/chatgpt_chats/Claude/2026-08-11_20-19-56_Accumulated latent increments for goal-conditioned distance learning.md",
+      "saved_target": "/home/jan/projects/CIIRC/colabs/Alma/cognitiveMapsPlusPlus/distance_model/raw/claude.md"
+    },
+    {
+      "provider": "gemini",
+      "ok": true,
+      "error": null,
+      "started_at": "2026-08-11T18:00:35.670061+00:00",
+      "finished_at": "2026-08-11T18:05:48.140618+00:00",
+      "elapsed_s": 312.4705655609723,
+      "saved_source": "/home/jan/projects/personalWiki/labMemory/chatgpt_chats/Gemini/2026-08-11_20-05-48_Novelty of Iterative Distance Function - Google Gemini.md",
+      "saved_target": "/home/jan/projects/CIIRC/colabs/Alma/cognitiveMapsPlusPlus/distance_model/raw/gemini.md"
+    },
+    {
+      "provider": "grok",
+      "ok": true,
+      "error": null,
+      "started_at": "2026-08-11T18:00:35.670765+00:00",
+      "finished_at": "2026-08-11T18:02:24.732920+00:00",
+      "elapsed_s": 109.0621667400701,
+      "saved_source": "/home/jan/projects/personalWiki/labMemory/chatgpt_chats/Grok/2026-08-11_20-02-24_Accumulated Latent Increments in Goal-Conditioned RL.md",
+      "saved_target": "/home/jan/projects/CIIRC/colabs/Alma/cognitiveMapsPlusPlus/distance_model/raw/grok.md"
+    }
+  ]
+}

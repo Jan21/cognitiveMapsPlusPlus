@@ -89,6 +89,12 @@ Each run reports, for the evaluation partition and (when a split is set) the tra
 | `links2` | ≤ 1 active link | ≥ 2 links (unseen multi-link structure) | hard structural extrapolation |
 | `dofhi` / `dofhi2` | DOF ≤ 6 / ≤ 5 | DOF ≥ 7 / ≥ 6 (unseen levels) | value extrapolation |
 
+## Length extrapolation (`--Rtrain`)
+
+Orthogonal to `--heldout`: `--Rtrain R` caps **training pairs** at distance ≤ R while evaluation keeps the full
+`Rmax` ball (train short, test long). The result then also reports `mae_within` (distances ≤ R),
+`mae_beyond` and `corr_beyond` (distances > R, never seen in training). Combines freely with any `--heldout` split.
+
 ## Run
 
 ```bash
@@ -97,6 +103,9 @@ python integ_distance.py --enc factored --heldout combo --steps 40000 --seed 0
 
 # image (learned binding), hard structural split (needs more steps to learn binding)
 python integ_distance.py --enc marker --heldout links2 --steps 80000 --seed 0
+
+# length extrapolation: train on distances <= 4, evaluate up to Rmax = 12
+python integ_distance.py --enc factored --Rtrain 4 --steps 40000 --seed 0
 ```
 
 Batch: `run_best.sbatch` sweeps the best configs (factored / bmask / marker × splits).

@@ -1,0 +1,24 @@
+
+## Run 9 (entangled mechanism) -- the two solutions fully characterized.
+Per-factor cost correlation with (own path-moves) vs (total geodesic):
+  CLEAN (D24, D18s3):      own path-moves 0.94-0.99   total 0.45-0.59   -> each factor computes ITS OWN traversal.
+  ENTANGLED (D18, D18s1):  own path-moves 0.25-0.82   total 0.32-0.74   -> cost SMEARED: each factor cost tracks the
+                                                                            GLOBAL total about as much as its own moves.
+So the entangled solution distributes/shares the cost across factors (partly reflecting the overall distance), giving
+an exact SUM without a clean per-factor attribution. The clean solution assigns each factor exactly its own traversal.
+Both reach total r=1.0 and flat extrapolation. Which one a training run lands in is seed-dependent (see run 5).
+
+## INVESTIGATION SUMMARY (F1-F10)
+The recall-flow distance model is an AMORTIZED per-factor distance oracle:
+ - Total predicted distance = sum of per-factor displacements = true geodesic (r=1.0, ~0.1 move err), always.
+ - It JUMPS: ~90% of internal movement in the first ~3 steps, then parks (why it extrapolates budget-free).
+ - In CLEAN models (~half of well-trained n5 runs), each factor displacement = its true guarded-path traversal
+   (corr 0.94-0.99, calibration slope ~0.85, includes ~1.3 extra unlock moves for internal factors). The transient
+   SPATIALLY routes tokens through the unlock cell when a descendant must be freed (0.96 vs 0.36) -- but NOT in temporal
+   order (parent-before-child only 17-25%): it is one simultaneous amortized jump, not a step-by-step re-enactment.
+ - In ENTANGLED models the per-factor cost is smeared (tracks the global total); total still exact.
+ - Distance is computed by the flow DYNAMICS, not embedding geometry (pos embeddings non-metric, r=0.38).
+ - Clean-ness is SEED-DEPENDENT, needs training maturity, and is NOT load-bearing (entangled models extrapolate as well).
+ - IMAGE input entangles the per-factor decomposition further (0.24 vs 0.94 index).
+ANSWER to the user hypothesis: YES, per-factor cost reflects the true per-factor guarded traversal -- in the clean
+solutions (a common but not universal, seed-dependent internal structure). Report: traj_analysis/traj_mechanism_report.html

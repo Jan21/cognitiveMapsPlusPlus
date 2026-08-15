@@ -1,0 +1,35 @@
+TAG n4m6D8_image_w10_dagimg_Tt30
+{
+  "ckpt": "w10_dagimg_Tt30.pt",
+  "n": 4,
+  "m": 6,
+  "npairs": 1000,
+  "corr_total_geodesic": 0.994,
+  "mae_total": 0.221,
+  "corr_cfactor_cycledist": 0.007,
+  "corr_cfactor_pathmoves": 0.427,
+  "per_factor_corr_vs_pathmoves": [
+    0.694,
+    0.086,
+    0.047,
+    0.221
+  ],
+  "per_factor_corr_vs_cycledist": [
+    0.014,
+    0.027,
+    0.047,
+    0.221
+  ],
+  "mean_overhead_per_factor": [
+    1.5,
+    1.47,
+    0.0,
+    0.0
+  ],
+  "corr_cfactor_overhead": 0.422,
+  "steps_to_50pct": 2,
+  "steps_to_90pct": 4,
+  "visit0_rate_when_needs_unlock": 0.0,
+  "visit0_rate_when_not": 0.0,
+  "corr_embdist_cycledist": -0.171
+}

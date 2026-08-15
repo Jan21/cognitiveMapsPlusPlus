@@ -1,0 +1,10 @@
+
+## Run 5 (seed test, n5 D18) -- clean/entangled is SEED-DEPENDENT; and clean-cost vs unlock-routing are SEPARABLE.
+Same config (n5 D18), 3 seeds:
+  s1: total 1.00, per-factor 0.43 (entangled),   unlock 0.69/0.53 (weak)
+  s2: total 1.00, per-factor 0.97 (CLEAN),        unlock 0.98/0.52 (routes)
+  s3: total 1.00, per-factor 0.99 (CLEAN),        unlock 0.27/0.22 (does NOT route)
+=> (a) whether the per-factor decomposition is clean is a SEED/training-run property, not fixed by config.
+   (b) "clean per-factor cost" and "transient routes through the unlock cell" are SEPARABLE: s3 assigns correct
+       per-factor costs WITHOUT its transient visiting the unlock position. So there are >=3 internal variants at the
+       same perfect total accuracy: entangled / clean-no-route / clean-and-route.

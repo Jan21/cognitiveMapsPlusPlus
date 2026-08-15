@@ -1,0 +1,28 @@
+{
+  "project": "cognitiveMapsPlusPlus",
+  "generated_at": "2026-08-12T08:15:06+02:00",
+  "file_count": 3,
+  "files": [
+    {
+      "file": "latest-summary.md",
+      "modified": "2026-08-12T08:14:59+02:00",
+      "size_bytes": 2827,
+      "type": "md",
+      "description": "cognitiveMapsPlusPlus current state: distance_model novelty survey done (readout confirmed novel across 4 deep-research runs); reproduction package and results page committed earlier."
+    },
+    {
+      "file": "2026-08-12-0814-distance-model-explainer.md",
+      "modified": "2026-08-12T08:14:44+02:00",
+      "size_bytes": 11204,
+      "type": "md",
+      "description": "Plain-language explainer of the distance model (markdown twin of explainer.html): the world, inputs, model, supervision, novelty, results, glossary."
+    },
+    {
+      "file": "2026-08-11-2207-distance-readout-novelty-survey.md",
+      "modified": "2026-08-11T22:07:44+02:00",
+      "size_bytes": 5013,
+      "type": "md",
+      "description": "Four deep-research runs agree the accumulated-latent-displacement distance readout is novel; closest prior art mapped, threats and paper framing collected in prior_work.html."
+    }
+  ]
+}

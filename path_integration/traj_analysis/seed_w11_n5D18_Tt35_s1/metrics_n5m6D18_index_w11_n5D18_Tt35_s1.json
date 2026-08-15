@@ -1,0 +1,37 @@
+{
+  "ckpt": "w11_n5D18_Tt35_s1.pt",
+  "n": 5,
+  "m": 6,
+  "npairs": 1000,
+  "corr_total_geodesic": 0.999,
+  "mae_total": 0.375,
+  "corr_cfactor_cycledist": 0.286,
+  "corr_cfactor_pathmoves": 0.429,
+  "per_factor_corr_vs_pathmoves": [
+    0.446,
+    0.639,
+    0.638,
+    0.683,
+    0.788
+  ],
+  "per_factor_corr_vs_cycledist": [
+    0.854,
+    0.152,
+    0.473,
+    0.172,
+    0.788
+  ],
+  "mean_overhead_per_factor": [
+    1.43,
+    1.41,
+    1.36,
+    1.25,
+    0.0
+  ],
+  "corr_cfactor_overhead": 0.218,
+  "steps_to_50pct": 2,
+  "steps_to_90pct": 4,
+  "visit0_rate_when_needs_unlock": 0.688,
+  "visit0_rate_when_not": 0.53,
+  "corr_embdist_cycledist": 0.73
+}

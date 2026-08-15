@@ -1,0 +1,35 @@
+TAG n4m10D6_index_w1_6
+{
+  "ckpt": "w1_6.pt",
+  "n": 4,
+  "m": 10,
+  "npairs": 800,
+  "corr_total_geodesic": 0.489,
+  "mae_total": 5.963,
+  "corr_cfactor_cycledist": 0.734,
+  "corr_cfactor_pathmoves": 0.279,
+  "per_factor_corr_vs_pathmoves": [
+    0.369,
+    0.089,
+    0.127,
+    0.838
+  ],
+  "per_factor_corr_vs_cycledist": [
+    0.842,
+    0.709,
+    0.828,
+    0.838
+  ],
+  "mean_overhead_per_factor": [
+    2.49,
+    2.43,
+    2.39,
+    0.0
+  ],
+  "corr_cfactor_overhead": -0.19,
+  "steps_to_50pct": 2,
+  "steps_to_90pct": 7,
+  "visit0_rate_when_needs_unlock": 0.133,
+  "visit0_rate_when_not": 0.135,
+  "corr_embdist_cycledist": 0.945
+}

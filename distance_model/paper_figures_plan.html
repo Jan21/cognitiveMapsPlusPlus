@@ -1,0 +1,179 @@
+<title>Paper Figure & Table Plan: Distance Model</title>
+<style>
+  :root {
+    --ground: #f6f7fa; --surface: #ffffff; --ink: #242b34; --muted: #67717e;
+    --accent: #2e5fb7; --accent-soft: #e8eefb; --border: #dde2ea; --gridline: #e4e9f1;
+    --code-bg: #edf0f5; --ok: #2c7a5b; --ok-bg: #eaf2ef; --part: #a8722a; --part-bg: #f7efe4;
+    --wait: #67717e; --wait-bg: #eceef1; --s1: #2e5fb7; --s2: #c06a22; --dead: #9aa3ae;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #151920; --surface: #1d222b; --ink: #e7eaf0; --muted: #98a2b0;
+      --accent: #7fa4e8; --accent-soft: #212c40; --border: #2c333e; --gridline: #222933;
+      --code-bg: #242b36; --ok: #4da983; --ok-bg: #1d2924; --part: #c79a55; --part-bg: #2b2519;
+      --wait: #98a2b0; --wait-bg: #262b33; --s1: #5f88d6; --s2: #bd7a3a; --dead: #6b7480;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #151920; --surface: #1d222b; --ink: #e7eaf0; --muted: #98a2b0;
+    --accent: #7fa4e8; --accent-soft: #212c40; --border: #2c333e; --gridline: #222933;
+    --code-bg: #242b36; --ok: #4da983; --ok-bg: #1d2924; --part: #c79a55; --part-bg: #2b2519;
+    --wait: #98a2b0; --wait-bg: #262b33; --s1: #5f88d6; --s2: #bd7a3a; --dead: #6b7480;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--ground); color: var(--ink); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0 16px 80px; }
+  main { max-width: 940px; margin: 0 auto; }
+  h1, h2 { font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; line-height: 1.25; }
+  h1 { font-size: 1.9rem; margin: 40px 0 8px; }
+  h2 { font-size: 1.25rem; margin: 0 0 4px; }
+  p { max-width: 74ch; }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.86em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  .meta { color: var(--muted); font-size: 0.92rem; max-width: 76ch; }
+  .item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px 24px; margin: 22px 0; }
+  .head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .status { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 10px; border-radius: 999px; font-weight: 600; }
+  .ready { background: var(--ok-bg); color: var(--ok); }
+  .partial { background: var(--part-bg); color: var(--part); }
+  .waiting { background: var(--wait-bg); color: var(--wait); }
+  .claim { font-size: 0.9rem; color: var(--muted); margin: 4px 0 14px; max-width: 76ch; }
+  .claim b { color: var(--accent); }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; margin: 10px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.84rem; }
+  th, td { text-align: left; padding: 6px 11px; border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  thead th { border-top: none; font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  td.miss { color: var(--wait); font-style: italic; }
+  svg { display: block; max-width: 100%; height: auto; }
+  .cap { font-size: 0.82rem; color: var(--muted); margin-top: 8px; max-width: 72ch; line-height: 1.5; }
+  .legend { display: flex; gap: 16px; font-size: 0.8rem; color: var(--muted); margin-top: 6px; flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .chip { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+</style>
+
+<main>
+<h1>Paper plan: candidate figures and tables</h1>
+<p class="meta">Working mockups for the paper (target skeleton: <code>paper/Structure of the paper.md</code>, NeurReps extended abstract first). Each item states the claim it carries, shows a mock with the data measured so far, and its status: <span class="status ready">ready</span> data complete, <span class="status partial">partial</span> some cells pending, <span class="status waiting">awaiting runs</span> depends on Wave A / confirmations. Numbers = test MAE unless stated. 2026-08-15.</p>
+
+<div class="item">
+  <div class="head"><h2>Figure 1: The Switchyard environment</h2><span class="status ready">ready</span></div>
+  <p class="claim">Carries: benchmark introduction. <b>Every element is borrowed from a published benchmark; only the dependency wiring is new.</b></p>
+  <p class="cap">Use the annotated yard schematic + dependency-web diagram from <code>switchyard.html</code> (already drawn, theme-safe SVG). Side panel: the element-provenance table. Optionally inset: factorization-gap stats (proxy corr 0.47, gap &#8805;3 on 88% of pairs, wiring-sensitivity std 4.3 vs 0.0 for pure Sokoban) as three stat tiles: these three numbers justify the benchmark's existence.</p>
+</div>
+
+<div class="item">
+  <div class="head"><h2>Figure 2: The interdependence ladder</h2><span class="status partial">partial: L6 seeds + IQE rungs in flight</span></div>
+  <p class="claim">Carries: the central result. <b>The readout's advantage grows monotonically with factor interdependence and is absent on uncoupled mazes.</b></p>
+  <svg viewBox="0 0 640 230" role="img" aria-label="Mock of ladder figure: MAE vs coupling level for three methods, margin annotations below.">
+    <g stroke="var(--gridline)" stroke-width="1"><line x1="60" y1="20" x2="60" y2="180"/><line x1="60" y1="180" x2="620" y2="180"/><line x1="60" y1="130" x2="620" y2="130"/><line x1="60" y1="80" x2="620" y2="80"/><line x1="60" y1="30" x2="620" y2="30"/></g>
+    <g font-size="10" fill="var(--muted)"><text x="52" y="184" text-anchor="end">0</text><text x="52" y="134" text-anchor="end">1.5</text><text x="52" y="84" text-anchor="end">3.0</text><text x="52" y="34" text-anchor="end">4.5</text></g>
+    <polyline points="100,168 190,149 280,117 370,113 460,113 550,113" fill="none" stroke="var(--s1)" stroke-width="2"/>
+    <polyline points="100,167 190,142 280,97 370,78 460,84 550,67" fill="none" stroke="var(--s2)" stroke-width="2"/>
+    <polyline points="280,90 370,72 460,70 550,65" fill="none" stroke="var(--dead)" stroke-width="2" stroke-dasharray="5 4"/>
+    <g fill="var(--s1)"><circle cx="100" cy="168" r="3.5"/><circle cx="190" cy="149" r="3.5"/><circle cx="280" cy="117" r="3.5"/><circle cx="370" cy="113" r="3.5"/><circle cx="460" cy="113" r="3.5"/><circle cx="550" cy="113" r="3.5"/></g>
+    <g fill="var(--s2)"><circle cx="100" cy="167" r="3.5"/><circle cx="190" cy="142" r="3.5"/><circle cx="280" cy="97" r="3.5"/><circle cx="370" cy="78" r="3.5"/><circle cx="460" cy="84" r="3.5"/><circle cx="550" cy="67" r="3.5"/></g>
+    <g font-size="10" fill="var(--muted)" text-anchor="middle">
+      <text x="100" y="198">L0</text><text x="190" y="198">L1</text><text x="280" y="198">L2</text><text x="370" y="198">L3</text><text x="460" y="198">L4</text><text x="550" y="198">L5</text>
+      <text x="100" y="214">.05</text><text x="190" y="214">.23</text><text x="280" y="214">.62</text><text x="370" y="214">1.04</text><text x="460" y="214">.86</text><text x="550" y="214">1.38</text>
+    </g>
+    <text x="330" y="226" text-anchor="middle" font-size="10" fill="var(--accent)">bottom row: ours-vs-scalar margin (annotate on final)</text>
+  </svg>
+  <div class="legend"><span><span class="chip" style="background:var(--s1)"></span>ours</span><span><span class="chip" style="background:var(--s2)"></span>scalar head</span><span><span class="chip" style="background:var(--dead)"></span>sym (L2-L5 sparse, dashed; IQE rungs pending)</span></div>
+  <p class="cap">Extend right with L6 shown as a distribution (violin/points over 6 seeds) once the seed farm lands: the break point is optimization instability, which a mean would hide. Error bars from 2-3 seeds elsewhere.</p>
+</div>
+
+<div class="item">
+  <div class="head"><h2>Table 1: Methods &#215; generalization axes on Switchyard</h2><span class="status partial">IQE/MRN columns + seed-2 rows in flight</span></div>
+  <p class="claim">Carries: the main comparison. <b>The accumulated readout wins both configuration axes; every method fails the length axis unfixed.</b></p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Method</th><th>unseen layouts</th><th>unseen wirings</th><th>length 8&#8594;24 (beyond)</th></tr></thead>
+    <tbody>
+      <tr><td><strong>ours</strong></td><td><strong>2.11-2.19</strong></td><td><strong>1.82-1.95</strong></td><td>8.05</td></tr>
+      <tr><td>scalar head</td><td>3.03-3.06</td><td>2.85-2.96</td><td>8.70</td></tr>
+      <tr><td>symmetric embed</td><td>3.44-3.45</td><td>3.42-3.45</td><td>7.35-7.47</td></tr>
+      <tr><td>IQE (torchqmet)</td><td class="miss">running</td><td class="miss">running</td><td class="miss">running</td></tr>
+      <tr><td>MRNFixed</td><td class="miss">running</td><td class="miss">running</td><td class="miss">queued</td></tr>
+    </tbody>
+  </table></div>
+  <p class="cap">Final version: mean &#177; std over 3 seeds per cell. The length column deliberately shows the shared failure: it sets up Table 2.</p>
+</div>
+
+<div class="item">
+  <div class="head"><h2>Figure 3: Scaling with map diversity</h2><span class="status ready">ready (seed bars thin)</span></div>
+  <p class="claim">Carries: the benchmark is not saturated and data favors us. <b>Our error still falls at 1600 maps while the scalar head stalls; 80k-step control shows data, not compute, is the lever.</b></p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>maps</th><th>40</th><th>100</th><th>200</th><th>400</th><th>800</th><th>1600</th></tr></thead>
+    <tbody>
+      <tr><td>ours</td><td>2.90</td><td>2.26</td><td>2.19</td><td>1.91</td><td>1.81</td><td><strong>1.55</strong></td></tr>
+      <tr><td>scalar</td><td>3.47</td><td>3.26</td><td>3.06</td><td>2.73</td><td>2.67</td><td>2.78</td></tr>
+    </tbody>
+  </table></div>
+  <p class="cap">Render as the two-line log-x chart (mock in <code>switchyard_results.html</code>); annotate the 80k control (2.13 = 40k's 2.19) as a floating point.</p>
+</div>
+
+<div class="item">
+  <div class="head"><h2>Figure 4: Length extrapolation is environment-dominated</h2><span class="status ready">ready</span></div>
+  <p class="claim">Carries: the honest reframing of the historical claim. <b>Which method extrapolates is decided by the environment, not the readout; the old result replicates only at home, where an equally-trained trivial baseline beats it 10x.</b></p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>beyond-range MAE</th><th>product graphs (2-3x)</th><th>coupling world (3.1x)</th><th>Switchyard (3x)</th></tr></thead>
+    <tbody>
+      <tr><td>ours (plain)</td><td>0.39-1.07 (flat)</td><td>8.8-12.2</td><td>8.05</td></tr>
+      <tr><td>scalar transformer</td><td><strong>0.02-0.06</strong></td><td>(n/a)</td><td>8.70</td></tr>
+      <tr><td>symmetric embed</td><td>1.0-1.8</td><td>5.0-5.6</td><td>7.4</td></tr>
+      <tr><td>guard-blind static</td><td>4.6-6.0</td><td>-</td><td>-</td></tr>
+    </tbody>
+  </table></div>
+  <p class="cap">Render as a small heatmap (rows methods, columns environments, color = beyond-MAE). Footnote the parking control (no-arrive at long budget explodes to 189 at home; parking inert on coupled worlds): one sentence, kills two objections.</p>
+</div>
+
+<div class="item">
+  <div class="head"><h2>Table 2 / Figure 5: The fix exploration scoreboard</h2><span class="status partial">EMA-Bellman + combos decide the headline row</span></div>
+  <p class="claim">Carries: the constructive contribution. <b>Two mechanism families escape the failure band: routing scale through extrapolating components (stable, ~4.5) and Bellman self-consistency (reaches 2.25; stabilized variant pending).</b></p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>mechanism</th><th>beyond-MAE</th><th>corr</th><th>within</th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr><td>Bellman w=1.0 (live-net)</td><td>2.25 (spread 2.3-9.4)</td><td>0.79</td><td>0.20</td><td>capable, unstable</td></tr>
+      <tr><td>+ EMA target (stabilized)</td><td class="miss">running &#215;3 seeds</td><td class="miss"></td><td class="miss"></td><td class="miss">the headline row</td></tr>
+      <tr><td>linmix</td><td>4.1-4.5</td><td>0.45-0.48</td><td>0.04-0.07</td><td>stable</td></tr>
+      <tr><td>resprox</td><td>4.7-4.8</td><td>0.38-0.42</td><td><strong>0.02-0.06</strong></td><td>stable</td></tr>
+      <tr><td>(sym reference)</td><td>5.0-5.6</td><td>0.40-0.53</td><td>0.10-0.31</td><td>baseline</td></tr>
+      <tr><td>distill / bounds</td><td>6.1 / 6.6</td><td>0.29 / 0.42</td><td>0.10 / 0.24</td><td>mid-field</td></tr>
+      <tr><td>logd, softcount, stepcap, tri, bellwalk, waypoints</td><td>7.2-15.1</td><td>&#8804;0.44</td><td>-</td><td>eliminated</td></tr>
+    </tbody>
+  </table></div>
+  <p class="cap">Render as the sorted bar chart from <code>campaign_report.html</code> (survivors accented, eliminated gray, Bellman best-vs-spread shown as bar + whisker). If EMA stabilizes near 2.3, it becomes the paper's second headline; if not, the stable ~4.5 fixes + the open-problem framing carry it.</p>
+</div>
+
+<div class="item">
+  <div class="head"><h2>Table 3: Ablations</h2><span class="status waiting">all cells in Wave A</span></div>
+  <p class="claim">Carries: the readout, not the architecture, is the contribution. <b>Same recurrent backbone with a decode head loses the interdependence margin; recall removal breaks fitting; T trades compute for accuracy.</b></p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>variant (L5, 200 maps)</th><th>test MAE</th></tr></thead>
+    <tbody>
+      <tr><td>full model</td><td>1.98-2.02</td></tr>
+      <tr><td>decode-head (same recurrence, no accumulation)</td><td class="miss">running &#215;2 seeds</td></tr>
+      <tr><td>no recall</td><td class="miss">running &#215;2 seeds</td></tr>
+      <tr><td>T=7 / T=14 / T=28</td><td class="miss">running</td></tr>
+      <tr><td>scalar head (different architecture)</td><td>3.19-3.40</td></tr>
+    </tbody>
+  </table></div>
+  <p class="cap">The decode-head row is the one reviewers will read first: it isolates accumulation from recurrence. Predictions on record: decode-head lands near the scalar head; no-recall fails to fit (old-work replication).</p>
+</div>
+
+<div class="item">
+  <div class="head"><h2>Figure 6: The break point is optimization, not capacity</h2><span class="status waiting">L6 seed farm + curriculum rescue running</span></div>
+  <p class="claim">Carries: honest limits + the curriculum connection. <b>At L6, some seeds fail to fit the training set at all; curriculum may rescue them.</b></p>
+  <p class="cap">Render as per-seed train-vs-test scatter at L5 (all seeds cluster) vs L6 (bimodal: fitted seeds beat scalar, failed seeds lose). Current evidence: L6 s0 train-MAE 1.88 (failed, test 4.14) vs s1 0.70 (fitted, test 2.23). Four more seeds + curriculum-at-L6 pairs decide the figure. If curriculum rescues failed seeds, it merges with the E5 story into one section.</p>
+</div>
+
+<div class="item">
+  <div class="head"><h2>Appendix candidates</h2><span class="status ready">ready</span></div>
+  <ul style="max-width:74ch">
+    <li>Benchmark stats: reachability, diameter, distance distributions across map seeds; wiring-sensitivity curve.</li>
+    <li>Historical-claim audit in full (recipe matrix: lr &#215; T &#215; parking &#215; globalbase), incl. the under-trained-baselines finding.</li>
+    <li>Sym-family encoder ablation (mlp/attn/flat/rec all within 0.5 MAE: the readout determines behavior, not the encoder).</li>
+    <li>Curriculum asymmetry table (rescues scalar by 0.58, ours by 0.16).</li>
+    <li>Element-provenance table for Switchyard (from the benchmark survey).</li>
+  </ul>
+</div>
+
+<p class="meta" style="border-top:1px solid var(--border); padding-top:14px">Sources: all numbers from the campaign (<code>campaign_report.html</code>); mocks reuse the validated chart palette. Suggested paper arc: Fig 1 &#8594; Tab 1 + Fig 2 (the advantage) &#8594; Fig 3 (scaling) &#8594; Fig 4 (the honest reframing) &#8594; Tab 2/Fig 5 (the fix) &#8594; Tab 3 + Fig 6 (ablations and limits). This page updates as Wave A fills the missing cells.</p>
+</main>

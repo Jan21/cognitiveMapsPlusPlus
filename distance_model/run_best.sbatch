@@ -5,7 +5,7 @@
 #SBATCH --time=6:00:00
 #SBATCH --mem=16G
 #SBATCH --cpus-per-task=6
-#SBATCH --array=0-17%18
+#SBATCH --array=0-23%24
 #SBATCH --output=/home/hulajan1/cognitiveMapsPlusPlus/distance_model/dm_%a.out
 cd /home/hulajan1/cognitiveMapsPlusPlus/distance_model
 export PYTORCH_ALLOC_CONF=expandable_segments:True
@@ -34,6 +34,13 @@ A=(
  # factored dofhi2 (extra extrapolation point)
  "--enc factored --heldout dofhi2 --steps 40000 --seed 0"
  "--enc factored --heldout dofhi2 --steps 40000 --seed 1"
+ # length extrapolation: train on distances <= 4, evaluate up to Rmax 12 (mae_within / mae_beyond)
+ "--enc factored --Rtrain 4 --steps 40000 --seed 0"
+ "--enc factored --Rtrain 4 --steps 40000 --seed 1"
+ "--enc bmask    --Rtrain 4 --steps 40000 --seed 0"
+ "--enc marker   --Rtrain 4 --steps 80000 --seed 0"
+ "--enc marker   --Rtrain 4 --steps 80000 --seed 1"
+ "--enc factored --heldout combo --Rtrain 4 --steps 40000 --seed 0"
 )
 C=$SLURM_ARRAY_TASK_ID
 echo "CFG=$C [${A[$C]}]"

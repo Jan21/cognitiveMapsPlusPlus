@@ -1,0 +1,405 @@
+<title>How Far Is the Goal? The Distance Model, Explained</title>
+<style>
+  :root {
+    --ground: #f6f7fa;
+    --surface: #ffffff;
+    --ink: #242b34;
+    --muted: #67717e;
+    --accent: #2e5fb7;
+    --accent-soft: #e8eefb;
+    --mover: #d97a33;
+    --goal: #3e8e5c;
+    --border: #dde2ea;
+    --gridline: #e4e9f1;
+    --code-bg: #edf0f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #151920;
+      --surface: #1d222b;
+      --ink: #e7eaf0;
+      --muted: #98a2b0;
+      --accent: #7fa4e8;
+      --accent-soft: #212c40;
+      --mover: #e5975c;
+      --goal: #6bbf8e;
+      --border: #2c333e;
+      --gridline: #222933;
+      --code-bg: #242b36;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #151920;
+    --surface: #1d222b;
+    --ink: #e7eaf0;
+    --muted: #98a2b0;
+    --accent: #7fa4e8;
+    --accent-soft: #212c40;
+    --mover: #e5975c;
+    --goal: #6bbf8e;
+    --border: #2c333e;
+    --gridline: #222933;
+    --code-bg: #242b36;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--ground);
+    background-image:
+      linear-gradient(var(--gridline) 1px, transparent 1px),
+      linear-gradient(90deg, var(--gridline) 1px, transparent 1px);
+    background-size: 28px 28px;
+    color: var(--ink);
+    font: 17px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    padding: 0 18px 90px;
+  }
+  main { max-width: 780px; margin: 0 auto; }
+  article {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: clamp(24px, 5vw, 56px);
+    margin-top: 40px;
+  }
+  h1, h2 {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    line-height: 1.22;
+    text-wrap: balance;
+  }
+  h1 { font-size: clamp(1.7rem, 4.5vw, 2.4rem); margin: 10px 0 14px; }
+  h2 { font-size: 1.4rem; margin: 0 0 14px; }
+  p { max-width: 66ch; margin: 0 0 16px; }
+  section { margin-top: 52px; }
+  .eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .lede { font-size: 1.12rem; color: var(--muted); max-width: 62ch; }
+  .stepno {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .stepno .n {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.78rem;
+    color: var(--accent);
+    border: 1.5px solid var(--accent);
+    border-radius: 999px;
+    width: 26px; height: 26px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.86em;
+    background: var(--code-bg);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  .formula {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+    background: var(--code-bg);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 18px 0;
+    overflow-x: auto;
+    white-space: pre;
+    line-height: 1.7;
+  }
+  figure { margin: 26px 0; }
+  figure svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+  figcaption {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-top: 12px;
+    text-align: center;
+    max-width: 58ch;
+    margin-left: auto; margin-right: auto;
+    line-height: 1.5;
+  }
+  .callout {
+    background: var(--accent-soft);
+    border-left: 4px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 14px 20px;
+    margin: 20px 0;
+  }
+  .callout p { margin: 6px 0; }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; margin: 18px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+  th, td { text-align: left; vertical-align: top; padding: 9px 13px; border-top: 1px solid var(--border); }
+  thead th {
+    border-top: none;
+    font-size: 0.7rem; letter-spacing: 0.09em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  dt { font-weight: 600; margin-top: 12px; }
+  dd { margin: 2px 0 0 0; color: var(--muted); max-width: 62ch; }
+  .glossary { font-size: 0.92rem; }
+  ul { max-width: 64ch; }
+  li { margin-bottom: 8px; }
+  footer { color: var(--muted); font-size: 0.85rem; margin-top: 48px; }
+</style>
+
+<main>
+<article>
+  <span class="eyebrow">cognitive maps project · a friendly tour</span>
+  <h1>How far is the goal? A neural network that measures distance by imagining the trip</h1>
+  <p class="lede">This is a plain-language walkthrough of a research project: a small neural network that, shown a situation and a goal, estimates how many moves apart they are. The unusual part is not <em>what</em> it predicts but <em>how</em> it reads the answer out of its own thinking.</p>
+
+  <section>
+    <div class="stepno"><span class="n">1</span><span class="eyebrow">Motivation</span></div>
+    <h2>Why care about distance at all?</h2>
+    <p>Almost everything an intelligent agent does starts with a quiet judgment of effort: is the coffee machine nearer than the kitchen downstairs, is this chess position close to a win, is the current draft far from the report I owe. Before any plan exists, something already estimates <em>how far away the goal is</em>.</p>
+    <p>In the field called goal-directed reinforcement learning, that judgment has a name: the value function. You give it two things, where you are now and where you want to be, and it returns a number. In our setting the number has a very concrete meaning: the minimum number of moves needed to get from here to there. Distance, in moves.</p>
+    <p>Humans seem to compute such estimates by mental simulation. A classic 1978 experiment (Kosslyn's mental scanning) found that when people imagine traveling across a memorized map, their answer time grows linearly with the distance: farther places take longer to imagine. The mind seems to actually make the trip, at some bounded speed, and the effort of the imagined journey <em>is</em> the estimate.</p>
+    <p>This project builds a neural network in that spirit. It does not read the distance off a dial at the end of its computation. It takes an imagined journey inside its own head, and the distance is how far its thoughts traveled.</p>
+  </section>
+
+  <section>
+    <div class="stepno"><span class="n">2</span><span class="eyebrow">The world</span></div>
+    <h2>A puzzle world where distance is not geometry</h2>
+    <p>To test whether a network truly understands distance, we need a world where distance cannot be eyeballed. Ours is a small grid, typically 6 by 6, occupied by a handful of pieces:</p>
+    <ul>
+      <li><strong>One free mover</strong> that can always step up, down, left, or right.</li>
+      <li><strong>Several constrained pieces</strong>, each governed by a knob with four settings: free to move, horizontal moves only, vertical only, or locked in place.</li>
+      <li><strong>Links</strong> between pairs of constrained pieces. Linked pieces are welded together: they move as one rigid group, and the group can only make moves that every member's knob allows.</li>
+      <li><strong>A control cell</strong> in the corner. When the free mover stands on it, it may spend moves changing knobs or toggling links, reconfiguring the rules of the world mid-journey.</li>
+    </ul>
+
+    <figure>
+      <svg viewBox="0 0 640 258" role="img" aria-label="Two 6 by 6 grid states side by side, a start and a goal, with the question: how many moves apart are they?">
+        <defs>
+          <marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <g stroke="var(--gridline)" stroke-width="1">
+          <g id="grid1">
+            <path d="M20,30 h192 M20,62 h192 M20,94 h192 M20,126 h192 M20,158 h192 M20,190 h192 M20,222 h192
+                     M20,30 v192 M52,30 v192 M84,30 v192 M116,30 v192 M148,30 v192 M180,30 v192 M212,30 v192" fill="none"/>
+          </g>
+          <path d="M428,30 h192 M428,62 h192 M428,94 h192 M428,126 h192 M428,158 h192 M428,190 h192 M428,222 h192
+                   M428,30 v192 M460,30 v192 M492,30 v192 M524,30 v192 M556,30 v192 M588,30 v192 M620,30 v192" fill="none"/>
+        </g>
+        <text x="116" y="18" text-anchor="middle" font-size="12" fill="var(--muted)">start state s</text>
+        <text x="524" y="18" text-anchor="middle" font-size="12" fill="var(--muted)">goal state g</text>
+        <!-- control cell -->
+        <rect x="21" y="191" width="30" height="30" fill="var(--accent-soft)"/>
+        <text x="36" y="211" text-anchor="middle" font-size="13" fill="var(--accent)">&#9881;</text>
+        <rect x="429" y="191" width="30" height="30" fill="var(--accent-soft)"/>
+        <text x="444" y="211" text-anchor="middle" font-size="13" fill="var(--accent)">&#9881;</text>
+        <!-- start: mover -->
+        <circle cx="100" cy="78" r="10" fill="var(--mover)"/>
+        <text x="100" y="82" text-anchor="middle" font-size="11" fill="#fff">0</text>
+        <!-- start: constrained pieces -->
+        <rect x="153" y="100" width="22" height="22" rx="4" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <text x="164" y="115" text-anchor="middle" font-size="11" fill="currentColor">1</text>
+        <text x="164" y="97" text-anchor="middle" font-size="10" fill="var(--muted)">&#8596;</text>
+        <rect x="57" y="164" width="22" height="22" rx="4" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <text x="68" y="179" text-anchor="middle" font-size="11" fill="currentColor">2</text>
+        <text x="68" y="161" text-anchor="middle" font-size="10" fill="var(--muted)">&#8597;</text>
+        <rect x="121" y="164" width="22" height="22" rx="4" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <text x="132" y="179" text-anchor="middle" font-size="11" fill="currentColor">3</text>
+        <text x="132" y="161" text-anchor="middle" font-size="10" fill="var(--muted)">&#10005;</text>
+        <line x1="79" y1="175" x2="121" y2="175" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/>
+        <text x="100" y="200" text-anchor="middle" font-size="10" fill="var(--accent)">linked</text>
+        <!-- goal: pieces moved -->
+        <circle cx="572" cy="174" r="10" fill="var(--mover)"/>
+        <text x="572" y="178" text-anchor="middle" font-size="11" fill="#fff">0</text>
+        <rect x="465" y="36" width="22" height="22" rx="4" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <text x="476" y="51" text-anchor="middle" font-size="11" fill="currentColor">1</text>
+        <rect x="529" y="100" width="22" height="22" rx="4" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <text x="540" y="115" text-anchor="middle" font-size="11" fill="currentColor">2</text>
+        <rect x="593" y="100" width="22" height="22" rx="4" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <text x="604" y="115" text-anchor="middle" font-size="11" fill="currentColor">3</text>
+        <line x1="551" y1="111" x2="593" y2="111" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/>
+        <!-- question arrow -->
+        <line x1="236" y1="126" x2="404" y2="126" stroke="currentColor" stroke-width="1.6" stroke-dasharray="5 5" marker-end="url(#arr)"/>
+        <text x="320" y="112" text-anchor="middle" font-size="13" fill="currentColor" font-weight="600">how many moves?</text>
+        <text x="320" y="146" text-anchor="middle" font-size="11" fill="var(--muted)">answer depends on knobs &#8596; &#8597; &#10005; and links</text>
+      </svg>
+      <figcaption>The task. Orange circle: the free mover. Squares: constrained pieces, each with a knob (&#8596; horizontal only, &#8597; vertical only, &#10005; locked). The blue bar welds pieces into a rigid group. The gear cell lets the mover rewire the rules. The model must say how many legal moves separate the two pictures.</figcaption>
+    </figure>
+
+    <p>This coupling is the point. The same two snapshots can be three moves apart or thirteen, depending on the knob and link settings: a locked piece linked to a free one freezes both, and sometimes the shortest route is a detour where the mover first walks to the control cell, unlocks something, and only then heads for the goal. Distance here is a property of the <em>rules</em>, not of straight-line geometry, so no simple formula gives the answer. The exact answer does exist, though: the world is small enough that a graph search (breadth-first search, BFS) can count the true minimum number of moves between any two states. That exact count is our ground truth.</p>
+  </section>
+
+  <section>
+    <div class="stepno"><span class="n">3</span><span class="eyebrow">Inputs</span></div>
+    <h2>What the model sees</h2>
+    <p>Every query is a pair of states: the current one and the goal. A state is a short description of the world: the grid position of each piece, the knob setting of each constrained piece, and which links are active.</p>
+    <p>We feed this in three formats of increasing difficulty, to separate "can it compute distance" from "can it also perceive the scene":</p>
+    <div class="tablewrap">
+    <table>
+      <thead><tr><th>Format</th><th>What the network gets</th><th>What it must learn</th></tr></thead>
+      <tbody>
+        <tr><td><strong>factored</strong></td><td>each piece's position handed over cleanly, as a separate slot</td><td>only the distance computation itself</td></tr>
+        <tr><td><strong>bmask</strong></td><td>a rendered picture of the grid, but each piece is still recoverable exactly</td><td>distance, from an image, with perception made easy</td></tr>
+        <tr><td><strong>marker</strong></td><td>the raw shared picture only</td><td>distance <em>and</em> perception: it must learn by itself which blob on the canvas is which piece</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>In every format, the knob and link settings also enter as one extra "rulebook" token attached to the state.</p>
+  </section>
+
+  <section>
+    <div class="stepno"><span class="n">4</span><span class="eyebrow">The model</span></div>
+    <h2>The imagined journey</h2>
+    <p>The model is a small transformer (the same family of network as language models, here a few million parameters). The state becomes a handful of tokens: one per piece, plus the rulebook token. Then the distinctive loop begins.</p>
+    <p>One transformer block is applied over and over, exactly T times (we use 14), with the <em>same weights</em> every time; think of it as fourteen moments of thought. At every step, two anchors are re-attached to the sequence: a copy of the goal and a copy of the original start. We call this <em>recall</em>; it keeps the imagination from forgetting where it came from and where it is heading while its working copy of the state drifts.</p>
+    <p>And here is the heart of the project. At each of the fourteen steps we measure how much the state tokens <em>moved</em> inside the network's internal representation space, and we add those movements up. Nothing else is read out. The final prediction is simply that accumulated internal mileage, times one learned scaling constant:</p>
+    <div class="formula">repeat 14 times:
+    z     = TransformerBlock(tokens)
+    cost += &#8214;how far every state token just moved&#8214;
+    tokens = z, with goal and start re-attached
+
+distance = scale &#183; cost</div>
+
+    <figure>
+      <svg viewBox="0 0 660 210" role="img" aria-label="The model loop: tokens pass through one shared transformer block T times; each step's token movement is added to a cost accumulator; goal and start are re-injected every step.">
+        <defs>
+          <marker id="arr2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <!-- tokens -->
+        <g>
+          <rect x="20" y="60" width="26" height="26" rx="5" fill="var(--mover)"/>
+          <rect x="50" y="60" width="26" height="26" rx="5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <rect x="80" y="60" width="26" height="26" rx="5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <rect x="110" y="60" width="26" height="26" rx="5" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="3 3"/>
+          <text x="78" y="50" text-anchor="middle" font-size="11" fill="var(--muted)">state tokens</text>
+          <rect x="146" y="60" width="26" height="26" rx="5" fill="none" stroke="var(--goal)" stroke-width="2"/>
+          <text x="159" y="77" text-anchor="middle" font-size="11" fill="var(--goal)">g</text>
+          <rect x="176" y="60" width="26" height="26" rx="5" fill="none" stroke="var(--mover)" stroke-width="2"/>
+          <text x="189" y="77" text-anchor="middle" font-size="11" fill="var(--mover)">s</text>
+          <text x="174" y="106" text-anchor="middle" font-size="10.5" fill="var(--muted)">anchors, re-attached</text>
+          <text x="174" y="119" text-anchor="middle" font-size="10.5" fill="var(--muted)">every step (recall)</text>
+        </g>
+        <line x1="208" y1="73" x2="258" y2="73" stroke="currentColor" stroke-width="1.6" marker-end="url(#arr2)"/>
+        <!-- block -->
+        <rect x="262" y="42" width="150" height="62" rx="10" fill="none" stroke="var(--accent)" stroke-width="2"/>
+        <text x="337" y="68" text-anchor="middle" font-size="13" fill="var(--accent)" font-weight="600">transformer block</text>
+        <text x="337" y="86" text-anchor="middle" font-size="11" fill="var(--muted)">same weights each pass</text>
+        <!-- loop back -->
+        <path d="M412,60 C 470,20 300,8 268,40" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arr2)"/>
+        <text x="345" y="16" text-anchor="middle" font-size="11" fill="var(--muted)">&#215;14 moments of thought</text>
+        <!-- delta out -->
+        <line x1="412" y1="88" x2="470" y2="130" stroke="currentColor" stroke-width="1.6" marker-end="url(#arr2)"/>
+        <text x="418" y="122" font-size="11" fill="var(--muted)">token movement &#8214;&#916;z&#8214;</text>
+        <!-- accumulator -->
+        <rect x="474" y="128" width="166" height="52" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.6"/>
+        <text x="557" y="150" text-anchor="middle" font-size="12.5" fill="var(--accent)" font-weight="600">cost += &#931; &#8214;&#916;z&#8214;</text>
+        <text x="557" y="168" text-anchor="middle" font-size="11" fill="var(--muted)">added up over all 14 steps</text>
+        <!-- distance out -->
+        <line x1="474" y1="154" x2="430" y2="154" stroke="none"/>
+        <line x1="640" y1="154" x2="640" y2="154" stroke="none"/>
+        <text x="557" y="200" text-anchor="middle" font-size="12.5" fill="currentColor" font-weight="600">distance = scale &#183; cost</text>
+      </svg>
+      <figcaption>One block of weights, fourteen passes. The prediction is not decoded from the final tokens; it is the total distance the tokens traveled across the passes.</figcaption>
+    </figure>
+
+    <p>Notice what is <em>not</em> here. There is no output neuron trained to emit "7". There is no ruler laid between an embedding of the start and an embedding of the goal. The trajectory of the computation itself is the answer, the way the duration of your imagined walk across a city is your estimate of its size.</p>
+    <div class="callout">
+      <p><strong>A fixed thought budget.</strong> The network always thinks for exactly fourteen steps, whether the goal is two moves away or twenty. A farther goal does not get more thinking time; it makes the internal journey <em>faster</em>, each thought-step covering more representational ground. This matters for generalization: the model can report distances far beyond anything seen in training without needing extra compute, because magnitude lives in the step sizes, not in the step count.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="stepno"><span class="n">5</span><span class="eyebrow">Supervision</span></div>
+    <h2>What it is trained on: one signal only</h2>
+    <p>Training is deliberately austere. For pairs of states we compute the true shortest-path count with exact graph search, and the network's prediction is pulled toward that number. That is the entire training signal:</p>
+    <div class="formula">loss = smooth_L1( model(s, g),  true_BFS_distance(s, g) )</div>
+    <p>No rewards, no demonstrations, no route information, no hints about knobs or links beyond the raw state description, and no policy: the model is never asked to act, only to judge. In the harder experiments the training pairs are also restricted to <em>nearby</em> states, and the model is then tested on distances well beyond its training range, and on knob-and-link configurations it has never seen.</p>
+  </section>
+
+  <section>
+    <div class="stepno"><span class="n">6</span><span class="eyebrow">Novelty</span></div>
+    <h2>Why the readout is the interesting part</h2>
+    <p>Neural networks that estimate distance-to-goal are not new. What is new is where the number comes from. Existing methods read distance in one of two ways, and iterative models add a third pattern:</p>
+
+    <figure>
+      <svg viewBox="0 0 660 190" role="img" aria-label="Three readout styles compared: a scalar output head, a ruler between two embeddings, and ours: the summed length of the computation's own trajectory.">
+        <defs>
+          <marker id="arr3" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <!-- panel 1 -->
+        <text x="110" y="24" text-anchor="middle" font-size="12" fill="var(--muted)">output head</text>
+        <circle cx="60" cy="70" r="9" fill="var(--mover)"/>
+        <circle cx="60" cy="110" r="9" fill="none" stroke="var(--goal)" stroke-width="2"/>
+        <rect x="95" y="70" width="60" height="40" rx="8" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <text x="125" y="95" text-anchor="middle" font-size="11" fill="currentColor">network</text>
+        <line x1="72" y1="75" x2="92" y2="85" stroke="currentColor" stroke-width="1.4" marker-end="url(#arr3)"/>
+        <line x1="72" y1="105" x2="92" y2="95" stroke="currentColor" stroke-width="1.4" marker-end="url(#arr3)"/>
+        <line x1="157" y1="90" x2="185" y2="90" stroke="currentColor" stroke-width="1.4" marker-end="url(#arr3)"/>
+        <text x="198" y="95" font-size="13" fill="currentColor" font-weight="600">7</text>
+        <text x="110" y="165" text-anchor="middle" font-size="10.5" fill="var(--muted)">a neuron says the number</text>
+        <!-- panel 2 -->
+        <text x="330" y="24" text-anchor="middle" font-size="12" fill="var(--muted)">embedding ruler</text>
+        <circle cx="285" cy="85" r="9" fill="var(--mover)"/>
+        <circle cx="390" cy="115" r="9" fill="none" stroke="var(--goal)" stroke-width="2"/>
+        <line x1="296" y1="88" x2="379" y2="112" stroke="currentColor" stroke-width="1.6" stroke-dasharray="4 4"/>
+        <text x="338" y="88" text-anchor="middle" font-size="10.5" fill="var(--muted)">&#8214;e(s) &#8722; e(g)&#8214;</text>
+        <text x="330" y="165" text-anchor="middle" font-size="10.5" fill="var(--muted)">a ruler between two points</text>
+        <!-- panel 3 -->
+        <text x="550" y="24" text-anchor="middle" font-size="12" fill="var(--accent)" font-weight="600">ours: trajectory length</text>
+        <circle cx="480" cy="120" r="9" fill="var(--mover)"/>
+        <circle cx="625" cy="60" r="9" fill="none" stroke="var(--goal)" stroke-width="2"/>
+        <polyline points="491,116 515,100 540,110 565,84 590,90 615,64" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round"/>
+        <g fill="var(--accent)">
+          <circle cx="515" cy="100" r="3"/><circle cx="540" cy="110" r="3"/><circle cx="565" cy="84" r="3"/><circle cx="590" cy="90" r="3"/>
+        </g>
+        <text x="550" y="145" text-anchor="middle" font-size="10.5" fill="var(--accent)">add up the segments</text>
+        <text x="550" y="165" text-anchor="middle" font-size="10.5" fill="var(--muted)">the thinking is the measurement</text>
+      </svg>
+      <figcaption>Three ways to read out a distance. Left and middle are the standard ones. Right is this project: sum the lengths of the network's own internal steps.</figcaption>
+    </figure>
+
+    <p>We checked the literature carefully, running four independent automated deep-research surveys over reinforcement learning, geometry of neural representations, iterative reasoning networks, PDE-based distance solvers, and cognitive science. All four came back with the same finding: the ingredients exist separately, and the "total internal movement" quantity even appears in a few papers, but always in a supporting role, as a training penalty, a diagnostic statistic, or a signal for when to stop computing. No prior work uses it as the trained output, and none combines it with the fixed thought budget. That readout appears to be new.</p>
+  </section>
+
+  <section>
+    <div class="stepno"><span class="n">7</span><span class="eyebrow">Results</span></div>
+    <h2>Does it work?</h2>
+    <p>Yes, on three fronts:</p>
+    <ul>
+      <li><strong>Accuracy.</strong> With clean or lossless input, the model's predictions land within roughly a tenth of a move of the exact answer, on distances ranging up to a dozen moves. With the full image input, where it must also learn perception, error is around a third of a move and still falling with longer training.</li>
+      <li><strong>Understanding the rules.</strong> Given a state, it ranks positions reachable by a legal move as closer than positions that would require breaking a constraint (a locked piece sliding, a linked pair separating), so the constraint system is genuinely reflected in its distances, not just averaged over.</li>
+      <li><strong>Generalization.</strong> Tested on knob-and-link configurations held out of training entirely, including structurally new ones (multiple links active where training only ever showed one) and higher-freedom worlds than any training example, the distance estimates remain accurate.</li>
+    </ul>
+    <p>The combination is the message: a network trained on nothing but local distance numbers ends up with a reusable internal map of how the world's rules shape movement, and it carries that map to configurations it has never encountered.</p>
+  </section>
+
+  <section>
+    <div class="stepno"><span class="n">8</span><span class="eyebrow">The bigger picture</span></div>
+    <h2>Where this points</h2>
+    <p>This experiment is one piece of a larger project on <em>cognitive maps</em>: the internal representations that let animals and people navigate, plan, and judge effort without exhaustively simulating the world. The distance model shows one concrete, testable version of an old intuition from psychology: that estimating "how far" may literally be an act of imagination, and that the effort of the imagined journey can serve as the measurement itself. Next steps are comparisons against the strongest existing distance architectures on the extrapolation tests, and a write-up positioning the readout among its neighbors in the literature.</p>
+  </section>
+
+  <section class="glossary">
+    <div class="stepno"><span class="n">&#43;</span><span class="eyebrow">Glossary</span></div>
+    <h2>Words you met along the way</h2>
+    <dl>
+      <dt>State</dt><dd>A full snapshot of the world: every piece's position plus the current knob and link settings.</dd>
+      <dt>Goal-conditioned</dt><dd>The model's answer depends on a goal you hand it, so one network answers "how far to X" for every X.</dd>
+      <dt>Value function</dt><dd>In reinforcement learning, the function scoring how good a situation is; here, negative distance-to-goal plays that role.</dd>
+      <dt>BFS / geodesic distance</dt><dd>The exact minimum number of legal moves between two states, found by breadth-first graph search. Our ground truth.</dd>
+      <dt>Token</dt><dd>One slot in a transformer's input; here, one piece of the world (or the rulebook) as a learned vector.</dd>
+      <dt>Weight-shared / recurrent</dt><dd>The same block of network weights applied repeatedly, like one thought process iterated, rather than a stack of different layers.</dd>
+      <dt>Extrapolation</dt><dd>Answering correctly outside the training range: longer distances, unseen rule configurations.</dd>
+    </dl>
+  </section>
+
+  <footer>
+    <p>Written for a reader with no prior context. The full technical version lives in the project repository (<code>distance_model/integ_distance.py</code>, with results in <code>results.html</code> and the prior-work survey in <code>prior_work.html</code>).</p>
+  </footer>
+</article>
+</main>

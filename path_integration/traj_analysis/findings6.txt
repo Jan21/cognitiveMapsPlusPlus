@@ -1,0 +1,11 @@
+
+## Run 6 (mechanism vs capability). Clean-ness does NOT strongly drive extrapolation.
+Across 7 index checkpoints: corr(per-factor clean-ness, extrapolation MAE beyond train D) = -0.32 (WEAK).
+An ENTANGLED model (w10_n5D18, pf 0.47) extrapolates as well (far-MAE 0.11) as CLEAN ones. So the clean per-factor
+decomposition + unlock-routing are REAL but NOT load-bearing for the headline capability: the model predicts the
+total distance and extrapolates flatly to ~2xD whether or not it decomposes cleanly per-factor. Table+plot:
+traj_analysis/clean_summary.json, clean_vs_extrap.png.
+CONSOLIDATED ANSWER to the user's hypothesis: per-factor cost CAN reflect the true per-factor guarded-path traversal
+(clean models, corr 0.94-0.99, incl. guard-overhead), but this is a SEED-dependent internal property, not universal
+and not required for accuracy. The flow is an amortized oracle (jumps in ~3 steps); clean models' transients route
+through the unlock cell (0.96) but that too is separable and non-essential. Image input entangles the decomposition.

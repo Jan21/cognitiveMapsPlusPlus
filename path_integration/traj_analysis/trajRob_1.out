@@ -1,0 +1,38 @@
+TAG n5m6D8_image_w11_img_n5_Tt35
+{
+  "ckpt": "w11_img_n5_Tt35.pt",
+  "n": 5,
+  "m": 6,
+  "npairs": 1000,
+  "corr_total_geodesic": 0.891,
+  "mae_total": 1.144,
+  "corr_cfactor_cycledist": 0.241,
+  "corr_cfactor_pathmoves": 0.24,
+  "per_factor_corr_vs_pathmoves": [
+    0.766,
+    0.406,
+    0.318,
+    0.457,
+    0.648
+  ],
+  "per_factor_corr_vs_cycledist": [
+    0.213,
+    0.166,
+    0.219,
+    0.285,
+    0.648
+  ],
+  "mean_overhead_per_factor": [
+    1.43,
+    1.41,
+    1.36,
+    1.25,
+    0.0
+  ],
+  "corr_cfactor_overhead": 0.072,
+  "steps_to_50pct": 2,
+  "steps_to_90pct": 4,
+  "visit0_rate_when_needs_unlock": 0.0,
+  "visit0_rate_when_not": 0.0,
+  "corr_embdist_cycledist": 0.129
+}

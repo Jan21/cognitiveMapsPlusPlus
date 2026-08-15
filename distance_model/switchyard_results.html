@@ -1,0 +1,189 @@
+<title>Switchyard Campaign: Results So Far</title>
+<style>
+  :root {
+    --ground: #f6f7fa; --surface: #ffffff; --ink: #242b34; --muted: #67717e;
+    --accent: #2e5fb7; --accent-soft: #e8eefb; --border: #dde2ea; --gridline: #e4e9f1;
+    --code-bg: #edf0f5; --verdict-edge: #2c7a5b; --verdict-bg: #eaf2ef;
+    --s1: #2e5fb7; --s2: #c06a22;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #151920; --surface: #1d222b; --ink: #e7eaf0; --muted: #98a2b0;
+      --accent: #7fa4e8; --accent-soft: #212c40; --border: #2c333e; --gridline: #222933;
+      --code-bg: #242b36; --verdict-edge: #4da983; --verdict-bg: #1d2924;
+      --s1: #5f88d6; --s2: #bd7a3a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #151920; --surface: #1d222b; --ink: #e7eaf0; --muted: #98a2b0;
+    --accent: #7fa4e8; --accent-soft: #212c40; --border: #2c333e; --gridline: #222933;
+    --code-bg: #242b36; --verdict-edge: #4da983; --verdict-bg: #1d2924;
+    --s1: #5f88d6; --s2: #bd7a3a;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--ground); color: var(--ink); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0 16px 80px; }
+  main { max-width: 920px; margin: 0 auto; }
+  h1, h2 { font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; line-height: 1.25; text-wrap: balance; }
+  h1 { font-size: 2rem; margin: 42px 0 8px; }
+  h2 { font-size: 1.4rem; margin: 48px 0 10px; }
+  p { max-width: 70ch; }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.86em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  .meta { color: var(--muted); font-size: 0.92rem; max-width: 72ch; }
+  .verdict { background: var(--verdict-bg); border-left: 4px solid var(--verdict-edge); border-radius: 0 8px 8px 0; padding: 16px 22px; margin: 18px 0; max-width: 76ch; }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); margin: 14px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+  th, td { text-align: left; padding: 8px 12px; border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  thead th { border-top: none; font-size: 0.7rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+  figure { margin: 20px 0; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+  figure svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+  figcaption { font-size: 0.83rem; color: var(--muted); margin-top: 10px; max-width: 66ch; line-height: 1.5; }
+  .legend { display: flex; gap: 18px; font-size: 0.82rem; color: var(--muted); margin-top: 8px; flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .chip { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+  .pending { border-left: 4px solid var(--accent); background: var(--accent-soft); border-radius: 0 8px 8px 0; padding: 12px 18px; margin: 14px 0; max-width: 74ch; font-size: 0.94rem; }
+  ul { max-width: 72ch; }
+</style>
+
+<main>
+<h1>Switchyard campaign: results so far</h1>
+<p class="meta">Interim report, 2026-08-14 morning. One model (the recall-flow integrator, accumulated-displacement readout) against one baseline (a scalar-head regressor on the SAME structural encoder), across five experiment families on five machines (~30 runs; 22 reported). Metric everywhere: test MAE / correlation on held-out data, distances 1-24, mean sampled distance ~21-24. Environment and design: <code>switchyard.html</code>, <code>switchyard_design.md</code>.</p>
+
+<div class="verdict">
+<strong>Three findings so far.</strong> (1) The integrator's advantage over the scalar head grows monotonically with the amount of factor interdependence, from a dead heat on a plain maze (margin 0.05) to a 1.2-1.4 MAE gap on the full environment; it is specifically an interdependence advantage, not general capacity. (2) The integrator does not break anywhere on the current ladder: it plateaus at ~2.0 MAE from mid-complexity upward while the baseline keeps degrading; the environment finds the baseline's ceiling, not yet the integrator's. (3) Both generalization axes (unseen wirings, unseen layouts) improve steadily with map count and converge to the same ~1.8-1.9 plateau at 800 maps, suggesting remaining error is fit, not transfer.
+</div>
+
+<h2>E4: the interdependence ladder (headline result)</h2>
+<p>Six versions of the same environment, from a plain maze to the full dependency web, same encoder shape throughout (200 maps, unseen-layout split, seed 0; L5 replicated at seed 1).</p>
+
+<figure>
+  <svg viewBox="0 0 640 260" role="img" aria-label="Line chart: test MAE across ladder levels L0 to L5; the integrator plateaus around 2.0 while the scalar head rises to 3.4.">
+    <g stroke="var(--gridline)" stroke-width="1">
+      <line x1="70" y1="30" x2="70" y2="205"/><line x1="70" y1="205" x2="610" y2="205"/>
+      <line x1="70" y1="155" x2="610" y2="155"/><line x1="70" y1="105" x2="610" y2="105"/><line x1="70" y1="55" x2="610" y2="55"/>
+    </g>
+    <g font-size="10.5" fill="var(--muted)">
+      <text x="60" y="209" text-anchor="end">0</text><text x="60" y="159" text-anchor="end">1</text>
+      <text x="60" y="109" text-anchor="end">2</text><text x="60" y="59" text-anchor="end">3</text>
+      <text x="18" y="120" transform="rotate(-90 18 120)">test MAE</text>
+    </g>
+    <!-- x positions: L0=110 L1=205 L2=300 L3=395 L4=490 L5=585 ; y = 205 - mae*50 -->
+    <polyline points="110,187 205,159 300,111 395,104 490,105 585,104" fill="none" stroke="var(--s1)" stroke-width="2"/>
+    <polyline points="110,185 205,148 300,80 395,52 490,62 585,35" fill="none" stroke="var(--s2)" stroke-width="2"/>
+    <g fill="var(--s1)">
+      <circle cx="110" cy="187" r="4"/><circle cx="205" cy="159" r="4"/><circle cx="300" cy="111" r="4"/>
+      <circle cx="395" cy="104" r="4"/><circle cx="490" cy="105" r="4"/><circle cx="585" cy="104" r="4"/>
+    </g>
+    <g fill="var(--s2)">
+      <circle cx="110" cy="185" r="4"/><circle cx="205" cy="148" r="4"/><circle cx="300" cy="80" r="4"/>
+      <circle cx="395" cy="52" r="4"/><circle cx="490" cy="62" r="4"/><circle cx="585" cy="35" r="4"/>
+    </g>
+    <text x="592" y="100" font-size="11" fill="var(--ink)">2.02</text>
+    <text x="592" y="31" font-size="11" fill="var(--ink)">3.40</text>
+    <g font-size="10.5" fill="var(--muted)" text-anchor="middle">
+      <text x="110" y="224">L0 maze</text><text x="205" y="224">L1 +push</text><text x="300" y="224">L2 +gates</text>
+      <text x="395" y="224">L3 +XOR</text><text x="490" y="224">L4 +plate</text><text x="585" y="224">L5 +chute</text>
+      <text x="110" y="240">margin .05</text><text x="205" y="240">.23</text><text x="300" y="240">.62</text>
+      <text x="395" y="240">1.04</text><text x="490" y="240">.86</text><text x="585" y="240">1.38</text>
+    </g>
+  </svg>
+  <div class="legend">
+    <span><span class="chip" style="background:var(--s1)"></span>integrator</span>
+    <span><span class="chip" style="background:var(--s2)"></span>scalar head</span>
+  </div>
+  <figcaption>Measured results. Each level adds one coupling mechanism. The models are indistinguishable on the plain maze; every added interdependence widens the gap (bottom row: integrator's margin). The integrator flattens at ~2.0 from L3 on; the baseline keeps worsening. L5 at seed 1 reproduces: 1.98 vs 3.19 (margin 1.21).</figcaption>
+</figure>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Level</th><th>Adds</th><th>Integrator MAE/corr</th><th>Scalar MAE/corr</th><th>Margin</th></tr></thead>
+  <tbody>
+    <tr><td>L0</td><td>plain maze, static crate</td><td>0.36 / 0.95</td><td>0.40 / 0.94</td><td>0.05</td></tr>
+    <tr><td>L1</td><td>pushable crate (Sokoban)</td><td>0.92 / 0.97</td><td>1.14 / 0.96</td><td>0.23</td></tr>
+    <tr><td>L2</td><td>gates, one lever = one gate</td><td>1.89 / 0.91</td><td>2.50 / 0.87</td><td>0.62</td></tr>
+    <tr><td>L3</td><td>XOR multi-gate wiring</td><td>2.02 / 0.90</td><td>3.07 / 0.78</td><td>1.04</td></tr>
+    <tr><td>L4</td><td>pressure-plate override</td><td>2.00 / 0.90</td><td>2.87 / 0.81</td><td>0.86</td></tr>
+    <tr><td>L5</td><td>one-way chute (full env)</td><td>2.02 / 0.89</td><td>3.40 / 0.74</td><td>1.38</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>E2: scaling the number of maps (unseen layouts)</h2>
+<figure>
+  <svg viewBox="0 0 640 235" role="img" aria-label="Line chart: test MAE versus number of training maps from 40 to 800; both models improve, the integrator stays about 0.9 ahead.">
+    <g stroke="var(--gridline)" stroke-width="1">
+      <line x1="70" y1="25" x2="70" y2="185"/><line x1="70" y1="185" x2="610" y2="185"/>
+      <line x1="70" y1="145" x2="610" y2="145"/><line x1="70" y1="105" x2="610" y2="105"/><line x1="70" y1="65" x2="610" y2="65"/><line x1="70" y1="25" x2="610" y2="25"/>
+    </g>
+    <g font-size="10.5" fill="var(--muted)">
+      <text x="60" y="189" text-anchor="end">1.5</text><text x="60" y="149" text-anchor="end">2.0</text>
+      <text x="60" y="109" text-anchor="end">2.5</text><text x="60" y="69" text-anchor="end">3.0</text><text x="60" y="29" text-anchor="end">3.5</text>
+      <text x="18" y="110" transform="rotate(-90 18 110)">test MAE</text>
+    </g>
+    <!-- x (log2-spaced): 40=110, 100=242, 200=341, 400=440, 800=539 ; y = 185 - (mae-1.5)*80 -->
+    <polyline points="110,73 242,125 341,130 440,153 539,160" fill="none" stroke="var(--s1)" stroke-width="2"/>
+    <polyline points="110,27 242,44 341,60 440,87 539,91" fill="none" stroke="var(--s2)" stroke-width="2"/>
+    <g fill="var(--s1)"><circle cx="110" cy="73" r="4"/><circle cx="242" cy="125" r="4"/><circle cx="341" cy="130" r="4"/><circle cx="440" cy="153" r="4"/><circle cx="539" cy="160" r="4"/></g>
+    <g fill="var(--s2)"><circle cx="110" cy="27" r="4"/><circle cx="242" cy="44" r="4"/><circle cx="341" cy="60" r="4"/><circle cx="440" cy="87" r="4"/><circle cx="539" cy="91" r="4"/></g>
+    <text x="548" y="164" font-size="11" fill="var(--ink)">1.81</text>
+    <text x="548" y="88" font-size="11" fill="var(--ink)">2.67</text>
+    <g font-size="10.5" fill="var(--muted)" text-anchor="middle">
+      <text x="110" y="205">40</text><text x="242" y="205">100</text><text x="341" y="205">200</text><text x="440" y="205">400</text><text x="539" y="205">800</text>
+      <text x="320" y="222">training maps (log spacing)</text>
+    </g>
+  </svg>
+  <div class="legend">
+    <span><span class="chip" style="background:var(--s1)"></span>integrator</span>
+    <span><span class="chip" style="background:var(--s2)"></span>scalar head</span>
+  </div>
+  <figcaption>Measured results, full environment, unseen-layout split, seed 0. Layout diversity is the main lever: integrator improves 2.90 to 1.81 from 40 to 800 maps with no saturation reversal; margin stays ~0.6-1.0. The 1600-map point and seed repeats are running.</figcaption>
+</figure>
+
+<h2>E1: unseen wirings (the combo-split analogue)</h2>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Maps</th><th>Seed</th><th>Integrator MAE/corr</th><th>Scalar MAE/corr</th><th>Margin</th></tr></thead>
+  <tbody>
+    <tr><td>40</td><td>1</td><td>2.73 / 0.82</td><td>3.25 / 0.76</td><td>0.52</td></tr>
+    <tr><td>200</td><td>0</td><td>1.95 / 0.91</td><td>2.96 / 0.80</td><td>1.01</td></tr>
+    <tr><td>200</td><td>1</td><td>1.82 / 0.92</td><td>2.85 / 0.82</td><td>1.02</td></tr>
+    <tr><td>800</td><td>0</td><td>1.90 / 0.91</td><td>2.60 / 0.84</td><td>0.70</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Same layouts in train and test, lever/plate wirings resampled: the model must recombine known wiring pieces into unseen configurations. Seed-stable ~1.0 margin at 200 maps. At scale, both this split and the harder layout split converge to the same ~1.8-1.9 integrator plateau, evidence that the residual error is shared fit error rather than transfer failure. (The 40-map seed-0 run is still on a slow cluster node.)</p>
+
+<h2>E5: curriculum (easy wiring &#8594; no plate &#8594; full)</h2>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Training</th><th>Integrator</th><th>Scalar head</th></tr></thead>
+  <tbody>
+    <tr><td>direct on full env (L5)</td><td>2.02 / 0.89</td><td>3.40 / 0.74</td></tr>
+    <tr><td>curriculum 25/25/50</td><td><strong>1.86 / 0.91</strong></td><td><strong>2.82 / 0.81</strong></td></tr>
+    <tr><td>improvement</td><td>0.16</td><td>0.58</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Curriculum helps both models but asymmetrically: it partially rescues the scalar head (which needs the easy phases to find the coupling structure at all) yet leaves a 0.96 gap. The integrator gains only modestly, consistent with the claim that its architecture, not the training schedule, carries the interdependence. Curriculum seed 1 is running.</p>
+
+<h2>E3: length generalization</h2>
+<div class="pending">
+<strong>No results yet.</strong> Five runs (train on distances &#8804;8 or &#8804;12, evaluate to 24, with and without the global-base fix) are training on dgx-osu after a CUDA-wheel mishap cost the first night (torch cu130 silently fell back to CPU; reinstalled cu121 and relaunched). Expectation from the coupling-world experiments: without the fix, beyond-range predictions saturate; the interesting question is whether <code>--globalbase</code> restores extrapolation here as it did there.
+</div>
+
+<h2>Protocol</h2>
+<ul>
+  <li><strong>Models:</strong> recall-flow integrator (T=14 weight-shared steps, accumulated token-displacement readout) vs scalar-head regressor; both on the same structural encoder (per-gate/lever/plate/chute/wall tokens composed from shared embeddings, so unseen maps and wirings are new combinations of known pieces), d=128, 4 layers, 40k steps, smooth L1, identical pools.</li>
+  <li><strong>Environment:</strong> 7x7 yard, 3 gates, 2 levers, 1 plate, 1 chute; ~13K joint states per map; exact BFS ground truth; distances to 24.</li>
+  <li><strong>Splits:</strong> unseen layouts (map), unseen wirings (wire), capped training distance (Rtrain). Pools bucket-sampled per distance.</li>
+  <li><strong>Fleet:</strong> dgx-ciirc (V100s), ciirc-old-cluster (A40s), dgx-osu (A100s), pc-phd1/5 (4060 Ti). ~30 runs total, 22 reported.</li>
+</ul>
+
+<h2>Still in flight</h2>
+<ul>
+  <li>E3 length-generalization family (dgx-osu), the one family with no data yet.</li>
+  <li>E2: 1600-map point, n200/n400 seed repeats, 80k-step long-train (dgx-ciirc night wave).</li>
+  <li>E5 curriculum seed 1 (dgx-ciirc); E4 L3/L4 seed repeats (phd boxes); E1 n40 seed 0 (cluster straggler).</li>
+</ul>
+
+<p class="meta" style="border-top:1px solid var(--border); padding-top:14px">All numbers from RESULT lines of <code>switchyard.py</code> runs; raw logs on the respective machines, tags match the tables. Charts drawn from the measured values; palette validated for colorblind separation in both themes. Next planned additions: torchqmet baselines (IQE, MRNFixed), deeper ladder levels to find the integrator's own break point, image-input mode.</p>
+</main>

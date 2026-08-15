@@ -1,0 +1,475 @@
+<title>Discrete Grid Benchmarks for Goal-Conditioned Distance Functions</title>
+<style>
+  :root {
+    --ground: #f6f7fa;
+    --surface: #ffffff;
+    --ink: #242b34;
+    --muted: #67717e;
+    --accent: #2e5fb7;
+    --accent-soft: #e8eefb;
+    --agent: #d97a33;
+    --goal: #3e8e5c;
+    --hazard: #c04b3d;
+    --key: #c9a227;
+    --wall: #4a5462;
+    --border: #dde2ea;
+    --gridline: #e4e9f1;
+    --code-bg: #edf0f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #151920;
+      --surface: #1d222b;
+      --ink: #e7eaf0;
+      --muted: #98a2b0;
+      --accent: #7fa4e8;
+      --accent-soft: #212c40;
+      --agent: #e5975c;
+      --goal: #6bbf8e;
+      --hazard: #d9776b;
+      --key: #d9b84a;
+      --wall: #8b96a5;
+      --border: #2c333e;
+      --gridline: #222933;
+      --code-bg: #242b36;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #151920;
+    --surface: #1d222b;
+    --ink: #e7eaf0;
+    --muted: #98a2b0;
+    --accent: #7fa4e8;
+    --accent-soft: #212c40;
+    --agent: #e5975c;
+    --goal: #6bbf8e;
+    --hazard: #d9776b;
+    --key: #d9b84a;
+    --wall: #8b96a5;
+    --border: #2c333e;
+    --gridline: #222933;
+    --code-bg: #242b36;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    padding: 0 16px 80px;
+  }
+  main { max-width: 960px; margin: 0 auto; }
+  h1, h2, h3 {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    line-height: 1.25;
+    text-wrap: balance;
+  }
+  h1 { font-size: 2rem; margin: 40px 0 8px; }
+  h2 { font-size: 1.4rem; margin: 48px 0 8px; }
+  p { max-width: 70ch; }
+  a { color: var(--accent); }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.86em;
+    background: var(--code-bg);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  .meta { color: var(--muted); font-size: 0.92rem; max-width: 72ch; }
+  .imgnote {
+    background: var(--accent-soft);
+    border-left: 4px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 12px 18px;
+    margin: 18px 0 30px;
+    max-width: 72ch;
+  }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(430px, 1fr)); gap: 18px; margin: 20px 0; }
+  @media (max-width: 500px) { .cards { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+  .card h3 { margin: 0 0 2px; font-size: 1.08rem; }
+  .card .who { color: var(--muted); font-size: 0.82rem; margin-bottom: 10px; }
+  .card figure { margin: 10px 0; }
+  .card svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+  figcaption { font-size: 0.8rem; color: var(--muted); margin-top: 8px; line-height: 1.45; }
+  figcaption .src { font-style: italic; }
+  .facts { font-size: 0.86rem; margin: 10px 0 0; padding: 0; list-style: none; }
+  .facts li { margin: 3px 0; }
+  .facts b { color: var(--muted); font-weight: 600; }
+  .fit { font-size: 0.86rem; border-top: 1px dashed var(--border); margin-top: 12px; padding-top: 10px; }
+  .fit b { color: var(--accent); }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.87rem; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-top: 1px solid var(--border); }
+  thead th { border-top: none; font-size: 0.7rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+  .rec { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 6px 22px 14px; margin-top: 16px; }
+  ol { max-width: 72ch; }
+  li { margin-bottom: 6px; }
+</style>
+
+<main>
+<h1>Discrete grid benchmarks for goal-conditioned distance functions</h1>
+<p class="meta">Where the goal-conditioned value-function literature tests on discrete, grid-like worlds. Compiled 2026-08-13 from the papers in our prior-work and baselines surveys; every environment verified against the paper PDF and repository. Continuous benchmarks (Fetch, AntMaze, OGBench locomotion) are excluded; the exclusion list at the bottom says what was checked. Companion text version: <code>grid_benchmarks.md</code>.</p>
+
+<div class="imgnote">
+  <strong>About the images.</strong> Every picture on this page is an <strong>illustrative schematic drawn for this document</strong> (hand-authored SVG), not a screenshot from the benchmark. Each caption names the paper figure or source the drawing is based on. Layouts are simplified and not to scale; grid sizes in the drawings are reduced for legibility, with true sizes given in the facts list.
+</div>
+
+<h2>Tier 1: benchmarks from the goal-conditioned distance literature itself</h2>
+
+<div class="cards">
+
+<div class="card">
+  <h3>One-way-doors gridworld</h3>
+  <div class="who">PQE (Wang &amp; Isola, ICLR 2022) · IQE (NeurReps 2022), identical rerun</div>
+  <figure>
+    <svg viewBox="0 0 300 210" role="img" aria-label="Schematic of the PQE one-way-doors gridworld: a central room flanked by three rooms on each side, connected by one-way doors.">
+      <rect x="10" y="10" width="280" height="190" fill="none" stroke="var(--wall)" stroke-width="3"/>
+      <line x1="100" y1="10" x2="100" y2="200" stroke="var(--wall)" stroke-width="3"/>
+      <line x1="200" y1="10" x2="200" y2="200" stroke="var(--wall)" stroke-width="3"/>
+      <line x1="10" y1="73" x2="100" y2="73" stroke="var(--wall)" stroke-width="3"/>
+      <line x1="10" y1="136" x2="100" y2="136" stroke="var(--wall)" stroke-width="3"/>
+      <line x1="200" y1="73" x2="290" y2="73" stroke="var(--wall)" stroke-width="3"/>
+      <line x1="200" y1="136" x2="290" y2="136" stroke="var(--wall)" stroke-width="3"/>
+      <g stroke="var(--surface)" stroke-width="5">
+        <line x1="100" y1="34" x2="100" y2="50"/><line x1="100" y1="97" x2="100" y2="113"/><line x1="100" y1="160" x2="100" y2="176"/>
+        <line x1="200" y1="34" x2="200" y2="50"/><line x1="200" y1="97" x2="200" y2="113"/><line x1="200" y1="160" x2="200" y2="176"/>
+      </g>
+      <g fill="var(--accent)">
+        <path d="M92,42 l12,0 -4,-4 m4,4 -4,4" stroke="var(--accent)" stroke-width="2" fill="none"/>
+        <path d="M108,105 l-12,0 4,-4 m-4,4 4,4" stroke="var(--accent)" stroke-width="2" fill="none"/>
+        <path d="M92,168 l12,0 -4,-4 m4,4 -4,4" stroke="var(--accent)" stroke-width="2" fill="none"/>
+        <path d="M192,42 l12,0 -4,-4 m4,4 -4,4" stroke="var(--accent)" stroke-width="2" fill="none"/>
+        <path d="M208,105 l-12,0 4,-4 m-4,4 4,4" stroke="var(--accent)" stroke-width="2" fill="none"/>
+        <path d="M208,168 l-12,0 4,-4 m-4,4 4,4" stroke="var(--accent)" stroke-width="2" fill="none"/>
+      </g>
+      <circle cx="150" cy="105" r="8" fill="var(--agent)"/>
+      <rect x="40" y="98" width="14" height="14" fill="var(--goal)" rx="3"/>
+      <text x="150" y="30" text-anchor="middle" font-size="10" fill="var(--muted)">central room</text>
+      <text x="248" y="196" text-anchor="middle" font-size="10" fill="var(--accent)">arrows = passable direction only</text>
+    </svg>
+    <figcaption><span class="src">Illustrative schematic drawn for this document,</span> based on the layout in PQE Fig. 15 (arXiv:2206.15478, App. D.2.3). Orange = agent start region, green = example goal.</figcaption>
+  </figure>
+  <ul class="facts">
+    <li><b>World:</b> gym-minigrid, roughly 31x31 cells; central room + 3 side rooms per flank; ~9 one-way doors (no-op from the blocked side); 4 cardinal actions.</li>
+    <li><b>Protocol:</b> offline Q-learning on epsilon-greedy data (eps 0.6, gamma 0.95); eval = greedy 1-step planning, 50 start/goal pairs.</li>
+    <li><b>Ground truth:</b> directed BFS, exact.</li>
+    <li><b>Code:</b> not released; reimplement from App. D.2.3 (~1 day with <code>minigrid</code>).</li>
+  </ul>
+  <div class="fit"><b>Why for us:</b> the baselines' own discrete benchmark; one-way doors are rule-induced distance, same flavor as our knob/link gating. The reviewer-proof choice.</div>
+</div>
+
+<div class="card">
+  <h3>KeyDoorGridWorld</h3>
+  <div class="who">MAD: Learning the Minimum Action Distance (2025)</div>
+  <figure>
+    <svg viewBox="0 0 300 180" role="img" aria-label="Schematic of KeyDoorGridWorld: two rooms split by a wall with a door that opens only after picking up the key.">
+      <g stroke="var(--gridline)" stroke-width="1">
+        <path d="M10,10 h280 M10,44 h280 M10,78 h280 M10,112 h280 M10,146 h280 M10,170 h280
+                 M10,10 v160 M56,10 v160 M102,10 v160 M148,10 v160 M194,10 v160 M240,10 v160 M290,10 v160" fill="none"/>
+      </g>
+      <rect x="10" y="10" width="280" height="160" fill="none" stroke="var(--wall)" stroke-width="3"/>
+      <line x1="148" y1="10" x2="148" y2="78" stroke="var(--wall)" stroke-width="4"/>
+      <line x1="148" y1="112" x2="148" y2="170" stroke="var(--wall)" stroke-width="4"/>
+      <rect x="141" y="80" width="14" height="30" fill="var(--key)" opacity="0.85" rx="2"/>
+      <text x="148" y="100" text-anchor="middle" font-size="10" fill="var(--ink)">D</text>
+      <circle cx="79" cy="130" r="7" fill="var(--key)"/>
+      <rect x="76" y="127" width="14" height="4" fill="var(--key)" transform="rotate(40 79 130)"/>
+      <text x="79" y="152" text-anchor="middle" font-size="9" fill="var(--muted)">key</text>
+      <circle cx="33" cy="27" r="8" fill="var(--agent)"/>
+      <rect x="258" y="122" width="15" height="15" fill="var(--goal)" rx="3"/>
+      <path d="M79,120 Q100,90 138,92" fill="none" stroke="var(--muted)" stroke-width="1.4" stroke-dasharray="4 3"/>
+      <text x="220" y="30" text-anchor="middle" font-size="10" fill="var(--muted)">door needs key</text>
+    </svg>
+    <figcaption><span class="src">Illustrative schematic drawn for this document,</span> based on the environment description in arXiv:2506.09276 (Appendix) and <code>Envs/GridWorlds/KeyDoorGridWorld.py</code>. Drawn 6x5; the real grid is 13x13.</figcaption>
+  </figure>
+  <ul class="facts">
+    <li><b>World:</b> 13x13; state (x, y, key-flag); deterministic cardinal actions; key pickup irreversible; door passable only with key. Distances asymmetric.</li>
+    <li><b>Siblings in the same paper:</b> CliffWalking 4x12 (cliff teleports to start without reset, an asymmetric shortcut) and NoisyGridWorld 13x13 (Gaussian noise dims + 50% action noise).</li>
+    <li><b>Ground truth:</b> BFS exact; paper evaluates against exact all-pairs distances.</li>
+    <li><b>Code:</b> public, <code>github.com/lorenzosteccanella/MinimumActionDistance</code>.</li>
+  </ul>
+  <div class="fit"><b>Why for us:</b> closest published mechanic to our coupling world (a gate that opens only after visiting a state); runnable in hours.</div>
+</div>
+
+<div class="card">
+  <h3>4-Room / Maze value fitting (with wind asymmetry)</h3>
+  <div class="who">DeepNorm / WideNorm (Pitis et al., ICLR 2020)</div>
+  <figure>
+    <svg viewBox="0 0 300 180" role="img" aria-label="Schematic of the DeepNorm 11x11 four-room gridworld with an added directional wind cost.">
+      <g stroke="var(--gridline)" stroke-width="1">
+        <path d="M10,10 h170 M10,44 h170 M10,78 h170 M10,112 h170 M10,146 h170
+                 M10,10 v160 M44,10 v160 M78,10 v160 M112,10 v160 M146,10 v160 M180,10 v160" fill="none"/>
+      </g>
+      <rect x="10" y="10" width="170" height="160" fill="none" stroke="var(--wall)" stroke-width="3"/>
+      <line x1="95" y1="10" x2="95" y2="55" stroke="var(--wall)" stroke-width="3.5"/>
+      <line x1="95" y1="88" x2="95" y2="170" stroke="var(--wall)" stroke-width="3.5"/>
+      <line x1="10" y1="90" x2="40" y2="90" stroke="var(--wall)" stroke-width="3.5"/>
+      <line x1="66" y1="90" x2="95" y2="90" stroke="var(--wall)" stroke-width="3.5"/>
+      <line x1="95" y1="90" x2="130" y2="90" stroke="var(--wall)" stroke-width="3.5"/>
+      <line x1="156" y1="90" x2="180" y2="90" stroke="var(--wall)" stroke-width="3.5"/>
+      <circle cx="27" cy="27" r="7" fill="var(--agent)"/>
+      <rect x="154" y="120" width="14" height="14" fill="var(--goal)" rx="3"/>
+      <g stroke="var(--hazard)" stroke-width="2" fill="none">
+        <path d="M245,60 l-22,0 6,-6 m-6,6 6,6"/>
+        <path d="M234,90 l0,22 -6,-6 m6,6 6,-6"/>
+      </g>
+      <text x="234" y="45" text-anchor="middle" font-size="10" fill="var(--hazard)">west / south moves</text>
+      <text x="234" y="135" text-anchor="middle" font-size="10" fill="var(--hazard)">+U(0,5) wind cost</text>
+      <text x="234" y="152" text-anchor="middle" font-size="9.5" fill="var(--muted)">(asymmetric variant)</text>
+    </svg>
+    <figcaption><span class="src">Illustrative schematic drawn for this document,</span> based on the environment description in arXiv:2002.05825, App. F. Drawn 5x5; real grids are 11x11 (4-Room and a Maze layout).</figcaption>
+  </figure>
+  <ul class="facts">
+    <li><b>World:</b> 11x11 grids, 4 cardinal actions, state/goal as 11x11x3 one-hot planes; UVFA-style V(s,g) trained by TD, gamma 1; held-out-goal and held-out-state splits; success + SPL metrics.</li>
+    <li><b>Asymmetry:</b> optional wind cost on west/south moves (Dijkstra ground truth); symmetric variant BFS-exact.</li>
+    <li><b>Same paper, larger graphs:</b> 50x50x50 wraparound grid (+2 directed prunings), 25x25 taxi, 25x25 pusher with irreversible pushes (125K-391K states, landmark-feature distance regression).</li>
+    <li><b>Code:</b> <code>github.com/spitis/deepnorms</code> covers the graph suite (<code>Make3dAndTaxi.ipynb</code>); the gridworld value-fitting code is not in the repo.</li>
+  </ul>
+  <div class="fit"><b>Why for us:</b> the closest published evaluation protocol to ours (supervised value fitting with held-out goals/states on a small grid).</div>
+</div>
+
+<div class="card">
+  <h3>MiniGrid DoorKey + Hypermaze</h3>
+  <div class="who">MetricRL (arXiv:2402.10820), distance-based value V = &#947;<sup>d</sup></div>
+  <figure>
+    <svg viewBox="0 0 300 170" role="img" aria-label="Schematics of MiniGrid DoorKey and the n-dimensional S-shaped Hypermaze.">
+      <rect x="10" y="20" width="130" height="130" fill="none" stroke="var(--wall)" stroke-width="3"/>
+      <line x1="75" y1="20" x2="75" y2="70" stroke="var(--wall)" stroke-width="4"/>
+      <line x1="75" y1="100" x2="75" y2="150" stroke="var(--wall)" stroke-width="4"/>
+      <rect x="69" y="72" width="12" height="26" fill="var(--key)" opacity="0.85" rx="2"/>
+      <circle cx="40" cy="120" r="6" fill="var(--key)"/>
+      <rect x="37" y="117" width="12" height="3.5" fill="var(--key)" transform="rotate(40 40 120)"/>
+      <circle cx="32" cy="40" r="7" fill="var(--agent)"/>
+      <rect x="115" y="125" width="13" height="13" fill="var(--goal)" rx="3"/>
+      <text x="75" y="12" text-anchor="middle" font-size="10" fill="var(--muted)">DoorKey (rotations removed)</text>
+      <g>
+        <path d="M175,140 h90 v-30 h-70 v-30 h70 v-30 h-90" fill="none" stroke="var(--accent)" stroke-width="10" stroke-linecap="round" opacity="0.35"/>
+        <circle cx="175" cy="140" r="7" fill="var(--agent)"/>
+        <rect x="258" y="43" width="13" height="13" fill="var(--goal)" rx="3"/>
+        <text x="220" y="12" text-anchor="middle" font-size="10" fill="var(--muted)">Hypermaze: S-corridor</text>
+        <text x="220" y="163" text-anchor="middle" font-size="10" fill="var(--accent)">in n dimensions (2D..5D, 10-50 cells/dim)</text>
+      </g>
+    </svg>
+    <figcaption><span class="src">Illustrative schematics drawn for this document,</span> based on arXiv:2402.10820 Figs. 1, 6, 8 and App. A.6.2. Real DoorKey size unstated in the paper; main Hypermaze is 4D with 20 cells per dimension.</figcaption>
+  </figure>
+  <ul class="facts">
+    <li><b>DoorKey:</b> two rooms split by a wall; state = agent pos + key pos + door flag; translations + pickup + open-door actions; also an 80x80 image variant. <b>Empty:</b> open grid, rotations removed.</li>
+    <li><b>Hypermaze:</b> n-dimensional S-maze; dimension sweep 2-5, cells/dim 10-50: a discrete difficulty ladder adjacent to our DOF story.</li>
+    <li><b>Ground truth:</b> BFS exact (deterministic discrete dynamics).</li>
+    <li><b>Code:</b> no official repo; MiniGrid base is public (pip <code>minigrid</code>, MIT, maintained).</li>
+  </ul>
+  <div class="fit"><b>Why for us:</b> published precedent for distance-based goal-conditioned values on MiniGrid; the standard package reviewers recognize.</div>
+</div>
+
+<div class="card">
+  <h3>UVFA grids: 4-rooms + LavaWorld</h3>
+  <div class="who">Universal Value Function Approximators (Schaul et al., ICML 2015)</div>
+  <figure>
+    <svg viewBox="0 0 300 170" role="img" aria-label="Schematic of UVFA's LavaWorld: rooms with deadly lava cells and a teleporting door.">
+      <g stroke="var(--gridline)" stroke-width="1">
+        <path d="M10,20 h120 M10,50 h120 M10,80 h120 M10,110 h120 M10,140 h120
+                 M10,20 v120 M40,20 v120 M70,20 v120 M100,20 v120 M130,20 v120" fill="none"/>
+        <path d="M170,20 h120 M170,50 h120 M170,80 h120 M170,110 h120 M170,140 h120
+                 M170,20 v120 M200,20 v120 M230,20 v120 M260,20 v120 M290,20 v120" fill="none"/>
+      </g>
+      <rect x="10" y="20" width="120" height="120" fill="none" stroke="var(--wall)" stroke-width="3"/>
+      <rect x="170" y="20" width="120" height="120" fill="none" stroke="var(--wall)" stroke-width="3"/>
+      <rect x="41" y="51" width="28" height="28" fill="var(--hazard)" opacity="0.8"/>
+      <rect x="71" y="81" width="28" height="28" fill="var(--hazard)" opacity="0.8"/>
+      <rect x="221" y="51" width="28" height="28" fill="var(--hazard)" opacity="0.8"/>
+      <rect x="101" y="111" width="28" height="28" fill="var(--accent)" opacity="0.6"/>
+      <path d="M132,125 C 150,120 152,60 172,40" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-dasharray="5 4"/>
+      <circle cx="25" cy="35" r="7" fill="var(--agent)"/>
+      <rect x="262" y="112" width="14" height="14" fill="var(--goal)" rx="3"/>
+      <text x="70" y="158" text-anchor="middle" font-size="10" fill="var(--hazard)">lava = death</text>
+      <text x="230" y="158" text-anchor="middle" font-size="10" fill="var(--accent)">door teleports to next room</text>
+      <text x="150" y="12" text-anchor="middle" font-size="10" fill="var(--muted)">only the current room is observed</text>
+    </svg>
+    <figcaption><span class="src">Illustrative schematic drawn for this document,</span> based on the textual description in Schaul et al. 2015, Sec. 4 (layouts shown in their Figs. 2-3, 7). Real rooms are 7x7 (one 10x10 variant).</figcaption>
+  </figure>
+  <ul class="facts">
+    <li><b>4-rooms:</b> classical grid, 4 cardinal actions; UVFA trained on goals in 3 rooms, tested on the unseen 4th room (the original goal-extrapolation test).</li>
+    <li><b>LavaWorld:</b> 7x7 rooms (1-3 rooms; one 10x10), deadly lava cells, teleporting doors, per-cell binary-plane observations of the current room only.</li>
+    <li><b>Ground truth:</b> BFS exact (lava = absorbing, doors = teleport edges).</li>
+    <li><b>Code:</b> none official; small reimplementation.</li>
+  </ul>
+  <div class="fit"><b>Why for us:</b> the founding paper's own testbeds; historically legible and nearly free to add.</div>
+</div>
+
+<div class="card">
+  <h3>Horizon Generalization tabular mazes</h3>
+  <div class="who">Myers, Ji, Eysenbach (ICLR 2025), Appendix F</div>
+  <figure>
+    <svg viewBox="0 0 300 160" role="img" aria-label="Schematic of a tabular maze evaluated by goal distance bins, and a long S-shaped corridor maze.">
+      <rect x="10" y="15" width="130" height="130" fill="none" stroke="var(--wall)" stroke-width="3"/>
+      <path d="M45,15 v55 M80,145 v-55 M115,15 v55" stroke="var(--wall)" stroke-width="3.5" fill="none"/>
+      <circle cx="27" cy="128" r="7" fill="var(--agent)"/>
+      <rect x="120" y="25" width="13" height="13" fill="var(--goal)" rx="3"/>
+      <text x="75" y="158" text-anchor="middle" font-size="10" fill="var(--muted)">eval binned by distance 10-50</text>
+      <path d="M175,135 h100 v-28 h-80 v-28 h80 v-28 h-100" fill="none" stroke="var(--accent)" stroke-width="9" stroke-linecap="round" opacity="0.35"/>
+      <circle cx="175" cy="135" r="6" fill="var(--agent)"/>
+      <rect x="268" y="45" width="12" height="12" fill="var(--goal)" rx="3"/>
+      <text x="225" y="158" text-anchor="middle" font-size="10" fill="var(--muted)">long S-maze (TD-error study)</text>
+    </svg>
+    <figcaption><span class="src">Illustrative schematics drawn for this document,</span> based on arXiv:2501.02709 Figs. 2 and 11 (exact layouts only shown as figures; dimensions unstated).</figcaption>
+  </figure>
+  <ul class="facts">
+    <li><b>World:</b> deterministic maze with walls; 5 actions (4 cardinal + no-op); random-trajectory offline data; in one setting only 14% of start-goal pairs are connected in training.</li>
+    <li><b>Ground truth:</b> the paper itself uses Dijkstra; evaluation binned by goal distance (10-50 steps): the published discrete version of our train-short/test-long axis.</li>
+    <li><b>Code:</b> repo exists but ships only the continuous environments; the tabular mazes need reimplementation from Appendix F.</li>
+  </ul>
+  <div class="fit"><b>Why for us:</b> precedent and protocol for distance-binned length-generalization evaluation on grids.</div>
+</div>
+
+</div>
+
+<h2>Tier 2: discrete mazes from the planning literature (best tooling, different supervision)</h2>
+
+<div class="cards">
+
+<div class="card">
+  <h3>VIN gridworlds</h3>
+  <div class="who">Value Iteration Networks (Tamar et al., NeurIPS 2016)</div>
+  <figure>
+    <svg viewBox="0 0 300 160" role="img" aria-label="Schematic of a VIN random-obstacle gridworld with start and goal.">
+      <g stroke="var(--gridline)" stroke-width="1">
+        <path d="M60,10 h180 M60,40 h180 M60,70 h180 M60,100 h180 M60,130 h180 M60,150 h180
+                 M60,10 v140 M90,10 v140 M120,10 v140 M150,10 v140 M180,10 v140 M210,10 v140 M240,10 v140" fill="none"/>
+      </g>
+      <rect x="60" y="10" width="180" height="140" fill="none" stroke="var(--wall)" stroke-width="3"/>
+      <g fill="var(--wall)" opacity="0.75">
+        <rect x="91" y="41" width="28" height="28"/><rect x="151" y="11" width="28" height="28"/>
+        <rect x="121" y="101" width="28" height="28"/><rect x="181" y="71" width="28" height="28"/>
+        <rect x="211" y="101" width="28" height="28"/><rect x="61" y="71" width="28" height="28"/>
+      </g>
+      <circle cx="75" cy="25" r="7" fill="var(--agent)"/>
+      <rect x="217" y="17" width="14" height="14" fill="var(--goal)" rx="3"/>
+    </svg>
+    <figcaption><span class="src">Illustrative schematic drawn for this document,</span> in the style of the maps in arXiv:1602.02867 Fig. 2. Drawn 6x5; real grids 8x8 / 16x16 / 28x28.</figcaption>
+  </figure>
+  <ul class="facts">
+    <li><b>World:</b> random obstacle grids; input = obstacle map + goal map as images; labels from exact shortest paths; plus a Mars-rover 16x16 variant from real terrain.</li>
+    <li><b>Tooling:</b> datasets downloadable (81K-1.5M samples); <code>github.com/kentsommer/pytorch-value-iteration-networks</code> (maintained port), original <code>avivt/VIN</code>.</li>
+    <li><b>Ground truth:</b> BFS by construction.</li>
+  </ul>
+  <div class="fit"><b>Why for us:</b> instant map-generalization testbed with zero dataset work.</div>
+</div>
+
+<div class="card">
+  <h3>GPPN mazes</h3>
+  <div class="who">Gated Path Planning Networks (Lee et al., ICML 2018)</div>
+  <figure>
+    <svg viewBox="0 0 300 160" role="img" aria-label="Schematic of a GPPN DFS maze with a pruned wall creating a loop, and the three transition mechanisms.">
+      <rect x="15" y="10" width="140" height="140" fill="none" stroke="var(--wall)" stroke-width="3"/>
+      <path d="M50,10 v70 M85,150 v-70 M120,10 v70 M15,80 h35 M85,45 h35" stroke="var(--wall)" stroke-width="3" fill="none"/>
+      <line x1="85" y1="80" x2="85" y2="115" stroke="var(--hazard)" stroke-width="3" stroke-dasharray="4 4"/>
+      <circle cx="32" cy="130" r="7" fill="var(--agent)"/>
+      <rect x="130" y="20" width="13" height="13" fill="var(--goal)" rx="3"/>
+      <text x="85" y="162" text-anchor="middle" font-size="9.5" fill="var(--hazard)">dashed = wall pruned with prob. d (loops)</text>
+      <g font-size="10" fill="var(--muted)">
+        <text x="230" y="40" text-anchor="middle">mechanisms:</text>
+        <text x="230" y="60" text-anchor="middle">NEWS (4-way)</text>
+        <text x="230" y="78" text-anchor="middle">Moore (8-way)</text>
+        <text x="230" y="96" text-anchor="middle">Differential drive</text>
+        <text x="230" y="112" text-anchor="middle">(orientation in state)</text>
+      </g>
+    </svg>
+    <figcaption><span class="src">Illustrative schematic drawn for this document,</span> based on the maze-generation description in arXiv:1806.06408 (Sec. 5). Real sizes 9/15/28.</figcaption>
+  </figure>
+  <ul class="facts">
+    <li><b>World:</b> DFS mazes + probabilistic wall pruning; three transition mechanisms, incl. orientation-dependent differential drive; a 3D ViZDoom render of the same mazes.</li>
+    <li><b>Tooling:</b> generator + 12 pre-generated dataset configs, <code>github.com/RLAgent/gated-path-planning-networks</code>.</li>
+    <li><b>Ground truth:</b> exact optimal lengths ship with the %Optimal metric.</li>
+  </ul>
+  <div class="fit"><b>Why for us:</b> harder maze topology than VIN plus a state-space-structure knob (orientation), cheap to run.</div>
+</div>
+
+<div class="card">
+  <h3>easy-to-hard mazes</h3>
+  <div class="who">Schwarzschild et al. NeurIPS 2021 · Bansal et al. NeurIPS 2022 (Deep Thinking / recall)</div>
+  <figure>
+    <svg viewBox="0 0 300 170" role="img" aria-label="Schematic of the easy-to-hard maze pair: train on a small maze image, test on a much larger one.">
+      <rect x="20" y="30" width="80" height="80" fill="none" stroke="var(--wall)" stroke-width="3"/>
+      <path d="M46,30 v55 M73,110 v-55" stroke="var(--wall)" stroke-width="3" fill="none"/>
+      <rect x="24" y="96" width="10" height="10" fill="var(--hazard)"/>
+      <rect x="86" y="34" width="10" height="10" fill="var(--goal)"/>
+      <text x="60" y="128" text-anchor="middle" font-size="10" fill="var(--muted)">train: 9x9</text>
+      <rect x="150" y="12" width="130" height="130" fill="none" stroke="var(--wall)" stroke-width="3"/>
+      <path d="M172,12 v100 M194,142 v-100 M216,12 v100 M238,142 v-100 M260,12 v100" stroke="var(--wall)" stroke-width="2.5" fill="none"/>
+      <rect x="154" y="130" width="9" height="9" fill="var(--hazard)"/>
+      <rect x="268" y="16" width="9" height="9" fill="var(--goal)"/>
+      <text x="215" y="158" text-anchor="middle" font-size="10" fill="var(--muted)">test: 59x59 packaged, 201x201 / 801x801 in-paper</text>
+    </svg>
+    <figcaption><span class="src">Illustrative schematic drawn for this document,</span> based on the dataset format in arXiv:2108.06011 (mazes are RGB images, 4 px per cell, start red, goal green; target = shortest-path mask).</figcaption>
+  </figure>
+  <ul class="facts">
+    <li><b>World:</b> unique-solution DFS mazes as images; target = shortest-path mask, so the distance is the mask length; image parses back to a grid for full BFS fields.</li>
+    <li><b>Tooling:</b> <code>pip install easy-to-hard-data</code>; sizes 9-59 packaged (50K/10K per size); training code <code>aks2203/deep-thinking</code>.</li>
+    <li><b>Ground truth:</b> exact by construction.</li>
+  </ul>
+  <div class="fit"><b>Why for us:</b> the community's canonical train-small/test-huge maze stage: exactly where our budget-free length-extrapolation claim should be demonstrated once the global-base fix lands.</div>
+</div>
+
+<div class="card">
+  <h3>MiniGrid / FourRooms infrastructure</h3>
+  <div class="who">Farama MiniGrid · Sutton FourRooms lineage · Laplacian-RL rooms (ICLR 2019)</div>
+  <figure>
+    <svg viewBox="0 0 300 160" role="img" aria-label="Schematic of the FourRooms layout with four wall gaps.">
+      <rect x="80" y="10" width="140" height="140" fill="none" stroke="var(--wall)" stroke-width="3"/>
+      <line x1="150" y1="10" x2="150" y2="55" stroke="var(--wall)" stroke-width="3.5"/>
+      <line x1="150" y1="75" x2="150" y2="120" stroke="var(--wall)" stroke-width="3.5"/>
+      <line x1="150" y1="135" x2="150" y2="150" stroke="var(--wall)" stroke-width="3.5"/>
+      <line x1="80" y1="80" x2="105" y2="80" stroke="var(--wall)" stroke-width="3.5"/>
+      <line x1="122" y1="80" x2="150" y2="80" stroke="var(--wall)" stroke-width="3.5"/>
+      <line x1="150" y1="80" x2="185" y2="80" stroke="var(--wall)" stroke-width="3.5"/>
+      <line x1="202" y1="80" x2="220" y2="80" stroke="var(--wall)" stroke-width="3.5"/>
+      <circle cx="100" cy="30" r="7" fill="var(--agent)"/>
+      <rect x="192" y="122" width="13" height="13" fill="var(--goal)" rx="3"/>
+    </svg>
+    <figcaption><span class="src">Illustrative schematic drawn for this document,</span> based on the classic FourRooms layout (Sutton, Precup, Singh 1999, Fig. 2; MiniGrid <code>FourRooms-v0</code>).</figcaption>
+  </figure>
+  <ul class="facts">
+    <li><b>Package:</b> pip <code>minigrid</code> (MIT, maintained): FourRooms, DoorKey, MultiRoom, KeyCorridor, ObstructedMaze; discrete actions; the full grid is programmatically accessible, so exact BFS over (cell, direction, inventory, door state) is easy.</li>
+    <li><b>GCRL usage:</b> MetricRL (above); Laplacian representations for goal-reaching (OneRoom/TwoRooms/HardMaze, ICLR 2019); SR literature (Stachenfeld 2017 gridworld simulations, incl. the Tolman detour maze).</li>
+    <li><b>Also:</b> HER's bit-flipping S = {0,1}^n (discrete hypercube, Hamming ground truth): one line of code, classic sanity check.</li>
+  </ul>
+  <div class="fit"><b>Why for us:</b> the standard, maintained substrate if we want a recognizable off-the-shelf world rather than a paper-specific reimplementation.</div>
+</div>
+
+</div>
+
+<h2>Checked and excluded (no discrete grids)</h2>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Paper</th><th>What it actually tests on</th></tr></thead>
+  <tbody>
+    <tr><td>MRN (AAAI 2023); BVN (ICLR 2022)</td><td>Fetch + Shadow-hand manipulation only.</td></tr>
+    <tr><td>QRL (ICML 2023)</td><td>maze2d + Fetch; only discrete-state item is a 160x160 discretized MountainCar (dynamics-asymmetric, not a navigation grid).</td></tr>
+    <tr><td>TMD (NeurIPS 2025)</td><td>OGBench continuous; its teleport variants have one-way teleporters but continuous locomotion states.</td></tr>
+    <tr><td>DDL, SoRB, Contrastive RL, Contrastive Successor Features, TLDR</td><td>Continuous control / visual navigation (SoRB's SUNCG has 4 discrete actions over continuous house geometry).</td></tr>
+    <tr><td>Eik-QRL (ICLR 2026); Physics-informed Value Learner (2025)</td><td>OGBench continuous only.</td></tr>
+    <tr><td>OGBench itself</td><td>One discrete env (Powderworld, 32x32 stochastic drawing world): not BFS-tractable; Puzzle has a discrete Lights-Out core under continuous arm control.</td></tr>
+    <tr><td>PQE/IQE non-grid extras</td><td>300-node random directed graphs + Berkeley-Stanford web graph (685K nodes): discrete GRAPHS with exact directed-BFS ground truth, fully specified in PQE App. D.2, code not released. Worth remembering, not grids.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Recommended comparison set</h2>
+<div class="rec">
+<ol>
+  <li><strong>PQE/IQE one-way-doors gridworld</strong> (reimplement, ~1 day): the baselines' own benchmark; one-way doors match our rule-gated distances.</li>
+  <li><strong>MAD KeyDoorGridWorld + CliffWalking</strong> (public code, hours): key-gated door is the closest published mechanic to our knob/link world, with asymmetric distances.</li>
+  <li><strong>DeepNorm 4-Room/Maze 11x11 with the wind variant</strong> (reimplement from App. F): the nearest published protocol (value fitting, held-out goals/states).</li>
+  <li><strong>easy-to-hard mazes</strong> (pip, hours): the standard stage for the length-extrapolation claim once globalbase is ported.</li>
+  <li><strong>MiniGrid DoorKey</strong> (pip, hours): recognizable standard package, MetricRL precedent.</li>
+</ol>
+</div>
+
+<p class="meta">Sources: verified against arXiv PDFs/HTML and repositories on 2026-08-13; full citations and URLs in <code>grid_benchmarks.md</code>. All drawings on this page are original illustrative schematics, none are reproduced from the papers.</p>
+</main>

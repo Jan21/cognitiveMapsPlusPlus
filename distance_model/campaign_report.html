@@ -1,0 +1,209 @@
+<title>Distance Model: the Full Experimental Campaign</title>
+<style>
+  :root {
+    --ground: #f6f7fa; --surface: #ffffff; --ink: #242b34; --muted: #67717e;
+    --accent: #2e5fb7; --accent-soft: #e8eefb; --border: #dde2ea; --gridline: #e4e9f1;
+    --code-bg: #edf0f5; --verdict-edge: #2c7a5b; --verdict-bg: #eaf2ef;
+    --warn-edge: #a8722a; --warn-bg: #f7efe4;
+    --s1: #2e5fb7; --s2: #c06a22; --dead: #9aa3ae;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #151920; --surface: #1d222b; --ink: #e7eaf0; --muted: #98a2b0;
+      --accent: #7fa4e8; --accent-soft: #212c40; --border: #2c333e; --gridline: #222933;
+      --code-bg: #242b36; --verdict-edge: #4da983; --verdict-bg: #1d2924;
+      --warn-edge: #c79a55; --warn-bg: #2b2519;
+      --s1: #5f88d6; --s2: #bd7a3a; --dead: #6b7480;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #151920; --surface: #1d222b; --ink: #e7eaf0; --muted: #98a2b0;
+    --accent: #7fa4e8; --accent-soft: #212c40; --border: #2c333e; --gridline: #222933;
+    --code-bg: #242b36; --verdict-edge: #4da983; --verdict-bg: #1d2924;
+    --warn-edge: #c79a55; --warn-bg: #2b2519;
+    --s1: #5f88d6; --s2: #bd7a3a; --dead: #6b7480;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--ground); color: var(--ink); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0 16px 80px; }
+  main { max-width: 940px; margin: 0 auto; }
+  h1, h2, h3 { font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; line-height: 1.25; text-wrap: balance; }
+  h1 { font-size: 2rem; margin: 42px 0 8px; }
+  h2 { font-size: 1.45rem; margin: 50px 0 10px; }
+  h3 { font-size: 1.12rem; margin: 28px 0 8px; }
+  p { max-width: 72ch; }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.86em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  .meta { color: var(--muted); font-size: 0.92rem; max-width: 74ch; }
+  .verdict { background: var(--verdict-bg); border-left: 4px solid var(--verdict-edge); border-radius: 0 8px 8px 0; padding: 16px 22px; margin: 18px 0; max-width: 78ch; }
+  .warn { background: var(--warn-bg); border-left: 4px solid var(--warn-edge); border-radius: 0 8px 8px 0; padding: 12px 20px; margin: 16px 0; max-width: 76ch; }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); margin: 14px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.87rem; }
+  th, td { text-align: left; padding: 8px 12px; border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  thead th { border-top: none; font-size: 0.7rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+  figure { margin: 20px 0; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+  figure svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+  figcaption { font-size: 0.83rem; color: var(--muted); margin-top: 10px; max-width: 68ch; line-height: 1.5; }
+  .legend { display: flex; gap: 18px; font-size: 0.82rem; color: var(--muted); margin-top: 8px; flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .chip { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+  ul, ol { max-width: 74ch; }
+  li { margin-bottom: 6px; }
+  .flight { color: var(--muted); font-style: italic; }
+</style>
+
+<main>
+<h1>The distance-model campaign: every experiment, every result</h1>
+<p class="meta">Consolidated report, 2026-08-15 morning. Covers the Switchyard benchmark campaign, the length-generalization investigation across three environments, the replication audit of the historical extrapolation results, and the ten-mechanism exploration of fixes. Roughly 120 training runs across five machines (A40 cluster, two DGXs, V100 node, consumer GPUs). All numbers are test MAE (lower better), with correlation where stated; "beyond" = MAE on distances past the training range.</p>
+
+<div class="verdict">
+<p><strong>The campaign's three headline findings:</strong></p>
+<ol>
+  <li><strong>The interdependence advantage is real, seed-stable, and grows with both coupling depth and data scale.</strong> On Switchyard, the accumulated-displacement readout beats a matched scalar head by a margin that rises monotonically along the coupling ladder (0.05 &#8594; 1.38) and with map count (best: 1.55 vs 2.78 at 1600 maps). The symmetric-embedding baseline is worst of the three on every Switchyard split.</li>
+  <li><strong>Length extrapolation is environment-dominated, and the historical "budget-free extrapolation" survives replication only on its home environment, where an under-trained-baselines caveat now applies.</strong> On coupled worlds, every readout (ours, scalar, symmetric, with/without globalbase and parking) fails in the same band.</li>
+  <li><strong>The fix exploration found two mechanism families that break the failure band:</strong> scale-routing (route magnitude through components that extrapolate by construction: residual-over-proxy 4.7, linear-mix head 4.1-4.5, both tightly replicated) and self-consistency (Bellman bootstrap: reaches 2.25, the best coupled-world extrapolation ever recorded here, but converges unreliably; a target-network stabilization is the identified next step). Walking-based, output-space, and sparse-composition mechanisms are eliminated.</li>
+</ol>
+</div>
+
+<h2>The three environments</h2>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Environment</th><th>Structure</th><th>Role in the campaign</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Switchyard</strong> (ours)</td><td>worker + pushable crate + XOR-wired levers/gates + pressure plate + one-way chutes; ~13K-200K states/map</td><td>the interdependence benchmark; splits over layouts, wirings, and length</td></tr>
+    <tr><td><strong>Coupling gridworld</strong> (2-agent, 14x14)</td><td>knob-gated agents, control-cell reconfiguration; exact BFS to d=40</td><td>the clean length-generalization testbed (train &#8804;8 or &#8804;12, test to 25)</td></tr>
+    <tr><td><strong>Guarded product graphs</strong> (historical)</td><td>n factor-cycles with chain guards</td><td>home turf of the old extrapolation claim; replication audit</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Part I: Switchyard campaign</h2>
+
+<h3>The interdependence ladder (E4 + deeper rungs)</h3>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Level</th><th>Adds</th><th>Integrator</th><th>Scalar head</th><th>Margin</th></tr></thead>
+  <tbody>
+    <tr><td>L0</td><td>plain maze, static crate</td><td>0.36</td><td>0.40</td><td>0.05</td></tr>
+    <tr><td>L1</td><td>pushing (Sokoban)</td><td>0.92</td><td>1.14</td><td>0.23</td></tr>
+    <tr><td>L2</td><td>gates, 1 lever = 1 gate</td><td>1.89</td><td>2.50</td><td>0.62</td></tr>
+    <tr><td>L3</td><td>XOR multi-gate wiring</td><td>2.02</td><td>3.07</td><td>1.04</td></tr>
+    <tr><td>L4</td><td>pressure-plate override</td><td>2.00</td><td>2.87</td><td>0.86</td></tr>
+    <tr><td>L5</td><td>one-way chute (full)</td><td>2.02 / 1.98 (s1)</td><td>3.40 / 3.19 (s1)</td><td>1.38 / 1.21</td></tr>
+    <tr><td>L6</td><td>8x8, 4 gates, 3 levers</td><td>2.23 (s1) but <strong>4.14 with a training failure at s0</strong></td><td>3.24-3.26</td><td>unstable</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Margin grows monotonically with coupling: the advantage is specifically about interdependence. The integrator's own limit appears at L6 not as graceful degradation but as <strong>optimization instability</strong> (one seed fails to fit its own training set), echoing the historical lr-sensitivity. L7 runs pending.</p>
+
+<h3>Generalization axes and scale (E1, E2, E5, sym baseline)</h3>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Experiment</th><th>Integrator</th><th>Scalar</th><th>Symmetric</th></tr></thead>
+  <tbody>
+    <tr><td>unseen layouts, 200 maps</td><td><strong>2.11-2.19</strong></td><td>3.03-3.06</td><td>3.44-3.45</td></tr>
+    <tr><td>unseen wirings, 200 maps</td><td><strong>1.82-1.95</strong></td><td>2.85-2.96</td><td>3.42-3.45</td></tr>
+    <tr><td>map scale 40 &#8594; 1600</td><td>2.90 &#8594; <strong>1.55</strong> (still improving)</td><td>3.47 &#8594; 2.78 (stalled)</td><td>-</td></tr>
+    <tr><td>80k-step control (200 maps)</td><td>2.13 (= 40k: data, not compute, is the lever)</td><td>2.96</td><td>-</td></tr>
+    <tr><td>curriculum (easy&#8594;full)</td><td>1.86-2.06 (small gain)</td><td>2.81-2.82 (large gain, gap persists)</td><td>-</td></tr>
+    <tr><td>length split 8&#8594;24 (beyond)</td><td>8.05 (7.1-7.5 parked)</td><td>8.70</td><td>7.35-7.47</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Both generalization axes converge to the same ~1.8-1.9 plateau at scale, suggesting shared fit error rather than transfer failure. On the length split, all three architectures fail identically: the backdrop for Part III.</p>
+
+<h2>Part II: the length-generalization investigation</h2>
+
+<h3>Replication audit of the historical claim</h3>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Environment / protocol</th><th>Integrator</th><th>Best other</th><th>Reading</th></tr></thead>
+  <tbody>
+    <tr><td>product graphs, old recipe, D=18 and D=14</td><td><strong>0.39-1.07 flat (replicates)</strong></td><td>plain scalar transformer <strong>0.02-0.06</strong></td><td>old result real; old baselines under-trained; env is easy for everyone</td></tr>
+    <tr><td>product graphs, D=8 + parking, test to d26</td><td>1.26 / 3.25 (stretches past 2.1x, unstable)</td><td>no-arrive control: <strong>explodes to 189</strong></td><td>parking is mechanistically load-bearing on home turf</td></tr>
+    <tr><td>coupling world 12&#8594;25 (2.1x)</td><td>4.6 best (T=32); parked worse (7.7-8.6)</td><td>sym family ~1.1-1.4 (4-agent block)</td><td>no flat region; recipe, budget, globalbase, parking all insufficient</td></tr>
+    <tr><td>coupling world 8&#8594;25 (3.1x)</td><td>8.8-12.2 (all recipes)</td><td>sym 5.0-5.6 (ordering only)</td><td>the hard case that motivated the fix exploration</td></tr>
+    <tr><td>Switchyard 8&#8594;24 (3x)</td><td>7.1-8.1 (all variants)</td><td>scalar 8.7, sym 7.4</td><td>full democracy of failure</td></tr>
+  </tbody>
+</table>
+</div>
+<div class="warn"><strong>The corrected historical claim:</strong> "budget-free extrapolation" replicates as a phenomenon on guarded product graphs (flat to ~2x trained range, parking required for long budgets), but does not support a superiority claim (a plain transformer trained equally long is 10-20x better there) and does not transfer to any coupled world tested, under any recipe, including the exact original one.</div>
+
+<h3>Eliminated explanations (controls run)</h3>
+<ul>
+  <li>Learning rate (1e-3 vs 2e-3), budget size (T=14/24/32), training length (40k/80k): tested, insufficient.</li>
+  <li><code>--globalbase</code> (the base-constant fix from earlier probes): inert on both coupled worlds.</li>
+  <li>Parking (arrival loss + anytime budgets + long test budgets): 10/10 negative on coupled worlds, while its home-turf control confirms the mechanism works there.</li>
+  <li>Failure signature everywhere: within-range precision and local move-ranking stay intact; predictions saturate at the trained range. The flow is an amortized jumper, not a walker: nothing scales past supervision.</li>
+</ul>
+
+<h2>Part III: the ten-mechanism fix exploration</h2>
+<p>All on the coupling world, train &#8804;8 &#8594; test 25 (the 3.1x protocol), identical model and training otherwise; plain control replicated at 10.6-12.2. Sorted by outcome:</p>
+
+<figure>
+  <svg viewBox="0 0 660 400" role="img" aria-label="Bar chart of beyond-range MAE for all explored mechanisms; Bellman reaches 2.25 unstable, linmix and resprox around 4.1 to 4.8, the rest 7 to 15.">
+    <g font-size="11" fill="var(--muted)">
+      <text x="640" y="392" text-anchor="end">beyond-range MAE (lower is better) &#8594;</text>
+    </g>
+    <g stroke="var(--gridline)" stroke-width="1">
+      <line x1="150" y1="10" x2="150" y2="370"/><line x1="290" y1="10" x2="290" y2="370"/>
+      <line x1="430" y1="10" x2="430" y2="370"/><line x1="570" y1="10" x2="570" y2="370"/>
+    </g>
+    <g font-size="10" fill="var(--muted)">
+      <text x="150" y="382" text-anchor="middle">0</text><text x="290" y="382" text-anchor="middle">5</text>
+      <text x="430" y="382" text-anchor="middle">10</text><text x="570" y="382" text-anchor="middle">15</text>
+    </g>
+    <!-- bars: x = 150 + mae*28 ; labels -->
+    <g font-size="11.5" fill="var(--ink)">
+      <rect x="150" y="18"  width="63"  height="16" rx="4" fill="var(--s1)"/><text x="12" y="30">bellman w1.0 (best)</text><text x="219" y="30">2.25</text>
+      <rect x="150" y="44"  width="115" height="16" rx="4" fill="var(--s1)" opacity="0.45"/><text x="12" y="56">bellman (median of 6)</text><text x="271" y="56">4.1-9.4</text>
+      <rect x="150" y="78"  width="115" height="16" rx="4" fill="var(--s1)"/><text x="12" y="90">linmix (3 runs)</text><text x="271" y="90">4.1-4.5</text>
+      <rect x="150" y="104" width="132" height="16" rx="4" fill="var(--s1)"/><text x="12" y="116">resprox (3 runs)</text><text x="288" y="116">4.7-4.8</text>
+      <rect x="150" y="138" width="146" height="16" rx="4" fill="var(--s2)"/><text x="12" y="150">sym family (reference)</text><text x="302" y="150">5.0-5.6</text>
+      <rect x="150" y="172" width="196" height="16" rx="4" fill="var(--dead)"/><text x="12" y="184">logd</text><text x="352" y="184">7.2-11.6</text>
+      <rect x="150" y="198" width="263" height="16" rx="4" fill="var(--dead)"/><text x="12" y="210">bellwalk K=6</text><text x="419" y="210">12.1</text>
+      <rect x="150" y="224" width="283" height="16" rx="4" fill="var(--dead)"/><text x="12" y="236">waypoint composition</text><text x="439" y="236">10.1-12.5</text>
+      <rect x="150" y="250" width="285" height="16" rx="4" fill="var(--dead)"/><text x="12" y="262">triangle regularizer</text><text x="441" y="262">12.4</text>
+      <rect x="150" y="276" width="330" height="16" rx="4" fill="var(--dead)"/><text x="12" y="288">stepcap + proxy budget</text><text x="486" y="288">11.9-13.5</text>
+      <rect x="150" y="302" width="395" height="16" rx="4" fill="var(--dead)"/><text x="12" y="314">softcount</text><text x="551" y="314">12.5-15.1</text>
+      <rect x="150" y="336" width="330" height="16" rx="4" fill="var(--dead)" opacity="0.6"/><text x="12" y="348">plain control</text><text x="486" y="348">10.6-12.2</text>
+    </g>
+  </svg>
+  <div class="legend">
+    <span><span class="chip" style="background:var(--s1)"></span>surviving mechanism (ours)</span>
+    <span><span class="chip" style="background:var(--s2)"></span>baseline reference</span>
+    <span><span class="chip" style="background:var(--dead)"></span>eliminated</span>
+  </div>
+  <figcaption>Measured beyond-range MAE, coupling world 8&#8594;25. Ranges span seeds/machines; resprox and linmix replicate to within 0.3 across two machines. Bellman's bar shows its best run; the faded bar its spread: capable but unstable (live-network bootstrap; EMA target identified as the standard stabilizer). Still in flight: bounds, distill, kitchen-sink combo, and the six-run Bellman confirmation/combination battery.</figcaption>
+</figure>
+
+<h3>Mechanism families, interpreted</h3>
+<ul>
+  <li><strong>Scale-routing (works, stable):</strong> route magnitude through components that extrapolate by construction. <code>resprox</code> (predict d &#8722; exact factorized proxy): 4.7-4.8 with within-range 0.02-0.06, best in-range accuracy ever recorded on the protocol. <code>linmix</code> (linear head over flow cost + coordinate-gap features): 4.1-4.5, keeps local ranking healthier.</li>
+  <li><strong>Self-consistency (works when it converges):</strong> 1-step Bellman bootstrap on unlabeled pairs reaches 2.25/corr 0.79 at 3.1x and 2.71 at 2.1x, but spreads 2.3-9.4 across seeds/weights. Multi-step random-walk targets make it worse, not better.</li>
+  <li><strong>Walking-based (eliminated):</strong> soft step-counting, step caps, proxy-scaled budgets, parking: the flow is an amortized jumper; no penalty made it walk.</li>
+  <li><strong>Output-space (eliminated):</strong> log-space regression reshapes saturation without curing it; globalbase inert.</li>
+  <li><strong>Sparse composition (eliminated as implemented):</strong> 128 random waypoints cannot form trusted chains in a 150K-state space; would need trajectory-derived waypoint sets to test fairly.</li>
+</ul>
+
+<h2>Status: still in flight</h2>
+<ul>
+  <li class="flight">Bellman confirmation battery: w=1.0 seeds 1-2, w=1.5, and combos bellman+resprox, bellman+linmix, bellman+walks (the decisive stability test).</li>
+  <li class="flight">Exploration stragglers: bounds, distill, kitchen-sink combo, remaining seeds (cluster queue contended).</li>
+  <li class="flight">Switchyard L7 rungs; phd-box ladder seeds.</li>
+</ul>
+
+<h2>Experiment inventory</h2>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Family</th><th>Runs</th><th>Machines</th><th>Verdict</th></tr></thead>
+  <tbody>
+    <tr><td>Switchyard E1-E5 (splits, scale, ladder, curriculum)</td><td>~35</td><td>V100 node, A40 cluster, 4060 Ti</td><td>interdependence advantage, seed-stable</td></tr>
+    <tr><td>Symmetric baseline (both worlds, 4 encoder variants)</td><td>~24</td><td>A40 cluster</td><td>wins nothing on Switchyard; graceful-degradation length profile on coupling world only</td></tr>
+    <tr><td>Old-environment replication + envelope</td><td>~28</td><td>A40 cluster</td><td>replicates at home; under-trained-baseline caveat; does not transfer</td></tr>
+    <tr><td>Parking + recipe + globalbase controls</td><td>~20</td><td>A40 cluster, A100 DGX</td><td>all eliminated as fixes on coupled worlds</td></tr>
+    <tr><td>Fix exploration (10 mechanisms + Bellman family)</td><td>~30</td><td>A40 cluster, V100 node</td><td>2 surviving families; Bellman ceiling 2.25, unstable</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p class="meta" style="border-top:1px solid var(--border); padding-top:14px">Code: <code>integ_distance.py</code> (coupling world + all fix variants), <code>switchyard.py</code> (benchmark + splits + baselines), <code>probe_old.py</code> (product graphs + sym ports). Companion pages: <code>switchyard.html</code> (environment explainer), <code>switchyard_results.html</code> (benchmark detail), <code>prior_work.html</code> (novelty survey), <code>share/research/grid_benchmarks.html</code> (benchmark survey). Chart palette colorblind-validated in both themes. This page will be updated as the in-flight runs land.</p>
+</main>

@@ -1,0 +1,10 @@
+
+## Run 7 (Wave-1 checkpoints, D=6 early) -- clean decomposition needs training maturity; seed-variable among mature.
+All w1_* (D6, early wave): per-factor clean-ness 0.11-0.28 (entangled) AND poor extrapolation (far-MAE 5-8, flat ~8-13).
+=> undertrained/small-range models are BOTH entangled AND weak extrapolators.
+Well-trained models (D18-24) all extrapolate well (far-MAE 0.1-0.5); clean-ness VARIES by seed (0.27-0.99).
+FULL PICTURE: (1) competence (total geodesic + flat extrapolation to ~2xD) needs enough training/D. (2) Among competent
+models the INTERNAL per-factor decomposition ranges from entangled to clean, seed-dependent. (3) Clean-ness is NOT
+load-bearing for competence (competent-entangled models extrapolate as well as competent-clean). The clean models are
+the ones where the user's hypothesis holds: per-factor cost = true guarded-path traversal (0.94-0.99, incl unlock
+overhead), transient routes through the unlock cell. Prevalence among mature n5 models ~ half (4 clean / 3 entangled here).

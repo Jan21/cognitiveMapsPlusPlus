@@ -1,0 +1,15 @@
+{
+  "corr_cfactor_cycledist": 0.131,
+  "corr_cfactor_pathmoves": 0.94,
+  "corr_totalcost_geodesic": 1.0,
+  "mae_totalcost_geodesic": 0.113,
+  "corr_factor0_cost_vs_cycledist": 0.013,
+  "corr_factor1_cost_vs_cycledist": 0.039,
+  "corr_factor2_cost_vs_cycledist": 0.009,
+  "corr_factor3_cost_vs_cycledist": 0.02,
+  "corr_factor4_cost_vs_cycledist": 0.972,
+  "steps_to_50pct_disp": 2,
+  "steps_to_90pct_disp": 3,
+  "corr_embdist_cycledist": 0.38,
+  "decoded_walk_fraction": 0.565
+}

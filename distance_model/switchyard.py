@@ -1,0 +1,483 @@
+"""Switchyard: a game-like discrete gridworld benchmark with INTERDEPENDENT factors.
+
+A worker pushes a crate around a walled yard whose gates are toggled by levers and held by a pressure
+plate. Every element is borrowed from a published GCRL benchmark, but here they are wired into one
+dependency web so that the geodesic distance is a joint function of all factors:
+
+  element                  borrowed from                        dependency it creates
+  gates (open/closed bits) MiniGrid DoorKey / MAD KeyDoor       gate bits gate BOTH worker and crate moves
+  levers (toggle wiring)   OGBench Puzzle / Lights-Out          one pull flips SEVERAL gates (XOR wiring)
+  pushable crate           DeepNorm `push` domain / Sokoban     crate moves only via worker contact; pushes
+                                                                can be irreversible (directed graph)
+  pressure plate           MiniGrid ObstructedMaze family       plate-wired gates are open IFF crate sits on
+                                                                the plate, overriding lever bits
+  one-way chutes           PQE/IQE one-way-doors gridworld      cells passable in one direction (worker only)
+
+State = [worker_cell, crate_cell, gate_bits]  (factored; gate_bits dynamic).
+Config = wall layout + gate positions + lever wiring + plate wiring + chute directions (static per map).
+Distance = BFS on the joint deterministic transition graph (directed; exact).
+
+Modes:  --probe   state-space / coupling statistics (factorization-gap analysis)
+        --train   smoke-train the recall-flow integrator (+ scalar-head control) on distance pairs
+"""
+import argparse, collections, itertools, json, numpy as np
+
+# ---------------------------------------------------------------- environment
+DIRS = ((-1, 0), (1, 0), (0, -1), (0, 1))                        # N S W E; action 4 = pull lever
+
+class Yard:
+    """One map instance: static layout + wiring config. States are (worker, crate, bits) tuples."""
+    def __init__(self, G=7, ngate=3, nlever=2, nchute=1, rng=None, wiring=None, wire_rng=None,
+                 wire1=False, noplate=False, nopush=False, gatesopen=False):
+        self.G = G; self.D = ngate; rng = rng or np.random.default_rng(0)
+        self.nopush = nopush; self.gatesopen = gatesopen
+        wrng = wire_rng or rng                                    # wiring rng separable for the wire-only split
+        self.wall = np.zeros((G, G), bool)
+        wc, wr = G // 2, G // 2                                   # four rooms: one vertical + one horizontal wall
+        self.wall[:, wc] = True; self.wall[wr, :] = True
+        gaps = [(rng.integers(0, wr), wc), (rng.integers(wr + 1, G), wc),
+                (wr, rng.integers(0, wc)), (wr, rng.integers(wc + 1, G))]
+        for arm in range(4):                                      # extra always-open gap per arm w.p. 0.5 (connectivity)
+            if rng.random() < 0.5:
+                r, c = [(rng.integers(0, wr), wc), (rng.integers(wr + 1, G), wc),
+                        (wr, rng.integers(0, wc)), (wr, rng.integers(wc + 1, G))][arm]
+                if (r, c) not in gaps: self.wall[r, c] = False
+        for r, c in gaps: self.wall[r, c] = False
+        gi = rng.permutation(4)[:ngate]
+        self.gates = [gaps[i] for i in gi]                        # gate g sits in gap cell; open iff bit g (or plate)
+        free = [(r, c) for r in range(G) for c in range(G) if not self.wall[r, c] and (r, c) not in gaps]
+        pick = rng.permutation(len(free))
+        self.levers = [free[i] for i in pick[:nlever]]
+        self.plate = free[pick[nlever]]
+        self.chutes = {}                                          # cell -> sole allowed entry direction index
+        for i in range(nchute):
+            self.chutes[free[pick[nlever + 1 + i]]] = int(rng.integers(4))
+        if wiring is None:                                        # lever wiring: nonzero masks over gates
+            if wire1:                                             # complexity ladder: one distinct gate per lever
+                wiring = [(1 << (l % ngate)) if ngate else 0 for l in range(nlever)]
+            else:
+                wiring = [(1 + int(wrng.integers((1 << ngate) - 1))) if ngate else 0 for _ in range(nlever)]
+        self.wiring = list(wiring)
+        self.platemask = 0 if (noplate or not ngate) else 1 + int(wrng.integers((1 << ngate) - 1))
+        self.cells = [(r, c) for r in range(G) for c in range(G) if not self.wall[r, c] or (r, c) in gaps]
+        self.cid = {rc: i for i, rc in enumerate(self.cells)}
+
+    def cfg_key(self):
+        return tuple(self.wiring) + (self.platemask,) + tuple(sorted(self.chutes.items()))
+
+    def open_gates(self, bits, crate):
+        if self.gatesopen: return (1 << self.D) - 1              # ladder L0/L1: gate dynamics disabled
+        eff = bits
+        if crate == self.plate: eff |= self.platemask            # plate held down forces its gates open
+        return eff
+
+    def passable(self, rc, bits, crate, came_dir=None, is_crate=False):
+        r, c = rc
+        if not (0 <= r < self.G and 0 <= c < self.G): return False
+        if self.wall[r, c] and rc not in [g for g in self.gates]:
+            return rc in [g for g in self.gates]
+        if rc in self.gates:
+            g = self.gates.index(rc)
+            if not (self.open_gates(bits, crate) >> g) & 1: return False
+        if not is_crate and rc in self.chutes and came_dir is not None and came_dir != self.chutes[rc]:
+            return False                                          # chute: worker may enter only along its direction
+        return True
+
+    def neighbours(self, s):
+        (wr_, cr_, bits) = s; out = []
+        w = self.cells[wr_]; b = self.cells[cr_]
+        for d, (dr, dc) in enumerate(DIRS):
+            nw = (w[0] + dr, w[1] + dc)
+            if nw == b:                                           # push attempt
+                if self.nopush: continue                          # ladder L0: crate is a static obstacle
+                nb = (b[0] + dr, b[1] + dc)
+                if self.passable(nb, bits, b, None, True) and nb not in self.chutes and nb != nw:
+                    nbits = bits                                  # crate leaves/enters plate -> gates re-evaluated lazily
+                    if self.passable(nw, nbits, nb, d):
+                        out.append((self.cid[nw], self.cid[nb], nbits))
+            elif self.passable(nw, bits, b, d):
+                out.append((self.cid[nw], cr_, bits))
+        if w in self.levers and not self.gatesopen:               # pull: XOR the lever's wiring into the gate bits
+            out.append((wr_, cr_, bits ^ self.wiring[self.levers.index(w)]))
+        return out
+
+    def bfs(self, src, maxnodes=200000):
+        dist = {src: 0}; dq = collections.deque([src])
+        while dq and len(dist) < maxnodes:
+            u = dq.popleft()
+            for v in self.neighbours(u):
+                if v not in dist: dist[v] = dist[u] + 1; dq.append(v)
+        return dist
+
+    def rand_state(self, rng):
+        while True:
+            wr_, cr_ = int(rng.integers(len(self.cells))), int(rng.integers(len(self.cells)))
+            if wr_ == cr_: continue
+            if self.cells[cr_] in self.chutes: continue
+            return (wr_, cr_, 0 if self.gatesopen else int(rng.integers(1 << self.D)))
+
+    def vec(self, s):                                             # factored vector for the model
+        return np.array([s[0], s[1], s[2]], np.int64)
+
+# ------------------------------------------------------- factorized proxy (coupling probe)
+def proxy_dist(yard, s, g):
+    """Best factorized approximation: independent worker walk + crate pushes + minimal lever pulls,
+    each computed in a DECOUPLED world (all gates open, no plate, other factor ghosted)."""
+    G = yard.G
+    def walk(a, b, crate_graph=False):
+        if a == b: return 0
+        dist = {a: 0}; dq = collections.deque([a])
+        while dq:
+            u = dq.popleft()
+            for dr, dc in DIRS:
+                v = (u[0] + dr, u[1] + dc)
+                if not (0 <= v[0] < G and 0 <= v[1] < G): continue
+                if yard.wall[v[0], v[1]] and v not in yard.gates: continue
+                if v not in dist:
+                    dist[v] = dist[u] + 1
+                    if v == b: return dist[v]
+                    dq.append(v)
+        return None
+    dw = walk(yard.cells[s[0]], yard.cells[g[0]])
+    db = walk(yard.cells[s[1]], yard.cells[g[1]])
+    need = s[2] ^ g[2]                                            # min pulls reaching target bits (BFS over 2^D)
+    dist = {s[2]: 0}; dq = collections.deque([s[2]])
+    dbit = None
+    while dq:
+        u = dq.popleft()
+        if u == g[2]: dbit = dist[u]; break
+        for wmask in yard.wiring:
+            v = u ^ wmask
+            if v not in dist: dist[v] = dist[u] + 1; dq.append(v)
+    if None in (dw, db) or dbit is None: return None
+    return dw + db + dbit
+
+# ---------------------------------------------------------------- probe mode
+def probe(a):
+    rng = np.random.default_rng(a.seed)
+    gaps_stats, diam, reach, sizes = [], [], [], []
+    couple = {"true": [], "proxy": []}
+    cfg_sense = []
+    for m in range(a.nmaps):
+        yard = Yard(a.G, a.ngate, a.nlever, a.nchute, np.random.default_rng(a.seed + m))
+        src = yard.rand_state(rng)
+        dist = yard.bfs(src)
+        nstates = len(yard.cells) * (len(yard.cells) - 1) * (1 << yard.D)
+        sizes.append(nstates); reach.append(len(dist) / nstates); diam.append(max(dist.values()))
+        items = list(dist.items())
+        for tv, dv in [items[i] for i in rng.permutation(len(items))[:a.npairs]]:
+            if dv == 0: continue
+            p = proxy_dist(yard, src, tv)
+            if p is None: continue
+            couple["true"].append(dv); couple["proxy"].append(p)
+        base = yard.rand_state(rng); goal = yard.rand_state(rng)   # same endpoints under different wirings
+        ds = []
+        for w in range(a.nwire):
+            y2 = Yard(a.G, a.ngate, a.nlever, a.nchute, np.random.default_rng(a.seed + m))
+            y2.wiring = [(1 + int(rng.integers((1 << a.ngate) - 1))) if a.ngate else 0 for _ in range(a.nlever)]
+            y2.platemask = (1 + int(rng.integers((1 << a.ngate) - 1))) if a.ngate else 0
+            d2 = y2.bfs(base).get(goal)
+            if d2 is not None: ds.append(d2)
+        if len(ds) > 1: cfg_sense.append(float(np.std(ds)))
+    t, p = np.array(couple["true"], float), np.array(couple["proxy"], float)
+    gap = t - p
+    print(json.dumps(dict(
+        nmaps=a.nmaps, statespace=int(np.mean(sizes)), reachable_frac=round(float(np.mean(reach)), 3),
+        diameter=round(float(np.mean(diam)), 1), npairs=len(t),
+        proxy_corr=round(float(np.corrcoef(t, p)[0, 1]), 3),
+        proxy_mae=round(float(np.abs(gap).mean()), 2),
+        mean_true=round(float(t.mean()), 2),
+        gap_ge3_frac=round(float((gap >= 3).mean()), 3),
+        gap_ge6_frac=round(float((gap >= 6).mean()), 3),
+        cfg_dist_std=round(float(np.mean(cfg_sense)), 2) if cfg_sense else None)))
+
+# ---------------------------------------------------------------- train mode
+def make_yards(a, wire1=None, noplate=None):
+    """Returns (yards, train_ids, test_ids). split=map: held-out layouts+wirings. split=wire: SAME
+    layouts in train and test, wiring resampled for test (the combo-split analogue)."""
+    w1 = a.wire1 if wire1 is None else wire1; npl = a.noplate if noplate is None else noplate
+    mk = lambda m, w: Yard(a.G, a.ngate, a.nlever, a.nchute, np.random.default_rng(a.seed + m),
+                           wire_rng=np.random.default_rng(50000 + a.seed + w),
+                           wire1=w1, noplate=npl, nopush=a.nopush, gatesopen=a.gatesopen)
+    if a.split == "wire":
+        yards = [mk(m, m) for m in range(a.nmaps)] + [mk(m, 90000 + m) for m in range(a.nmaps)]
+        return yards, list(range(a.nmaps)), list(range(a.nmaps, 2 * a.nmaps))
+    yards = [mk(m, m) for m in range(a.nmaps)]
+    return yards, [m for m in range(a.nmaps) if m % 4], [m for m in range(a.nmaps) if not m % 4]
+
+def build_pool(a, rng, yards, mapids, Rcap):
+    S1, S2, D, C = [], [], [], []
+    for _ in range(a.poolq):
+        m = int(mapids[rng.integers(len(mapids))]); yard = yards[m]
+        src = yard.rand_state(rng); dist = yard.bfs(src)
+        byd = collections.defaultdict(list)
+        for tv, dv in dist.items():
+            if 0 < dv <= Rcap: byd[dv].append(tv)
+        per = max(1, 40 // max(1, len(byd)))
+        for dv, lst in byd.items():
+            for j in rng.choice(len(lst), min(per, len(lst)), replace=False):
+                S1.append(yard.vec(src)); S2.append(yard.vec(lst[j])); D.append(dv); C.append(m)
+    return np.array(S1), np.array(S2), np.array(D, np.float32), np.array(C)
+
+def train(a):
+    import torch, torch.nn as nn, torch.nn.functional as F
+    dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    torch.manual_seed(a.seed); rng = np.random.default_rng(a.seed)
+    yards, tr_ids, te_ids = make_yards(a)
+    ncell = a.G * a.G; NW = max(len([1 for r in range(a.G) for c in range(a.G) if y.wall[r, c]]) for y in yards)
+    cell = lambda y, rc: rc[0] * a.G + rc[1]
+    # per-map structural index tensors (walls padded to NW with a count for mean-pooling)
+    WALL = torch.zeros(len(yards), NW, dtype=torch.long); WN = torch.zeros(len(yards), 1)
+    GC = torch.zeros(len(yards), a.ngate, dtype=torch.long); LC = torch.zeros(len(yards), a.nlever, dtype=torch.long)
+    LW = torch.zeros(len(yards), a.nlever, a.ngate); PC = torch.zeros(len(yards), dtype=torch.long)
+    PW = torch.zeros(len(yards), a.ngate); CC = torch.zeros(len(yards), dtype=torch.long); CD = torch.zeros(len(yards), dtype=torch.long)
+    CELL = torch.zeros(len(yards), ncell, dtype=torch.long)      # map-local cell id -> absolute grid cell
+    for i, y in enumerate(yards):
+        wl = [r * a.G + c for r in range(a.G) for c in range(a.G) if y.wall[r, c] and (r, c) not in y.gates]
+        WALL[i, :len(wl)] = torch.tensor(wl); WN[i] = max(1, len(wl))
+        GC[i] = torch.tensor([cell(y, g) for g in y.gates]); LC[i] = torch.tensor([cell(y, l) for l in y.levers])
+        for li, wm in enumerate(y.wiring): LW[i, li] = torch.tensor([(wm >> g) & 1 for g in range(a.ngate)], dtype=torch.float)
+        PC[i] = cell(y, y.plate); PW[i] = torch.tensor([(y.platemask >> g) & 1 for g in range(a.ngate)], dtype=torch.float)
+        ch = list(y.chutes.items())[0] if y.chutes else (((0, 0)), 0)
+        CC[i] = cell(y, ch[0]); CD[i] = ch[1]
+        CELL[i, :len(y.cells)] = torch.tensor([cell(y, rc) for rc in y.cells])
+    WALL, WN, GC, LC, LW, PC, PW, CC, CD, CELL = (t.to(dev) for t in (WALL, WN, GC, LC, LW, PC, PW, CC, CD, CELL))
+    NTOK = 3 + a.ngate + a.nlever + 3                             # worker crate bits | gates levers plate chute wallpool
+
+    class Enc(nn.Module):
+        """Structural, compositional encoding: unseen maps/wirings are new combinations of known pieces."""
+        def __init__(s, d):
+            super().__init__()
+            s.pos = nn.Embedding(ncell, d); s.bitv = nn.Embedding(2 * a.ngate, d)
+            s.gid = nn.Embedding(a.ngate, d); s.gwire = nn.Embedding(a.ngate, d); s.pwire = nn.Embedding(a.ngate, d)
+            s.cdir = nn.Embedding(4, d); s.fid = nn.Embedding(NTOK, d)
+        def forward(s, x, m):
+            B, d = x.shape[0], s.pos.weight.shape[1]
+            w = s.pos(CELL[m].gather(1, x[:, 0:1]).squeeze(1)); c = s.pos(CELL[m].gather(1, x[:, 1:2]).squeeze(1))
+            bits = torch.stack([(x[:, 2] >> g) & 1 for g in range(a.ngate)], 1)
+            bt = s.bitv(torch.arange(a.ngate, device=x.device)[None] * 2 + bits).sum(1)
+            gts = s.pos(GC[m]) + s.gid.weight[None, :, :]
+            lvs = s.pos(LC[m]) + torch.einsum("blg,gd->bld", LW[m], s.gwire.weight)
+            plt = s.pos(PC[m]) + torch.einsum("bg,gd->bd", PW[m], s.pwire.weight)
+            cht = s.pos(CC[m]) + s.cdir(CD[m])
+            wal = s.pos(WALL[m]).sum(1) / WN[m]
+            tok = torch.cat([w[:, None], c[:, None], bt[:, None], gts, lvs, plt[:, None], cht[:, None], wal[:, None]], 1)
+            return tok + s.fid(torch.arange(NTOK, device=x.device))[None]
+
+    class Block(nn.Module):
+        def __init__(s, d, h, l):
+            super().__init__()
+            s.ls = nn.ModuleList([nn.TransformerEncoderLayer(d, h, 2 * d, dropout=0.0, activation="gelu",
+                                  batch_first=True, norm_first=True) for _ in range(l)])
+        def forward(s, z):
+            for l in s.ls: z = l(z)
+            return z
+
+    class Integ(nn.Module):
+        def __init__(s, d=a.d, h=4, l=a.layers, T=a.T):
+            super().__init__()
+            s.T = T; s.enc = Enc(d); s.role = nn.Embedding(3, d)
+            s.block = Block(d, h, l); s.scale = nn.Parameter(torch.zeros(()))
+            s.gbase = nn.Parameter(torch.zeros(())) if a.globalbase else None
+            s.head = nn.Sequential(nn.Linear(d, 2 * d), nn.GELU(), nn.Linear(2 * d, 1)) if a.decodehead else None
+        def forward(s, x, g, m, Trun=None, ret_arr=False):
+            zs = s.enc(x, m) + s.role.weight[0]; zg = s.enc(g, m) + s.role.weight[1]
+            base = torch.cat([zg, s.enc(x, m) + s.role.weight[2]], 1)
+            tok = torch.cat([zs, base], 1); cost = torch.zeros(x.shape[0], device=x.device)
+            for _ in range(Trun or s.T):
+                z = s.block(tok); cost = cost + (z[:, :NTOK] - tok[:, :NTOK]).norm(dim=-1).sum(-1)
+                tok = z if a.norecall else torch.cat([z[:, :NTOK], base], 1)
+            if s.head is not None:                                 # decode-head ablation: same recurrence, no accumulation
+                out = F.softplus(s.head(tok[:, :NTOK].mean(1)).squeeze(-1))
+            else:
+                out = F.softplus(s.scale) * cost
+                out = out + F.softplus(s.gbase) if s.gbase is not None else out
+            if ret_arr:
+                return out, (tok[:, :NTOK] - (s.enc(g, m) + s.role.weight[0])).norm(dim=-1).mean(-1)
+            return out
+
+    class Sym(nn.Module):
+        """Symmetric-embedding baseline on the same structural encoder: D = ||f(s) - f(g)||_1."""
+        def __init__(s, d=a.d):
+            super().__init__()
+            s.enc = Enc(d); s.mix = Block(d, 4, 2); s.proj = nn.Linear(d, d)
+        def emb1(s, x, m):
+            return s.proj(s.mix(s.enc(x, m)).mean(1))
+        def forward(s, x, g, m):
+            return (s.emb1(x, m) - s.emb1(g, m)).abs().sum(-1)
+
+    class Qmet(nn.Module):
+        """torchqmet baselines on the structural encoder."""
+        def __init__(s, kind, d=a.d):
+            super().__init__()
+            import torchqmet
+            s.enc = Enc(d); s.mix = Block(d, 4, 2); s.proj = nn.Linear(d, d)
+            s.head = torchqmet.IQE(d, dim_per_component=16) if kind == "iqe" else torchqmet.MRNFixed(d)
+        def emb1(s, x, m):
+            return s.proj(s.mix(s.enc(x, m)).mean(1))
+        def forward(s, x, g, m):
+            return s.head(s.emb1(x, m), s.emb1(g, m))
+
+    class Scalar(nn.Module):
+        def __init__(s, d=a.d):
+            super().__init__()
+            s.enc = Enc(d); s.mix = Block(d, 4, 2)
+            s.head = nn.Sequential(nn.Linear(2 * d, 2 * d), nn.GELU(), nn.Linear(2 * d, 2 * d), nn.GELU(), nn.Linear(2 * d, 1))
+        def forward(s, x, g, m):
+            hs = s.mix(s.enc(x, m)).mean(1); hg = s.mix(s.enc(g, m)).mean(1)
+            return s.head(torch.cat([hs, hg], 1)).squeeze(-1)
+
+    def proxy_pairs(SA, SB, CM):
+        out = np.zeros(len(SA), np.float32)
+        for i in range(len(SA)):
+            y = yards[int(CM[i])]
+            p = proxy_dist(y, tuple(int(v) for v in SA[i]), tuple(int(v) for v in SB[i]))
+            if p is None:
+                wa, wb = y.cells[SA[i][0]], y.cells[SB[i][0]]; ca, cb = y.cells[SA[i][1]], y.cells[SB[i][1]]
+                p = abs(wa[0] - wb[0]) + abs(wa[1] - wb[1]) + abs(ca[0] - cb[0]) + abs(ca[1] - cb[1]) + bin(SA[i][2] ^ SB[i][2]).count("1")
+            out[i] = p
+        return out
+
+    Rcap = a.Rtrain if a.Rtrain else a.Rmax
+    S1, S2, D, C = build_pool(a, rng, yards, tr_ids, Rcap)
+    phases = [(len(S1) and 1.0, (S1, S2, D, C))]                  # single phase by default
+    if a.curriculum:                                              # easy wiring -> no plate -> full (same encoder)
+        ye, _, _ = make_yards(a, wire1=True, noplate=True); ym, _, _ = make_yards(a, wire1=False, noplate=True)
+        pe = build_pool(a, np.random.default_rng(a.seed + 7), ye, tr_ids, Rcap)
+        pm = build_pool(a, np.random.default_rng(a.seed + 8), ym, tr_ids, Rcap)
+        phases = [(0.25, pe), (0.25, pm), (0.5, (S1, S2, D, C))]
+    S1t, S2t, Dt, Ct = (torch.as_tensor(x, device=dev) for x in (S1, S2, D, C))
+    E1, E2, ED, EC = build_pool(a, np.random.default_rng(a.seed + 99), yards, te_ids, a.Rmax)
+    E1t, E2t, EDt, ECt = (torch.as_tensor(x, device=dev) for x in (E1, E2, ED, EC))
+    PXtr = torch.as_tensor(proxy_pairs(S1, S2, C), device=dev) if a.resprox else None
+    PXte = torch.as_tensor(proxy_pairs(E1, E2, EC), device=dev) if a.resprox else None
+    def enc_t(dd, px): return (dd - px) if a.resprox else dd
+    def dec_t(pp, px): return (pp + px) if a.resprox else pp
+    print(f"pool train={len(S1)} test={len(E1)} split={a.split} Rcap={Rcap} maxd_tr={int(D.max())} maxd_te={int(ED.max())}", flush=True)
+    out = {}
+    if a.symonly:
+        models = [("sym", Sym().to(dev))]
+    elif a.iqeonly:
+        models = [("iqe", Qmet("iqe").to(dev))]
+    elif a.mrnonly:
+        models = [("mrn", Qmet("mrn").to(dev))]
+    else:
+        models = [("integ", Integ().to(dev))] + ([] if a.nobaseline else [("scalar", Scalar().to(dev))])
+        if a.symbaseline: models.append(("sym", Sym().to(dev)))
+    if a.bellman > 0:                                              # unlabeled pairs + neighbor sets, per train map
+        U0, UG, UN, UM, UC = [], [], [], [], []
+        nmax = 0; tmp = []
+        brng = np.random.default_rng(a.seed + 31)
+        for _ in range(a.bellpairs):
+            m = int(tr_ids[brng.integers(len(tr_ids))]); y = yards[m]
+            s = y.rand_state(brng); g = y.rand_state(brng)
+            nb = y.neighbours(s)
+            if not nb or s == g: continue
+            tmp.append((m, s, g, nb)); nmax = max(nmax, len(nb))
+        for m, s, g, nb in tmp:
+            U0.append(y.vec(s) if False else np.array(s)); UG.append(np.array(g)); UC.append(m)
+            UN.append(np.stack([np.array(x) for x in nb] + [np.array(nb[0])] * (nmax - len(nb))))
+            UM.append([1.0] * len(nb) + [0.0] * (nmax - len(nb)))
+        U0t = torch.as_tensor(np.array(U0), device=dev); UGt = torch.as_tensor(np.array(UG), device=dev)
+        UNt = torch.as_tensor(np.array(UN), device=dev); UMt = torch.as_tensor(np.array(UM), device=dev)
+        UCt = torch.as_tensor(np.array(UC), device=dev)
+        print(f"bellman pool {len(U0)} nmax {nmax}", flush=True)
+    for name, model in models:
+        opt = torch.optim.Adam(model.parameters(), a.lr)
+        parking = name == "integ" and (a.arrive > 0 or a.Tmin >= 0)
+        shadow = None
+        if a.bellman > 0 and a.ematarget and name == "integ":
+            import copy
+            shadow = copy.deepcopy(model)
+            for p in shadow.parameters(): p.requires_grad_(False)
+        step = 0
+        for frac, (P1, P2, PD, PCm) in phases:
+            P1t, P2t, PDt, PCt = (torch.as_tensor(x, device=dev) for x in (P1, P2, PD, PCm))
+            for _ in range(int(a.steps * frac)):
+                b = torch.randint(0, len(P1t), (a.bs,), device=dev)
+                tgt = enc_t(PDt[b], PXtr[b]) if (a.resprox and not a.curriculum) else PDt[b]
+                if parking:
+                    Trun = int(torch.randint(max(1, a.Tmin), a.T + 1, (1,)).item()) if a.Tmin >= 0 else None
+                    cost, arr = model(P1t[b], P2t[b], PCt[b], Trun=Trun, ret_arr=True)
+                    loss = F.smooth_l1_loss(cost, tgt) + a.arrive * arr.mean()
+                else:
+                    loss = F.smooth_l1_loss(model(P1t[b], P2t[b], PCt[b]), tgt)
+                if a.bellman > 0 and name == "integ":
+                    tm = shadow if shadow is not None else model
+                    ub = torch.randint(0, len(U0t), (a.bellbs,), device=dev)
+                    with torch.no_grad():
+                        nb_ = UNt[ub]; B_, K_, _ = nb_.shape
+                        dn = tm(nb_.reshape(B_ * K_, -1), UGt[ub].repeat_interleave(K_, 0),
+                                UCt[ub].repeat_interleave(K_, 0)).reshape(B_, K_)
+                        dn = torch.where(UMt[ub] > 0, dn, torch.full_like(dn, 1e9))
+                        btgt = 1 + dn.min(-1).values
+                    loss = loss + a.bellman * F.smooth_l1_loss(model(U0t[ub], UGt[ub], UCt[ub]), btgt)
+                opt.zero_grad(); loss.backward(); opt.step()
+                if shadow is not None:
+                    with torch.no_grad():
+                        for ps, pm in zip(shadow.parameters(), model.parameters()):
+                            ps.mul_(a.emam).add_(pm, alpha=1 - a.emam)
+                if step % max(1, a.steps // 4) == 0:
+                    print(f"{name} step {step} loss {loss.item():.3f}", flush=True)
+                step += 1
+        if name == "integ" and a.Ttest > 0: model.T = a.Ttest
+        model.eval()
+        with torch.no_grad():
+            pr_tr = model(S1t[:4000], S2t[:4000], Ct[:4000])
+            pr = torch.cat([model(E1t[i:i + 4000], E2t[i:i + 4000], ECt[i:i + 4000]) for i in range(0, len(E1t), 4000)])
+            if a.resprox:
+                pr_tr = dec_t(pr_tr, PXtr[:4000]); pr = dec_t(pr, PXte)
+        r = dict(train_mae=round((pr_tr - Dt[:4000]).abs().mean().item(), 3),
+                 test_mae=round((pr - EDt).abs().mean().item(), 3),
+                 test_corr=round(float(np.corrcoef(pr.cpu(), ED)[0, 1]), 3))
+        if a.Rtrain and a.Rtrain < a.Rmax:
+            far = EDt > a.Rtrain
+            r["mae_within"] = round((pr[~far] - EDt[~far]).abs().mean().item(), 3)
+            if far.any():
+                r["mae_beyond"] = round((pr[far] - EDt[far]).abs().mean().item(), 3)
+                r["corr_beyond"] = round(float(np.corrcoef(pr[far].cpu(), EDt[far].cpu())[0, 1]), 3) if far.sum() > 2 else None
+        out[name] = r
+    print("RESULT " + json.dumps(dict(G=a.G, ngate=a.ngate, nlever=a.nlever, nmaps=a.nmaps, split=a.split,
+                                      Rtrain=a.Rtrain, globalbase=a.globalbase, steps=a.steps, seed=a.seed,
+                                      tag=a.tag, **out)), flush=True)
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--G", type=int, default=7); ap.add_argument("--ngate", type=int, default=3)
+    ap.add_argument("--nlever", type=int, default=2); ap.add_argument("--nchute", type=int, default=1)
+    ap.add_argument("--nmaps", type=int, default=12); ap.add_argument("--npairs", type=int, default=400)
+    ap.add_argument("--nwire", type=int, default=6); ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--probe", action="store_true"); ap.add_argument("--train", action="store_true")
+    ap.add_argument("--poolq", type=int, default=300); ap.add_argument("--Rmax", type=int, default=24)
+    ap.add_argument("--steps", type=int, default=4000); ap.add_argument("--bs", type=int, default=128)
+    ap.add_argument("--lr", type=float, default=2e-3); ap.add_argument("--d", type=int, default=64)
+    ap.add_argument("--layers", type=int, default=3); ap.add_argument("--T", type=int, default=10)
+    ap.add_argument("--split", choices=["map", "wire"], default="map")
+    ap.add_argument("--Rtrain", type=int, default=0, help="cap TRAINING pair distance (0 = Rmax); eval uses Rmax")
+    ap.add_argument("--globalbase", type=int, default=0, help="add learned base once to the output (length-gen fix)")
+    ap.add_argument("--nobaseline", action="store_true", help="skip the scalar-head baseline")
+    ap.add_argument("--symbaseline", action="store_true", help="also train the symmetric-embedding baseline")
+    ap.add_argument("--symonly", action="store_true", help="train ONLY the symmetric-embedding baseline")
+    ap.add_argument("--wire1", action="store_true", help="ladder: each lever wired to exactly one gate")
+    ap.add_argument("--noplate", action="store_true", help="ladder: disable the pressure plate")
+    ap.add_argument("--nopush", action="store_true", help="ladder: crate is a static obstacle")
+    ap.add_argument("--gatesopen", action="store_true", help="ladder: gates always open, levers inert, bits pinned 0")
+    ap.add_argument("--curriculum", type=int, default=0, help="phases: easy wiring -> no plate -> full")
+    ap.add_argument("--arrive", type=float, default=0.0, help="integ: arrival-loss weight (park at goal)")
+    ap.add_argument("--Tmin", type=int, default=-1, help="integ: anytime training budget ~ U[Tmin, T]")
+    ap.add_argument("--Ttest", type=int, default=-1, help="integ: eval loop count (-1 = T)")
+    ap.add_argument("--resprox", type=int, default=0, help="predict d - factorized proxy")
+    ap.add_argument("--bellman", type=float, default=0.0, help="Bellman self-consistency on unlabeled pairs")
+    ap.add_argument("--bellpairs", type=int, default=12000); ap.add_argument("--bellbs", type=int, default=48)
+    ap.add_argument("--ematarget", type=int, default=0); ap.add_argument("--emam", type=float, default=0.995)
+    ap.add_argument("--decodehead", type=int, default=0, help="ablation: decode final state instead of accumulating")
+    ap.add_argument("--norecall", type=int, default=0, help="ablation: no re-injection of goal/start")
+    ap.add_argument("--iqeonly", action="store_true", help="train ONLY the torchqmet IQE baseline")
+    ap.add_argument("--mrnonly", action="store_true", help="train ONLY the torchqmet MRNFixed baseline")
+    ap.add_argument("--tag", default="")
+    a = ap.parse_args()
+    if a.probe: probe(a)
+    if a.train: train(a)
+
+if __name__ == "__main__":
+    main()
