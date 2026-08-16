@@ -232,17 +232,20 @@ def train(a):
     LW = torch.zeros(len(yards), a.nlever, a.ngate); PC = torch.zeros(len(yards), dtype=torch.long)
     PW = torch.zeros(len(yards), a.ngate); CC = torch.zeros(len(yards), dtype=torch.long); CD = torch.zeros(len(yards), dtype=torch.long)
     CELL = torch.zeros(len(yards), ncell, dtype=torch.long)      # map-local cell id -> absolute grid cell
+    WALLIMG = torch.zeros(len(yards), ncell)                     # per-map binary wall image (for --enc image render)
     for i, y in enumerate(yards):
         wl = [r * a.G + c for r in range(a.G) for c in range(a.G) if y.wall[r, c] and (r, c) not in y.gates]
         WALL[i, :len(wl)] = torch.tensor(wl); WN[i] = max(1, len(wl))
+        for cidx in wl: WALLIMG[i, cidx] = 1.0
         GC[i] = torch.tensor([cell(y, g) for g in y.gates]); LC[i] = torch.tensor([cell(y, l) for l in y.levers])
         for li, wm in enumerate(y.wiring): LW[i, li] = torch.tensor([(wm >> g) & 1 for g in range(a.ngate)], dtype=torch.float)
         PC[i] = cell(y, y.plate); PW[i] = torch.tensor([(y.platemask >> g) & 1 for g in range(a.ngate)], dtype=torch.float)
         ch = list(y.chutes.items())[0] if y.chutes else (((0, 0)), 0)
         CC[i] = cell(y, ch[0]); CD[i] = ch[1]
         CELL[i, :len(y.cells)] = torch.tensor([cell(y, rc) for rc in y.cells])
-    WALL, WN, GC, LC, LW, PC, PW, CC, CD, CELL = (t.to(dev) for t in (WALL, WN, GC, LC, LW, PC, PW, CC, CD, CELL))
+    WALL, WN, GC, LC, LW, PC, PW, CC, CD, CELL, WALLIMG = (t.to(dev) for t in (WALL, WN, GC, LC, LW, PC, PW, CC, CD, CELL, WALLIMG))
     NTOK = 3 + a.ngate + a.nlever + 3                             # worker crate bits | gates levers plate chute wallpool
+    IMGC = 8                                                      # --enc image render channels: wall worker crate gate gateopen lever plate chute
 
     class Enc(nn.Module):
         """Structural, compositional encoding: unseen maps/wirings are new combinations of known pieces."""
@@ -251,9 +254,97 @@ def train(a):
             s.pos = nn.Embedding(ncell, d); s.bitv = nn.Embedding(2 * a.ngate, d)
             s.gid = nn.Embedding(a.ngate, d); s.gwire = nn.Embedding(a.ngate, d); s.pwire = nn.Embedding(a.ngate, d)
             s.cdir = nn.Embedding(4, d); s.fid = nn.Embedding(NTOK, d)
+            if a.enc != "factored":                                # image: worker+crate rendered on a GxG canvas
+                s.cellemb = nn.Embedding(2, d)                     # per moving-agent channel (worker, crate)
+                s.cellbase = nn.Parameter(torch.randn(d) * 0.02)
+                s.cpe = nn.Embedding(ncell, d)                     # per-cell positional code
+                if a.enc == "marker":                             # learn to bind agent i from the shared canvas
+                    s.cquery = nn.Parameter(torch.randn(2, d) * 0.02)
+                    s.cslot = nn.Embedding(2, d)
+                    s.cattn = nn.MultiheadAttention(d, a.markerheads, batch_first=True)
+                    s.bindhead = nn.Linear(d, ncell) if a.markeraux > 0 else None   # aux: decode bound -> true cell
+            if a.enc == "image":                                  # CNN over the FULL rendered scene + cross-attn read
+                s.cnn = nn.Sequential(nn.Conv2d(IMGC, a.cnnw, 3, padding=1), nn.ReLU(),
+                                      nn.Conv2d(a.cnnw, d, 3, padding=1), nn.ReLU())
+                if a.readout == "xattn":                          # worker/crate query tokens cross-attend the feat map
+                    s.imgpos = nn.Parameter(torch.randn(ncell, d) * 0.02)
+                    s.iquery = nn.Parameter(torch.randn(2, d) * 0.02)
+                    s.islot = nn.Embedding(2, d)
+                    s.iattn = nn.MultiheadAttention(d, a.markerheads, batch_first=True)
+                elif a.readout == "convspatial":                  # per-agent conv logits + spatial softmax pool
+                    s.ihead = nn.Conv2d(d, 2, 1)
+                else:                                             # convpool: global pool -> project to 2 tokens
+                    s.ipool = nn.Linear(d, 2 * d)
+            s._aux = None                                         # set to 0 by training loop to collect binding aux
+        def _render(s, x, m):
+            """render the FULL state to an (B, IMGC, G, G) image (walls/worker/crate/gate/gateopen/lever/plate/chute)."""
+            B, dev = x.shape[0], x.device
+            wc = CELL[m].gather(1, x[:, 0:2])                      # (B,2) worker,crate cells
+            bits = torch.stack([(x[:, 2] >> g) & 1 for g in range(a.ngate)], 1).float()   # (B,ngate)
+            img = torch.zeros(B, IMGC, ncell, device=dev)
+            img[:, 0] = WALLIMG[m]                                 # walls
+            img[:, 1].scatter_(1, wc[:, 0:1], 1.0)                 # worker
+            img[:, 2].scatter_(1, wc[:, 1:2], 1.0)                 # crate
+            img[:, 3].scatter_(1, GC[m], 1.0)                     # gate cells
+            img[:, 4].scatter_(1, GC[m], (bits > 0).float())      # gate-open indicator
+            img[:, 5].scatter_(1, LC[m], 1.0)                     # levers
+            img[:, 6].scatter_(1, PC[m][:, None], 1.0)            # plate
+            img[:, 7].scatter_(1, CC[m][:, None], 1.0)            # chute
+            return img.view(B, IMGC, a.G, a.G)
+
+        def _image_read(s, x, m):
+            """CNN over the rendered scene, then read worker/crate tokens (no position labels used)."""
+            feat = s.cnn(s._render(x, m))                          # (B,d,G,G)
+            B = x.shape[0]
+            if a.readout == "xattn":
+                fmap = feat.flatten(2).transpose(1, 2) + s.imgpos[None]         # (B,ncell,d)
+                q = (s.iquery + s.islot(torch.arange(2, device=x.device)))[None].expand(B, -1, -1)
+                bound, _ = s.iattn(q, fmap, fmap)
+                return bound[:, 0], bound[:, 1]
+            if a.readout == "convspatial":
+                att = s.ihead(feat).flatten(2).softmax(-1)                       # (B,2,ncell)
+                z = torch.einsum("bnh,bdh->bnd", att, feat.flatten(2))          # (B,2,d)
+                return z[:, 0], z[:, 1]
+            z = s.ipool(feat.mean((2, 3))).view(B, 2, feat.shape[1])            # convpool
+            return z[:, 0], z[:, 1]
+
+        def _wc(s, x, m):
+            """absolute-cell worker/crate tokens; factored=lookup, bmask=lossless canvas, marker/image=learned read."""
+            if a.enc == "image":
+                return s._image_read(x, m)
+            wc = CELL[m].gather(1, x[:, 0:2])                      # (B,2) absolute grid cells
+            if a.enc == "factored" or a.enc == "bmask":           # bmask canvas is lossless -> same cell tokens
+                return s.pos(wc[:, 0]), s.pos(wc[:, 1])
+            B, dev = x.shape[0], x.device                         # marker: additive canvas + query attention
+            canvas = s.cellbase[None, None].expand(B, ncell, s.pos.weight.shape[1]).clone()
+            for i in range(2):
+                hit = torch.zeros(B, ncell, device=dev).scatter_(1, wc[:, i:i + 1], 1.0)
+                canvas = canvas + hit[..., None] * s.cellemb.weight[i]
+            canvas = canvas + s.cpe(torch.arange(ncell, device=dev))[None]
+            dd = s.pos.weight.shape[1]
+            if a.bindmode == "gather":                            # UNSUPERVISED: match each agent's own cellemb
+                allpos = s.pos(torch.arange(ncell, device=dev))   # (ncell,d) -> soft one-hot over positions
+                out = []
+                for i in range(2):
+                    w = ((canvas * s.cellemb.weight[i]).sum(-1) / dd ** 0.5).softmax(-1)   # (B,ncell)
+                    out.append(w @ allpos)
+                return out[0], out[1]
+            if a.bindmode == "slot":                              # UNSUPERVISED: slots COMPETE for cells
+                slots = (s.cquery + s.cslot(torch.arange(2, device=dev)))[None].expand(B, -1, -1)  # (B,2,d)
+                for _ in range(3):
+                    att = (canvas @ slots.transpose(1, 2) / dd ** 0.5).softmax(-1)   # softmax over SLOTS -> (B,ncell,2)
+                    att = att / (att.sum(1, keepdim=True) + 1e-8)                    # normalize over cells
+                    slots = att.transpose(1, 2) @ canvas                            # (B,2,d) weighted mean
+                return slots[:, 0], slots[:, 1]
+            q = (s.cquery + s.cslot(torch.arange(2, device=dev)))[None].expand(B, -1, -1)   # attn (learned query)
+            bound, _ = s.cattn(q, canvas, canvas)
+            if s.bindhead is not None and s._aux is not None:     # optional binding SUPERVISION (aux loss; --bindmode attn)
+                s._aux = s._aux + F.cross_entropy(s.bindhead(bound[:, 0]), wc[:, 0]) \
+                                + F.cross_entropy(s.bindhead(bound[:, 1]), wc[:, 1])
+            return bound[:, 0], bound[:, 1]
         def forward(s, x, m):
             B, d = x.shape[0], s.pos.weight.shape[1]
-            w = s.pos(CELL[m].gather(1, x[:, 0:1]).squeeze(1)); c = s.pos(CELL[m].gather(1, x[:, 1:2]).squeeze(1))
+            w, c = s._wc(x, m)
             bits = torch.stack([(x[:, 2] >> g) & 1 for g in range(a.ngate)], 1)
             bt = s.bitv(torch.arange(a.ngate, device=x.device)[None] * 2 + bits).sum(1)
             gts = s.pos(GC[m]) + s.gid.weight[None, :, :]
@@ -288,7 +379,7 @@ def train(a):
                 z = s.block(tok); cost = cost + (z[:, :NTOK] - tok[:, :NTOK]).norm(dim=-1).sum(-1)
                 tok = z if a.norecall else torch.cat([z[:, :NTOK], base], 1)
             if s.head is not None:                                 # decode-head ablation: same recurrence, no accumulation
-                out = F.softplus(s.head(tok[:, :NTOK].mean(1)).squeeze(-1))
+                out = s.head(tok[:, :NTOK].mean(1)).squeeze(-1)
             else:
                 out = F.softplus(s.scale) * cost
                 out = out + F.softplus(s.gbase) if s.gbase is not None else out
@@ -341,6 +432,12 @@ def train(a):
     Rcap = a.Rtrain if a.Rtrain else a.Rmax
     S1, S2, D, C = build_pool(a, rng, yards, tr_ids, Rcap)
     phases = [(len(S1) and 1.0, (S1, S2, D, C))]                  # single phase by default
+    if a.lencurr and a.Rtrain > 8:                                # length curriculum: growing training range
+        caps = sorted({8, min(12, a.Rtrain), a.Rtrain})
+        pools = [build_pool(a, np.random.default_rng(a.seed + 40 + i), yards, tr_ids, cap)
+                 for i, cap in enumerate(caps[:-1])] + [(S1, S2, D, C)]
+        fr = [0.25] * (len(pools) - 1)
+        phases = list(zip(fr + [1.0 - sum(fr)], pools))
     if a.curriculum:                                              # easy wiring -> no plate -> full (same encoder)
         ye, _, _ = make_yards(a, wire1=True, noplate=True); ym, _, _ = make_yards(a, wire1=False, noplate=True)
         pe = build_pool(a, np.random.default_rng(a.seed + 7), ye, tr_ids, Rcap)
@@ -396,13 +493,17 @@ def train(a):
             for _ in range(int(a.steps * frac)):
                 b = torch.randint(0, len(P1t), (a.bs,), device=dev)
                 tgt = enc_t(PDt[b], PXtr[b]) if (a.resprox and not a.curriculum) else PDt[b]
+                aux_on = a.markeraux > 0 and hasattr(model, "enc") and getattr(model.enc, "bindhead", None) is not None
+                if aux_on:
+                    model.enc._aux = torch.zeros((), device=dev)   # collect binding aux over this forward's enc calls
                 if parking:
                     Trun = int(torch.randint(max(1, a.Tmin), a.T + 1, (1,)).item()) if a.Tmin >= 0 else None
                     cost, arr = model(P1t[b], P2t[b], PCt[b], Trun=Trun, ret_arr=True)
                     loss = F.smooth_l1_loss(cost, tgt) + a.arrive * arr.mean()
                 else:
                     loss = F.smooth_l1_loss(model(P1t[b], P2t[b], PCt[b]), tgt)
-                if a.bellman > 0 and name == "integ":
+                if a.bellman > 0 and name == "integ" and step >= a.bellstart * a.steps:
+                    bw = a.bellman * (min(1.0, step / max(1, int(a.steps * 0.4))) if a.bellwarm else 1.0)
                     tm = shadow if shadow is not None else model
                     ub = torch.randint(0, len(U0t), (a.bellbs,), device=dev)
                     with torch.no_grad():
@@ -411,7 +512,10 @@ def train(a):
                                 UCt[ub].repeat_interleave(K_, 0)).reshape(B_, K_)
                         dn = torch.where(UMt[ub] > 0, dn, torch.full_like(dn, 1e9))
                         btgt = 1 + dn.min(-1).values
-                    loss = loss + a.bellman * F.smooth_l1_loss(model(U0t[ub], UGt[ub], UCt[ub]), btgt)
+                    loss = loss + bw * F.smooth_l1_loss(model(U0t[ub], UGt[ub], UCt[ub]), btgt)
+                if aux_on and isinstance(model.enc._aux, torch.Tensor):
+                    loss = loss + a.markeraux * model.enc._aux
+                    model.enc._aux = None                          # off during any eval / bellman-only forwards
                 opt.zero_grad(); loss.backward(); opt.step()
                 if shadow is not None:
                     with torch.no_grad():
@@ -438,7 +542,8 @@ def train(a):
                 r["corr_beyond"] = round(float(np.corrcoef(pr[far].cpu(), EDt[far].cpu())[0, 1]), 3) if far.sum() > 2 else None
         out[name] = r
     print("RESULT " + json.dumps(dict(G=a.G, ngate=a.ngate, nlever=a.nlever, nmaps=a.nmaps, split=a.split,
-                                      Rtrain=a.Rtrain, globalbase=a.globalbase, steps=a.steps, seed=a.seed,
+                                      Rtrain=a.Rtrain, globalbase=a.globalbase, enc=a.enc, markeraux=a.markeraux,
+                                      markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, steps=a.steps, seed=a.seed,
                                       tag=a.tag, **out)), flush=True)
 
 def main():
@@ -453,6 +558,15 @@ def main():
     ap.add_argument("--lr", type=float, default=2e-3); ap.add_argument("--d", type=int, default=64)
     ap.add_argument("--layers", type=int, default=3); ap.add_argument("--T", type=int, default=10)
     ap.add_argument("--split", choices=["map", "wire"], default="map")
+    ap.add_argument("--enc", choices=["factored", "bmask", "marker", "image"], default="factored",
+                    help="worker/crate input: factored index | bmask lossless canvas | marker canvas-binding | image CNN+readout")
+    ap.add_argument("--readout", choices=["xattn", "convspatial", "convpool"], default="xattn",
+                    help="--enc image: how factor tokens read the CNN feature map (xattn=cross-attention)")
+    ap.add_argument("--cnnw", type=int, default=32, help="--enc image: CNN hidden width")
+    ap.add_argument("--markeraux", type=float, default=0.0, help="marker: aux loss decoding bound token -> true cell (direct binding signal)")
+    ap.add_argument("--markerheads", type=int, default=4, help="marker: attention heads for the binding")
+    ap.add_argument("--bindmode", choices=["attn", "gather", "slot"], default="attn",
+                    help="marker binding: attn(+optional aux) | gather(unsup value-match) | slot(unsup slot-attn)")
     ap.add_argument("--Rtrain", type=int, default=0, help="cap TRAINING pair distance (0 = Rmax); eval uses Rmax")
     ap.add_argument("--globalbase", type=int, default=0, help="add learned base once to the output (length-gen fix)")
     ap.add_argument("--nobaseline", action="store_true", help="skip the scalar-head baseline")
@@ -470,10 +584,13 @@ def main():
     ap.add_argument("--bellman", type=float, default=0.0, help="Bellman self-consistency on unlabeled pairs")
     ap.add_argument("--bellpairs", type=int, default=12000); ap.add_argument("--bellbs", type=int, default=48)
     ap.add_argument("--ematarget", type=int, default=0); ap.add_argument("--emam", type=float, default=0.995)
+    ap.add_argument("--bellwarm", type=int, default=0, help="ramp bellman weight 0->full over the first 40% of training")
+    ap.add_argument("--bellstart", type=float, default=0.0, help="activate bellman only after this fraction of training")
     ap.add_argument("--decodehead", type=int, default=0, help="ablation: decode final state instead of accumulating")
     ap.add_argument("--norecall", type=int, default=0, help="ablation: no re-injection of goal/start")
     ap.add_argument("--iqeonly", action="store_true", help="train ONLY the torchqmet IQE baseline")
     ap.add_argument("--mrnonly", action="store_true", help="train ONLY the torchqmet MRNFixed baseline")
+    ap.add_argument("--lencurr", type=int, default=0, help="length curriculum: train range grows 8 -> 12 -> Rtrain")
     ap.add_argument("--tag", default="")
     a = ap.parse_args()
     if a.probe: probe(a)
