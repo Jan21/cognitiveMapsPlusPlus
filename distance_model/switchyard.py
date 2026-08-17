@@ -368,7 +368,7 @@ def train(a):
             return z
 
     class Integ(nn.Module):
-        def __init__(s, d=a.d, h=4, l=a.layers, T=a.T):
+        def __init__(s, d=a.d, h=a.heads, l=a.layers, T=a.T):
             super().__init__()
             s.T = T; s.enc = Enc(d); s.role = nn.Embedding(3, d)
             s.block = Block(d, h, l); s.scale = nn.Parameter(torch.zeros(()))
@@ -390,13 +390,17 @@ def train(a):
                 return out, (tok[:, :NTOK] - (s.enc(g, m) + s.role.weight[0])).norm(dim=-1).mean(-1)
             return out
 
+    BL = a.baselayers if a.baselayers > 0 else a.layers            # baseline mix-block depth (tunable, fair)
+
     class Sym(nn.Module):
         """Symmetric-embedding baseline on the same structural encoder: D = ||f(s) - f(g)||_1."""
         def __init__(s, d=a.d):
             super().__init__()
-            s.enc = Enc(d); s.mix = Block(d, 4, 2); s.proj = nn.Linear(d, d)
+            s.enc = Enc(d); s.mix = Block(d, a.heads, BL); s.proj = nn.Linear(d, d)
+            s.ln = nn.LayerNorm(d) if a.latentnorm else None
         def emb1(s, x, m):
-            return s.proj(s.mix(s.enc(x, m)).mean(1))
+            e = s.proj(s.mix(s.enc(x, m)).mean(1))
+            return s.ln(e) if s.ln is not None else e
         def forward(s, x, g, m):
             return (s.emb1(x, m) - s.emb1(g, m)).abs().sum(-1)
 
@@ -405,20 +409,24 @@ def train(a):
         def __init__(s, kind, d=a.d):
             super().__init__()
             import torchqmet
-            s.enc = Enc(d); s.mix = Block(d, 4, 2); s.proj = nn.Linear(d, d)
+            s.enc = Enc(d); s.mix = Block(d, a.heads, BL); s.proj = nn.Linear(d, d)
+            s.ln = nn.LayerNorm(d) if a.latentnorm else None       # standard pre-quasimetric norm; fixes MRN nan
             s.head = torchqmet.IQE(d, dim_per_component=16) if kind == "iqe" else torchqmet.MRNFixed(d)
         def emb1(s, x, m):
-            return s.proj(s.mix(s.enc(x, m)).mean(1))
+            e = s.proj(s.mix(s.enc(x, m)).mean(1))
+            return s.ln(e) if s.ln is not None else e
         def forward(s, x, g, m):
             return s.head(s.emb1(x, m), s.emb1(g, m))
 
     class Scalar(nn.Module):
         def __init__(s, d=a.d):
             super().__init__()
-            s.enc = Enc(d); s.mix = Block(d, 4, 2)
+            s.enc = Enc(d); s.mix = Block(d, a.heads, BL)
+            s.ln = nn.LayerNorm(d) if a.latentnorm else None
             s.head = nn.Sequential(nn.Linear(2 * d, 2 * d), nn.GELU(), nn.Linear(2 * d, 2 * d), nn.GELU(), nn.Linear(2 * d, 1))
         def forward(s, x, g, m):
             hs = s.mix(s.enc(x, m)).mean(1); hg = s.mix(s.enc(g, m)).mean(1)
+            if s.ln is not None: hs, hg = s.ln(hs), s.ln(hg)
             return s.head(torch.cat([hs, hg], 1)).squeeze(-1)
 
     def proxy_pairs(SA, SB, CM):
@@ -490,7 +498,7 @@ def train(a):
             import copy
             shadow = copy.deepcopy(model)
             for p in shadow.parameters(): p.requires_grad_(False)
-        step = 0
+        step = 0; nskip = 0
         for frac, (P1, P2, PD, PCm) in phases:
             P1t, P2t, PDt, PCt = (torch.as_tensor(x, device=dev) for x in (P1, P2, PD, PCm))
             for _ in range(int(a.steps * frac)):
@@ -519,7 +527,11 @@ def train(a):
                 if aux_on and isinstance(model.enc._aux, torch.Tensor):
                     loss = loss + a.markeraux * model.enc._aux
                     model.enc._aux = None                          # off during any eval / bellman-only forwards
-                opt.zero_grad(); loss.backward(); opt.step()
+                if not torch.isfinite(loss):                       # skip non-finite spikes (MRN); don't poison weights
+                    opt.zero_grad(set_to_none=True); nskip += 1; step += 1; continue
+                opt.zero_grad(); loss.backward()
+                if a.gradclip > 0: torch.nn.utils.clip_grad_norm_(model.parameters(), a.gradclip)
+                opt.step()
                 if shadow is not None:
                     with torch.no_grad():
                         for ps, pm in zip(shadow.parameters(), model.parameters()):
@@ -536,7 +548,7 @@ def train(a):
                 pr_tr = dec_t(pr_tr, PXtr[:4000]); pr = dec_t(pr, PXte)
         r = dict(train_mae=round((pr_tr - Dt[:4000]).abs().mean().item(), 3),
                  test_mae=round((pr - EDt).abs().mean().item(), 3),
-                 test_corr=round(float(np.corrcoef(pr.cpu(), ED)[0, 1]), 3))
+                 test_corr=round(float(np.corrcoef(pr.cpu(), ED)[0, 1]), 3), nskip=nskip)
         if a.Rtrain and a.Rtrain < a.Rmax:
             far = EDt > a.Rtrain
             r["mae_within"] = round((pr[~far] - EDt[~far]).abs().mean().item(), 3)
@@ -547,6 +559,8 @@ def train(a):
     print("RESULT " + json.dumps(dict(G=a.G, ngate=a.ngate, nlever=a.nlever, nmaps=a.nmaps, split=a.split,
                                       Rtrain=a.Rtrain, globalbase=a.globalbase, enc=a.enc, markeraux=a.markeraux,
                                       markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, cnndepth=a.cnndepth, steps=a.steps, seed=a.seed,
+                                      d=a.d, layers=a.layers, baselayers=(a.baselayers if a.baselayers > 0 else a.layers),
+                                      heads=a.heads, lr=a.lr, latentnorm=a.latentnorm, gradclip=a.gradclip,
                                       tag=a.tag, **out)), flush=True)
 
 def main():
@@ -595,6 +609,10 @@ def main():
     ap.add_argument("--iqeonly", action="store_true", help="train ONLY the torchqmet IQE baseline")
     ap.add_argument("--mrnonly", action="store_true", help="train ONLY the torchqmet MRNFixed baseline")
     ap.add_argument("--lencurr", type=int, default=0, help="length curriculum: train range grows 8 -> 12 -> Rtrain")
+    ap.add_argument("--heads", type=int, default=4, help="attention heads for every transformer block (d must be divisible)")
+    ap.add_argument("--baselayers", type=int, default=-1, help="mix-block depth for sym/qmet/scalar baselines (-1 = use --layers)")
+    ap.add_argument("--latentnorm", type=int, default=0, help="LayerNorm on baseline latents before the metric head (fixes MRN nan; fair, swept)")
+    ap.add_argument("--gradclip", type=float, default=0.0, help="clip grad norm before opt.step (0=off; general nan safety, applied to all models)")
     ap.add_argument("--tag", default="")
     a = ap.parse_args()
     if a.probe: probe(a)
