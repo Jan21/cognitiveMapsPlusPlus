@@ -469,6 +469,8 @@ def train(a):
         models = [("iqe", Qmet("iqe").to(dev))]
     elif a.mrnonly:
         models = [("mrn", Qmet("mrn").to(dev))]
+    elif a.scalaronly:
+        models = [("scalar", Scalar().to(dev))]
     else:
         models = [("integ", Integ().to(dev))] + ([] if a.nobaseline else [("scalar", Scalar().to(dev))])
         if a.symbaseline: models.append(("sym", Sym().to(dev)))
@@ -608,6 +610,7 @@ def main():
     ap.add_argument("--norecall", type=int, default=0, help="ablation: no re-injection of goal/start")
     ap.add_argument("--iqeonly", action="store_true", help="train ONLY the torchqmet IQE baseline")
     ap.add_argument("--mrnonly", action="store_true", help="train ONLY the torchqmet MRNFixed baseline")
+    ap.add_argument("--scalaronly", action="store_true", help="train ONLY the scalar-head baseline")
     ap.add_argument("--lencurr", type=int, default=0, help="length curriculum: train range grows 8 -> 12 -> Rtrain")
     ap.add_argument("--heads", type=int, default=4, help="attention heads for every transformer block (d must be divisible)")
     ap.add_argument("--baselayers", type=int, default=-1, help="mix-block depth for sym/qmet/scalar baselines (-1 = use --layers)")
