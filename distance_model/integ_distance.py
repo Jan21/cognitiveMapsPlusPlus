@@ -353,9 +353,14 @@ def main():
     ap.add_argument("--linmix", type=int, default=0, help="linear head over [flow cost, proxy features]")
     ap.add_argument("--ematarget", type=int, default=0, help="bellman: bootstrap from an EMA shadow model (TD stabilizer)")
     ap.add_argument("--emam", type=float, default=0.995)
+    ap.add_argument("--bellwarm", type=int, default=0, help="ramp bellman weight 0->full over the first 40% of training")
+    ap.add_argument("--bellclamp", type=int, default=0, help="clamp bootstrap targets to >= exact proxy (admissible floor)")
+    ap.add_argument("--bellstart", type=float, default=0.0, help="activate bellman only after this fraction of training")
+    ap.add_argument("--bellrad", type=int, default=0, help="radius curriculum: unlabeled pairs enter as proxy <= r(t) grows")
     ap.add_argument("--d", type=int, default=128); ap.add_argument("--layers", type=int, default=4); ap.add_argument("--heads", type=int, default=4)
     ap.add_argument("--steps", type=int, default=40000); ap.add_argument("--bs", type=int, default=128); ap.add_argument("--lr", type=float, default=2e-3)
     ap.add_argument("--poolq", type=int, default=2000); ap.add_argument("--nquery", type=int, default=80); ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--gradclip", type=float, default=0.0, help="grad-norm clip for ALL archs (0 = off; MRN nan safety)")
     ap.add_argument("--enc", choices=["factored", "bmask", "marker"], default="factored")
     ap.add_argument("--inject", type=int, default=0, help="per-agent constraint injection into position tokens")
     ap.add_argument("--heldout", choices=["", "combo", "links2", "dofhi", "dofhi2"], default="")
@@ -384,6 +389,7 @@ def main():
     def enc_t(dd, px): return (dd - px) if a.resprox else (torch.log1p(dd) if a.logd else dd)
     def dec_t(pp, px): return (pp + px) if a.resprox else (torch.expm1(pp) if a.logd else pp)
     opt = torch.optim.Adam(model.parameters(), a.lr)
+    NSKIP = [0]
     shadow = None
     if a.ematarget and a.bellman > 0:                             # EMA shadow model for bootstrap targets (TD stabilizer)
         import copy
@@ -438,7 +444,8 @@ def main():
         else:
             loss = F.smooth_l1_loss(model(S1t[b], S2t[b]), enc_t(Dt[b], PXtr[b]))
         if a.stepcap > 0 and hasattr(model, "cappen"): loss = loss + a.stepcap * model.cappen
-        if a.bellman > 0:                                         # k + min over neighbors/walk-ends, bootstrap target
+        if a.bellman > 0 and step >= a.bellstart * a.steps:       # k + min over neighbors/walk-ends, bootstrap target
+            bw = a.bellman * (min(1.0, step / max(1, int(a.steps * 0.4))) if a.bellwarm else 1.0)
             tgt_model = shadow if shadow is not None else model
             ub = torch.randint(0, len(U0t), (a.bellbs,), device=dev)
             with torch.no_grad():
@@ -452,7 +459,12 @@ def main():
                     dn_raw = dec_t(dn_raw, pxn)
                 dn = torch.where(UMt[ub] > 0, dn_raw, torch.full_like(dn_raw, 1e9))
                 tgt = max(1, a.bellwalk) + dn.min(-1).values
-            loss = loss + a.bellman * F.smooth_l1_loss(model(U0t[ub], UGt[ub]), enc_t(tgt, UPx[ub]))
+                if a.bellclamp: tgt = torch.maximum(tgt, UPx[ub])  # admissible floor stops collapse spirals
+            bl = F.smooth_l1_loss(model(U0t[ub], UGt[ub]), enc_t(tgt, UPx[ub]), reduction="none")
+            if a.bellrad:                                          # grow the active radius outward over training
+                rt = a.Rtrain + (UPx.max().item() - a.Rtrain) * step / a.steps
+                bl = bl * (UPx[ub] <= rt).float()
+            loss = loss + bw * bl.mean()
         if a.tri > 0:                                              # soft triangle inequality on random triples
             ti = torch.randint(0, len(TRI), (3, a.bellbs), device=dev)
             A_, B2_, C_ = TRI[ti[0]], TRI[ti[1]], TRI[ti[2]]
@@ -469,7 +481,11 @@ def main():
             if a.resprox or a.logd:
                 pb = dec_t(pb, torch.as_tensor(proxy_np(BL0t[bb2].cpu().numpy(), BLGt[bb2].cpu().numpy(), N, a.G), device=dev))
             loss = loss + a.bounds * (F.relu(BLlot[bb2] - pb) + F.relu(pb - BLhit[bb2])).mean()
-        opt.zero_grad(); loss.backward(); opt.step()
+        if not torch.isfinite(loss):                                   # skip non-finite spikes (MRN); don't poison weights
+            opt.zero_grad(set_to_none=True); NSKIP[0] += 1; continue
+        opt.zero_grad(); loss.backward()
+        if a.gradclip > 0: torch.nn.utils.clip_grad_norm_(model.parameters(), a.gradclip)
+        opt.step()
         if shadow is not None:
             with torch.no_grad():
                 for ps, pm in zip(shadow.parameters(), model.parameters()):
@@ -589,10 +605,11 @@ def main():
             if (~far).any(): out["mae_within"] = round(float(np.abs(preds[~far] - trues[~far]).mean()), 3)
         return out
 
-    res = dict(nag=N, G=a.G, enc=a.enc, arch=a.arch, globalbase=a.globalbase, inject=a.inject, heldout=a.heldout,
+    res = dict(nag=N, G=a.G, enc=a.enc, arch=a.arch, globalbase=a.globalbase, inject=a.inject, heldout=a.heldout, nskip=NSKIP[0], gradclip=a.gradclip,
                Rtrain=a.Rtrain, Rmax=a.Rmax, steps=a.steps, seed=a.seed, d=a.d, layers=a.layers, T=a.T,
                variant={k: getattr(a, k) for k in ("resprox", "logd", "softcount", "stepcap", "proxybudget",
                                                    "bellman", "bellwalk", "tri", "bounds", "distill", "ematarget",
+                                                   "bellwarm", "bellclamp", "bellstart", "bellrad",
                                                    "waypoint_eval", "linmix", "arrive", "Tmin", "Ttest") if getattr(a, k)})
     res["test" if a.heldout else "all"] = evaluate("test" if a.heldout else "all")     # generalization (held-out)
     if a.heldout: res["train"] = evaluate("train")                                     # in-distribution accuracy
