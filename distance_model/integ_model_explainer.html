@@ -1,0 +1,394 @@
+<title>Recall-Flow Integrator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --bg:#eef1f5; --surface:#ffffff; --surface2:#f5f7fa; --line:#d3dae3;
+  --ink:#161a21; --muted:#5c6675; --faint:#8a94a4;
+  --cyan:#0e7c94; --cyan-soft:#0e7c9422; --amber:#b45309; --amber-soft:#b4530918;
+  --goal:#0e7c94; --start:#b45309; --wall:#7b8798;
+  --code-bg:#f0f3f7; --shadow:0 1px 2px rgba(20,30,45,.06),0 8px 24px rgba(20,30,45,.06);
+}
+:root:not([data-theme="light"]){ }
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d1117; --surface:#141a22; --surface2:#111820; --line:#26303c;
+    --ink:#e7ecf3; --muted:#9aa6b5; --faint:#6b7788;
+    --cyan:#4cc6e0; --cyan-soft:#4cc6e022; --amber:#eab04a; --amber-soft:#eab04a1e;
+    --goal:#4cc6e0; --start:#eab04a; --wall:#5a6675;
+    --code-bg:#0f151c; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d1117; --surface:#141a22; --surface2:#111820; --line:#26303c;
+  --ink:#e7ecf3; --muted:#9aa6b5; --faint:#6b7788;
+  --cyan:#4cc6e0; --cyan-soft:#4cc6e022; --amber:#eab04a; --amber-soft:#eab04a1e;
+  --goal:#4cc6e0; --start:#eab04a; --wall:#5a6675;
+  --code-bg:#0f151c; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  line-height:1.62; font-size:17px; letter-spacing:-.003em;
+  -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.wrap{max-width:820px; margin:0 auto; padding:0 22px}
+main{padding-bottom:96px}
+
+/* ---- hero ---- */
+header{padding:72px 0 30px; border-bottom:1px solid var(--line)}
+.eyebrow{font:600 12.5px/1 ui-monospace,monospace; letter-spacing:.16em; text-transform:uppercase; color:var(--cyan); margin:0 0 18px}
+h1{font-size:clamp(34px,6vw,52px); line-height:1.02; letter-spacing:-.028em; font-weight:680; margin:0 0 20px; text-wrap:balance}
+h1 .flow{color:var(--cyan)}
+.lede{font-size:clamp(18px,2.4vw,21px); color:var(--muted); margin:0; max-width:60ch; text-wrap:pretty}
+.lede b{color:var(--ink); font-weight:600}
+
+/* ---- the one formula, hero-scale ---- */
+.thesis{
+  margin:34px 0 6px; padding:26px 24px; border:1px solid var(--line); border-radius:14px;
+  background:var(--surface); box-shadow:var(--shadow); text-align:center; overflow-x:auto;
+}
+.thesis .eq{font-size:clamp(20px,3.4vw,29px); white-space:nowrap; letter-spacing:-.01em}
+.thesis .eq .amber{color:var(--amber); font-weight:600}
+.thesis .eq .cyan{color:var(--cyan)}
+.thesis .cap{margin-top:14px; font-size:13.5px; color:var(--faint); letter-spacing:.01em}
+
+/* ---- sections ---- */
+section{padding:52px 0 0}
+h2{font-size:26px; line-height:1.12; letter-spacing:-.02em; font-weight:660; margin:0 0 6px; text-wrap:balance}
+h2 .num{font:600 13px/1 ui-monospace,monospace; color:var(--cyan); letter-spacing:.08em; display:block; margin-bottom:10px}
+h3{font-size:18px; font-weight:640; letter-spacing:-.01em; margin:30px 0 8px}
+p{margin:14px 0}
+.muted{color:var(--muted)}
+a{color:var(--cyan)}
+strong{font-weight:640}
+code{font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:.9em; background:var(--code-bg); border:1px solid var(--line); border-radius:5px; padding:.08em .38em}
+.tag{color:var(--start)} /* worker/start amber */
+.tagc{color:var(--goal)}
+
+/* ---- demo ---- */
+.demo{margin:26px 0 8px; border:1px solid var(--line); border-radius:14px; background:var(--surface); box-shadow:var(--shadow); overflow:hidden}
+.demo canvas{display:block; width:100%; height:auto; background:var(--surface2)}
+.demo-bar{display:flex; flex-wrap:wrap; gap:12px 18px; align-items:center; padding:14px 18px; border-top:1px solid var(--line)}
+.demo-bar .grp{display:flex; gap:8px}
+button{
+  font:600 13.5px/1 system-ui,sans-serif; color:var(--ink); background:var(--surface2);
+  border:1px solid var(--line); border-radius:8px; padding:9px 14px; cursor:pointer; letter-spacing:-.01em;
+}
+button:hover{border-color:var(--cyan)}
+button.on{background:var(--cyan); color:#fff; border-color:var(--cyan)}
+button:focus-visible{outline:2px solid var(--cyan); outline-offset:2px}
+.readout{margin-left:auto; font-family:ui-monospace,monospace; font-size:14px; color:var(--muted)}
+.readout b{color:var(--amber); font-size:19px; font-variant-numeric:tabular-nums}
+
+/* ---- pipeline ---- */
+.pipe{display:flex; flex-direction:column; gap:0; margin:24px 0}
+.stage{position:relative; display:grid; grid-template-columns:132px 1fr; gap:18px; padding:16px 0}
+.stage + .stage{border-top:1px dashed var(--line)}
+.stage .slab{
+  align-self:start; font-family:ui-monospace,monospace; font-size:12px; color:var(--muted);
+  background:var(--surface2); border:1px solid var(--line); border-radius:9px; padding:12px; text-align:center;
+}
+.stage .slab .big{display:block; font-size:13px; color:var(--ink); font-weight:600; margin-bottom:4px; letter-spacing:.01em}
+.stage .slab .shape{display:block; color:var(--cyan); font-size:11.5px; margin-top:6px}
+.stage .say h4{margin:2px 0 4px; font-size:15.5px; font-weight:640}
+.stage .say p{margin:4px 0; font-size:14.5px; color:var(--muted)}
+
+/* ---- loop schematic ---- */
+.loopcard{margin:24px 0; padding:22px; border:1px solid var(--line); border-radius:14px; background:var(--surface); box-shadow:var(--shadow)}
+.tokens{display:flex; gap:8px; flex-wrap:wrap; margin:8px 0 2px; align-items:center; font-family:ui-monospace,monospace; font-size:12.5px}
+.chip{border:1px solid var(--line); border-radius:7px; padding:7px 10px; background:var(--surface2)}
+.chip.move{border-color:var(--start); color:var(--start); background:var(--amber-soft)}
+.chip.goal{border-color:var(--goal); color:var(--goal); background:var(--cyan-soft)}
+.chip.anchor{border-color:var(--line); color:var(--muted)}
+.arrow{color:var(--faint); font-family:ui-monospace,monospace}
+
+/* ---- glossary / code ---- */
+.glossary{width:100%; border-collapse:collapse; margin:18px 0; font-size:14.5px}
+.glossary th,.glossary td{text-align:left; padding:11px 12px; border-bottom:1px solid var(--line); vertical-align:top}
+.glossary th{font:600 12px/1 ui-monospace,monospace; letter-spacing:.06em; text-transform:uppercase; color:var(--faint)}
+.glossary td.sym{font-family:ui-monospace,monospace; color:var(--cyan); white-space:nowrap; font-size:13.5px}
+.glossary tr:last-child td{border-bottom:none}
+pre{
+  margin:18px 0; padding:18px; background:var(--code-bg); border:1px solid var(--line); border-radius:12px;
+  overflow-x:auto; font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:13px; line-height:1.6;
+}
+pre .c{color:var(--faint)} pre .k{color:var(--cyan)} pre .a{color:var(--amber)}
+
+/* ---- callouts ---- */
+.note{margin:22px 0; padding:16px 18px 16px 20px; border-left:3px solid var(--cyan); background:var(--surface); border-radius:0 10px 10px 0}
+.note.warn{border-left-color:var(--amber)}
+.note .lab{font:600 11.5px/1 ui-monospace,monospace; letter-spacing:.12em; text-transform:uppercase; color:var(--cyan); margin-bottom:8px}
+.note.warn .lab{color:var(--amber)}
+.note p{margin:6px 0; font-size:15px}
+.foot{margin-top:60px; padding-top:22px; border-top:1px solid var(--line); color:var(--faint); font-size:13px}
+.foot code{font-size:12px}
+@media (max-width:560px){
+  .stage{grid-template-columns:1fr; gap:10px}
+  .readout{margin-left:0; width:100%}
+}
+</style>
+
+<div class="wrap">
+<header>
+  <p class="eyebrow">CognitiveMaps++ · distance model</p>
+  <h1>The <span class="flow">recall-flow</span> integrator, explained end to end</h1>
+  <p class="lede">It predicts how many BFS steps separate two states of a switchyard world. The trick: it doesn't <i>regress</i> a distance, it <b>walks the latent state from start toward goal and adds up how far it travelled.</b> Distance is a path length, integrated step by step.</p>
+
+  <div class="thesis">
+    <div class="eq mono">D(s,g) = <span class="cyan">softplus(scale)</span> · <span class="amber">&Sigma;</span><sub class="amber" style="font-size:.6em">t=1..T</sub> <span class="amber">&Sigma;</span><sub class="amber" style="font-size:.6em">i&isin;state</sub> &Vert; z<sub>i</sub>(t) &minus; z<sub>i</sub>(t&minus;1) &Vert;</div>
+    <div class="cap">Every symbol on this line is defined below. The <span style="color:var(--amber)">amber</span> double-sum is the whole idea.</div>
+  </div>
+</header>
+
+<main>
+
+<section id="thesis">
+  <h2><span class="num">THE IDEA</span>Distance = the length of the path the state walks</h2>
+  <p>Give the model a <span class="tag">start state</span> and a <span class="tagc">goal state</span> on the same map. It encodes both, then runs a small transformer <strong>T times over</strong> (the same weights each time). At every pass the <span class="tag">state tokens</span> move a little in latent space. The model measures the <strong>length of each little move</strong> and sums them over all passes. That running total, scaled by one positive number, <em>is</em> the predicted distance.</p>
+  <p class="muted">Intuition: a near pair needs the state to barely move &rarr; small total &rarr; small distance. A far pair forces the state to travel a long way through latent space &rarr; large total &rarr; large distance. It is a path integral, not a lookup.</p>
+
+  <div class="demo">
+    <canvas id="cv" width="1200" height="520" aria-label="Animation: a latent state walks from start to goal; its accumulated path length is the predicted distance."></canvas>
+    <div class="demo-bar">
+      <div class="grp">
+        <button id="bNear" class="on" type="button">near pair</button>
+        <button id="bFar" type="button">far pair</button>
+      </div>
+      <button id="bReplay" type="button">&#8635; replay</button>
+      <div class="readout">accumulated&nbsp;&Sigma;&Vert;&Delta;z&Vert; = <b id="acc">0.0</b> &nbsp;&rarr;&nbsp; D&#8776;<span id="dpred" class="mono">0</span></div>
+    </div>
+  </div>
+  <p class="muted" style="font-size:14px">Toggle <b class="tag">near</b> vs <b class="tag">far</b>: the same machinery, a longer walk, a bigger sum. The dot's trajectory is a stand-in for the state tokens moving each recall step; the amber trail is the quantity being accumulated.</p>
+</section>
+
+<section id="pipeline">
+  <h2><span class="num">STEP 1 · PERCEPTION</span>From a game state to a bag of tokens</h2>
+  <p>The world is a <strong>switchyard</strong>: a worker pushes a crate on a <code>G&times;G</code> grid past gates that are opened by levers (wired to gates) and a plate. A <em>state</em> <code>x</code> is the worker cell, the crate cell, and the gate bits. The encoder turns one state into <strong>NTOK tokens</strong>, each a vector in <code>R^d</code> — one token per moving/structural piece of the scene.</p>
+
+  <div class="pipe">
+    <div class="stage">
+      <div class="slab"><span class="big">render</span>state &rarr; picture<span class="shape">(B, 8, G, G)</span></div>
+      <div class="say"><h4>Draw the whole scene as an 8-channel image</h4>
+        <p>Channels: walls · <span class="tag">worker</span> · crate · gate cells · gate-open flag · levers · plate · chute. No coordinates are handed in as numbers — the model must <em>see</em> where things are.</p></div>
+    </div>
+    <div class="stage">
+      <div class="slab"><span class="big">CNN</span>2 conv layers<span class="shape">&rarr; (B, d, G, G)</span></div>
+      <div class="say"><h4>A small convolutional net reads the picture</h4>
+        <p><code>Conv 8&rarr;64 &rarr; ReLU &rarr; Conv 64&rarr;d &rarr; ReLU</code>. Output is a <code>d</code>-dim feature vector at every grid cell. Two layers is the sweet spot; deeper hurts.</p></div>
+    </div>
+    <div class="stage">
+      <div class="slab"><span class="big">x-attn read</span>find the agents<span class="shape">&rarr; worker, crate</span></div>
+      <div class="say"><h4>Two query tokens cross-attend the feature map</h4>
+        <p>One learned query for the <span class="tag">worker</span>, one for the crate. Each attends over all <code>G&times;G</code> feature cells and pulls out its own token — <strong>unsupervised</strong>: the model is never told which cell is the worker. It learns the binding from the distance signal alone.</p></div>
+    </div>
+    <div class="stage">
+      <div class="slab"><span class="big">assemble</span>NTOK tokens<span class="shape">(B, NTOK, d)</span></div>
+      <div class="say"><h4>Add the structural tokens</h4>
+        <p>Worker · crate · gate-bits · one token per gate · per lever (carrying its wiring) · plate · chute · a pooled wall token. Each also gets a role-id embedding. <code>NTOK = 3 + ngate + nlever + 3</code>. This bag of tokens <em>is</em> the state.</p></div>
+    </div>
+  </div>
+
+  <div class="note">
+    <div class="lab">why images</div>
+    <p>An easier variant (<code>bmask</code>) hands the exact worker/crate cell straight in. The convolutional path deliberately gives that up — it reads entities out of pixels, the realistic setting. That is why it scores a bit lower yet is the interesting model.</p>
+  </div>
+</section>
+
+<section id="loop">
+  <h2><span class="num">STEP 2 · THE FLOW</span>Walk the state, and re-inject the goal every step</h2>
+  <p>Now three copies of the token bag are stacked into one sequence of <code>3&middot;NTOK</code> tokens:</p>
+
+  <div class="loopcard">
+    <div class="tokens">
+      <span class="chip move">z<sub>state</sub> &nbsp;+ role 0</span>
+      <span class="arrow">&nbsp;the part that MOVES&nbsp;</span>
+    </div>
+    <div class="tokens">
+      <span class="chip goal">z<sub>goal</sub> &nbsp;+ role 1</span>
+      <span class="chip anchor">z<sub>start-anchor</sub> &nbsp;+ role 2</span>
+      <span class="arrow">&nbsp;re-injected unchanged every pass = &ldquo;recall&rdquo;&nbsp;</span>
+    </div>
+    <p class="muted" style="margin:14px 0 0;font-size:14px">Role embeddings tell the transformer which copy is which. Only the first block (<span class="tag">state</span>) is allowed to evolve; the <span class="tagc">goal</span> and the original start are pasted back in at the top of every loop so the network can never &ldquo;forget&rdquo; its destination or its origin.</p>
+  </div>
+
+  <p>Then the loop runs <code>T</code> times (default <code>T = 14</code>) with a single weight-shared transformer <code>Block</code> (a few pre-norm layers):</p>
+
+<pre class="mono"><span class="c"># tok = [ z_state ; z_goal ; z_anchor ]      # (B, 3·NTOK, d)</span>
+cost = 0
+<span class="k">for</span> t <span class="k">in</span> range(T):
+    z    = Block(tok)                          <span class="c"># one shared step of "flow"</span>
+    cost = cost <span class="a">+ (z[:NTOK] - tok[:NTOK]).norm(dim=-1).sum(-1)</span>   <span class="c"># add per-token move length</span>
+    tok  = [ z[:NTOK] ; z_goal ; z_anchor ]    <span class="c"># keep evolved state, RECALL goal+start</span>
+
+D = <span class="k">softplus(scale)</span> <span class="a">* cost</span>                       <span class="c"># one positive scalar → BFS steps</span></pre>
+
+  <p>Read the amber line as the thesis: <code>(z[:NTOK] − tok[:NTOK])</code> is how far each <span class="tag">state token</span> moved this pass; <code>.norm(dim=-1)</code> is the length of that move; <code>.sum(-1)</code> adds over the NTOK tokens; the loop adds over the <code>T</code> passes. That double sum is <span class="amber mono">&Sigma;<sub>t</sub>&Sigma;<sub>i</sub>&Vert;&Delta;z&Vert;</span> — the accumulated arc length. <code>softplus(scale)</code> is the one learned knob that keeps <code>D &ge; 0</code> and converts latent length into BFS-step units.</p>
+
+  <table class="glossary">
+    <thead><tr><th>symbol</th><th>in code</th><th>what it is</th></tr></thead>
+    <tbody>
+      <tr><td class="sym">s, g</td><td>x, g</td><td>start and goal states (worker cell, crate cell, gate bits) on map <code>m</code>.</td></tr>
+      <tr><td class="sym">z<sub>i</sub>(t)</td><td>z[:NTOK]</td><td>the <em>i</em>-th state token after <em>t</em> passes of the shared block. Only these move.</td></tr>
+      <tr><td class="sym">Block</td><td>Block(d,h,l)</td><td>weight-shared pre-norm transformer, <code>l</code> layers, applied the same way all <code>T</code> passes.</td></tr>
+      <tr><td class="sym">T</td><td>--T (14)</td><td>number of recall passes = how many little steps the walk is unrolled for.</td></tr>
+      <tr><td class="sym">recall</td><td>tok = [z ; base]</td><td>re-injecting <code>z_goal</code> and <code>z_anchor</code> unchanged every pass. Without it the goal drifts away.</td></tr>
+      <tr><td class="sym">scale</td><td>softplus(scale)</td><td>one learned scalar &ge; 0; the units conversion from latent length to BFS distance.</td></tr>
+      <tr><td class="sym">D</td><td>out</td><td>the single predicted distance, trained against the true BFS geodesic.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="training">
+  <h2><span class="num">STEP 3 · LEARNING</span>One loss, the true shortest path</h2>
+  <p>For each training pair the ground truth is the <strong>BFS geodesic</strong>: the real minimum number of legal moves from <span class="tag">s</span> to <span class="tagc">g</span> on that map (respecting walls, gates, wiring, crate-pushing). The whole stack — CNN, cross-attention read, transformer, <code>scale</code> — is trained end to end with a single smooth-L1 regression:</p>
+<pre class="mono">loss = smooth_l1( <span class="a">D(s, g, m)</span> , <span class="k">bfs_distance(s, g, m)</span> )</pre>
+  <p class="muted">No path supervision, no binding labels, no per-step targets. The model is only ever told the total distance, and it discovers on its own that the honest way to produce it is to <em>route</em> the latent state and pay for the trip. Pairs are sampled across 150 training maps, stratified by distance; the held-out 50 maps (new layouts <em>and</em> new wiring) test whether it learned the mechanism rather than the maps.</p>
+
+  <div class="note">
+    <div class="lab">why it must accumulate, not guess</div>
+    <p>A plain regressor could memorise &ldquo;these two look ~8 apart.&rdquo; The accumulator can't shortcut: the only way to output a large number is to actually move the state far over the <code>T</code> passes. That structural honesty is what lets it — in the right regime — extrapolate to distances longer than any it was trained on.</p>
+  </div>
+</section>
+
+<section id="scope">
+  <h2><span class="num">HONEST SCOPE</span>Where this model wins, and where it doesn't</h2>
+  <p>On the <strong>image switchyard, in-range structural generalization</strong> (unseen maps and wirings, distances within the trained range), a <em>fairly tuned</em> comparison puts the recall-flow head shoulder-to-shoulder with strong baselines, not ahead of them:</p>
+  <table class="glossary">
+    <thead><tr><th>head (same CNN encoder)</th><th>map split</th><th>wire split</th></tr></thead>
+    <tbody>
+      <tr><td class="sym">integ &nbsp;(this model)</td><td>0.788 &plusmn; .02</td><td>0.786 &plusmn; .02</td></tr>
+      <tr><td class="sym">iqe &nbsp;(quasimetric)</td><td>0.781</td><td>0.770</td></tr>
+      <tr><td class="sym">scalar &nbsp;(plain MLP)</td><td>0.769</td><td>0.776</td></tr>
+      <tr><td class="sym">sym &nbsp;(metric embed)</td><td>0.758</td><td>0.768</td></tr>
+      <tr><td class="sym">mrn &nbsp;(quasimetric)</td><td>unstable</td><td>unstable</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">All within seed noise (3 seeds). The earlier &ldquo;integrator dominates&rdquo; gap was an artifact of under-tuned baselines. The accumulator's real, distinctive edge shows on a <strong>different axis</strong> — extrapolating to distances <em>longer</em> than training — which this benchmark doesn't test. Read this page for the mechanism; don't read the structural tie as the model's verdict.</p>
+</section>
+
+<div class="foot wrap" style="padding-left:0;padding-right:0">
+  <p>Source: <code>distance_model/switchyard.py</code> — encoder <code>class Enc</code>, model <code>class Integ</code>, recurrence in <code>Integ.forward</code>. Recipe: <code>--enc image --readout xattn --cnnw 64 --cnndepth 2 --T 14</code>. This page describes the model as of the fair-benchmark branch.</p>
+</div>
+
+</main>
+</div>
+
+<script>
+(function(){
+  var cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+  var accEl=document.getElementById('acc'), dEl=document.getElementById('dpred');
+  var bNear=document.getElementById('bNear'), bFar=document.getElementById('bFar'), bReplay=document.getElementById('bReplay');
+  var reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var mode='near', W=0, H=0, dpr=Math.min(window.devicePixelRatio||1,2);
+
+  function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+  function resize(){
+    W=cv.clientWidth; H=Math.round(W*0.42); if(H<220)H=220; if(H>440)H=440;
+    cv.width=W*dpr; cv.height=H*dpr; cv.style.height=H+'px'; ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+
+  // build a T-step latent trajectory from start->goal with gentle curvature + jitter
+  var T=14;
+  function makePath(near){
+    var pad=54;
+    var sx=pad, sy=H*0.72;
+    var gx=W-pad, gy=near? H*0.60 : H*0.30;
+    // control offset makes far pairs arc more (longer arc length)
+    var arc=near? 0.10 : 0.42;
+    var pts=[], seed=near?7:23;
+    function rnd(){ seed=(seed*9301+49297)%233280; return seed/233280; }
+    for(var k=0;k<=T;k++){
+      var u=k/T;
+      var bx=sx+(gx-sx)*u, by=sy+(gy-sy)*u;
+      var bump=Math.sin(u*Math.PI)*(arc*H);
+      var jit=(near?6:16)*(rnd()-0.5);
+      pts.push([bx, by-bump+jit]);
+    }
+    return pts;
+  }
+  var path=[], accArr=[], total=0;
+  function prep(){
+    path=makePath(mode==='near');
+    accArr=[0]; total=0;
+    for(var k=1;k<path.length;k++){
+      var dx=path[k][0]-path[k-1][0], dy=path[k][1]-path[k-1][1];
+      total+=Math.hypot(dx,dy); accArr.push(total);
+    }
+  }
+
+  function dot(x,y,r,fill,ring){
+    ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fillStyle=fill; ctx.fill();
+    if(ring){ctx.lineWidth=2; ctx.strokeStyle=ring; ctx.stroke();}
+  }
+  function drawFrame(prog){ // prog in [0..T]
+    ctx.clearRect(0,0,W,H);
+    // faint grid
+    ctx.strokeStyle=css('--line'); ctx.globalAlpha=.5; ctx.lineWidth=1;
+    for(var gx=0;gx<=W;gx+=Math.max(28,W/22)){ctx.beginPath();ctx.moveTo(gx,0);ctx.lineTo(gx,H);ctx.stroke();}
+    for(var gy=0;gy<=H;gy+=Math.max(28,W/22)){ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(W,gy);ctx.stroke();}
+    ctx.globalAlpha=1;
+    var s=path[0], g=path[path.length-1];
+    // goal marker
+    dot(g[0],g[1],9,'transparent',css('--goal')); dot(g[0],g[1],3.5,css('--goal'));
+    // travelled trail (amber)
+    var ip=Math.floor(prog), frac=prog-ip;
+    ctx.lineWidth=3.5; ctx.strokeStyle=css('--amber'); ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.beginPath(); ctx.moveTo(s[0],s[1]);
+    for(var k=1;k<=ip && k<path.length;k++) ctx.lineTo(path[k][0],path[k][1]);
+    var cx=s[0],cy=s[1];
+    if(ip<path.length-0){
+      var a=path[Math.min(ip,path.length-1)], b=path[Math.min(ip+1,path.length-1)];
+      cx=a[0]+(b[0]-a[0])*frac; cy=a[1]+(b[1]-a[1])*frac; ctx.lineTo(cx,cy);
+    }
+    ctx.stroke();
+    // remaining path (faint dashed)
+    ctx.setLineDash([4,6]); ctx.lineWidth=1.5; ctx.strokeStyle=css('--faint'); ctx.globalAlpha=.6;
+    ctx.beginPath(); ctx.moveTo(cx,cy);
+    for(var k2=Math.min(ip+1,path.length-1);k2<path.length;k2++) ctx.lineTo(path[k2][0],path[k2][1]);
+    ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=1;
+    // step ticks passed
+    for(var k3=1;k3<=ip && k3<path.length;k3++) dot(path[k3][0],path[k3][1],2.2,css('--amber'));
+    // moving state dot
+    dot(cx,cy,7,css('--start'),css('--bg'));
+    // start marker
+    dot(s[0],s[1],3.5,css('--start'));
+    // labels
+    ctx.font='600 12px ui-monospace,monospace'; ctx.fillStyle=css('--start');
+    ctx.fillText('start', s[0]-6, s[1]+22);
+    ctx.fillStyle=css('--goal'); ctx.textAlign='right'; ctx.fillText('goal', g[0]+2, g[1]-16); ctx.textAlign='left';
+    // readouts
+    var accNow = (ip>=path.length-1)? total : (accArr[ip] + (accArr[Math.min(ip+1,path.length-1)]-accArr[ip])*frac);
+    var scale=0.052; // latent-length -> pseudo BFS
+    accEl.textContent=(accNow*scale).toFixed(1);
+    dEl.textContent=Math.max(0,Math.round(accNow*scale));
+  }
+
+  var raf=null, t0=null;
+  function run(){
+    prep();
+    if(reduce){ drawFrame(T); return; }
+    cancelAnimationFrame(raf); t0=null;
+    var dur=mode==='near'?1600:2400;
+    function tick(ts){
+      if(t0===null)t0=ts;
+      var p=Math.min(1,(ts-t0)/dur);
+      var eased=1-Math.pow(1-p,2);
+      drawFrame(eased*T);
+      if(p<1) raf=requestAnimationFrame(tick);
+    }
+    raf=requestAnimationFrame(tick);
+  }
+  function setMode(m){ mode=m; bNear.classList.toggle('on',m==='near'); bFar.classList.toggle('on',m==='far'); run(); }
+
+  bNear.onclick=function(){setMode('near');};
+  bFar.onclick=function(){setMode('far');};
+  bReplay.onclick=run;
+  window.addEventListener('resize',function(){resize();prep();drawFrame(T);});
+  resize(); run();
+  // redraw on theme flips
+  try{ new MutationObserver(function(){drawFrame(T);}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']}); }catch(e){}
+})();
+</script>

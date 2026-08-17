@@ -274,6 +274,7 @@ def train(a):
                     s.iquery = nn.Parameter(torch.randn(2, d) * 0.02)
                     s.islot = nn.Embedding(2, d)
                     s.iattn = nn.MultiheadAttention(d, a.markerheads, batch_first=True)
+                    s.bindhead = nn.Linear(d, ncell) if a.markeraux > 0 else None   # PROBE: supervised binding aux on image
                 elif a.readout == "convspatial":                  # per-agent conv logits + spatial softmax pool
                     s.ihead = nn.Conv2d(d, 2, 1)
                 else:                                             # convpool: global pool -> project to 2 tokens
@@ -303,6 +304,10 @@ def train(a):
                 fmap = feat.flatten(2).transpose(1, 2) + s.imgpos[None]         # (B,ncell,d)
                 q = (s.iquery + s.islot(torch.arange(2, device=x.device)))[None].expand(B, -1, -1)
                 bound, _ = s.iattn(q, fmap, fmap)
+                if getattr(s, "bindhead", None) is not None and s._aux is not None:   # supervised binding aux (upper-bound probe)
+                    wc = CELL[m].gather(1, x[:, 0:2])                          # true worker/crate cells
+                    s._aux = s._aux + F.cross_entropy(s.bindhead(bound[:, 0]), wc[:, 0]) \
+                                    + F.cross_entropy(s.bindhead(bound[:, 1]), wc[:, 1])
                 return bound[:, 0], bound[:, 1]
             if a.readout == "convspatial":
                 att = s.ihead(feat).flatten(2).softmax(-1)                       # (B,2,ncell)
@@ -562,7 +567,7 @@ def train(a):
                                       Rtrain=a.Rtrain, globalbase=a.globalbase, enc=a.enc, markeraux=a.markeraux,
                                       markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, cnndepth=a.cnndepth, steps=a.steps, seed=a.seed,
                                       d=a.d, layers=a.layers, baselayers=(a.baselayers if a.baselayers > 0 else a.layers),
-                                      heads=a.heads, lr=a.lr, latentnorm=a.latentnorm, gradclip=a.gradclip,
+                                      heads=a.heads, T=a.T, lr=a.lr, latentnorm=a.latentnorm, gradclip=a.gradclip,
                                       tag=a.tag, **out)), flush=True)
 
 def main():
