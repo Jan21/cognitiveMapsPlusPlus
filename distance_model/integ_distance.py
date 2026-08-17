@@ -14,6 +14,7 @@ import argparse, collections, itertools, json, numpy as np, torch, torch.nn as n
 
 CTRL = 0
 ENC = "factored"
+CNNW, CNNDEPTH = 64, 2                                              # --enc image: CNN width / depth (switchyard-aligned)
 INJECT = False
 HELDMODE = ""
 _HELD = set()
@@ -178,6 +179,16 @@ class Enc(nn.Module):
         self.query = nn.Parameter(torch.randn(N, d) * 0.02)        # marker: per-agent-slot query
         self.slotid = nn.Embedding(N, d)
         self.attn = nn.MultiheadAttention(d, heads, batch_first=True)
+        if ENC == "image":                                         # CNN over the rendered scene + xattn read (as switchyard)
+            convs = [nn.Conv2d(N, CNNW, 3, padding=1), nn.ReLU()]
+            for _ in range(max(0, CNNDEPTH - 2)):
+                convs += [nn.Conv2d(CNNW, CNNW, 3, padding=1), nn.ReLU()]
+            convs += [nn.Conv2d(CNNW, d, 3, padding=1), nn.ReLU()]
+            self.cnn = nn.Sequential(*convs)
+            self.imgpos = nn.Parameter(torch.randn(self.NP, d) * 0.02)
+            self.iquery = nn.Parameter(torch.randn(N, d) * 0.02)
+            self.islot = nn.Embedding(N, d)
+            self.iattn = nn.MultiheadAttention(d, heads, batch_first=True)
     def ctoken(self, mk, lk):
         tok = self.cbase[None].expand(mk.shape[0], self.d).clone()
         for i in range(1, self.N):
@@ -193,9 +204,22 @@ class Enc(nn.Module):
         for i in range(self.N):
             tok = tok + ((bits >> i) & 1).float()[..., None] * self.cellemb.weight[i]
         return tok + self.pe(torch.arange(self.NP, device=dev))[None], bits
+    def _render(self, s):
+        """(B, N, G, G) image: one channel per agent, 1 at its cell (no cell index handed to the readout)."""
+        B, dev = s.shape[0], s.device
+        img = torch.zeros(B, self.N, self.NP, device=dev)
+        for i in range(self.N): img[:, i].scatter_(1, s[:, i:i + 1], 1.0)
+        return img.view(B, self.N, self.G, self.G)
     def _positions(self, s):
         if ENC == "factored":
             return [self.posf(s[:, i]) for i in range(self.N)]
+        if ENC == "image":
+            feat = self.cnn(self._render(s))                       # (B,d,G,G)
+            fmap = feat.flatten(2).transpose(1, 2) + self.imgpos[None]     # (B,NP,d)
+            ids = torch.arange(self.N, device=s.device)
+            q = (self.iquery + self.islot(ids))[None].expand(s.shape[0], -1, -1)
+            bound, _ = self.iattn(q, fmap, fmap)                   # learned, unsupervised binding
+            return [bound[:, i] for i in range(self.N)]
         tok, bits = self._canvas(s)
         if ENC == "bmask":                                         # lossless: recover agent i cell deterministically
             return [self.posf(((bits >> i) & 1).float().argmax(1)) for i in range(self.N)]
@@ -292,6 +316,21 @@ class QmetHead(nn.Module):
         return self.head(self.embed(s), self.embed(g))
 
 
+class ScalarHead(nn.Module):
+    """No-inductive-bias control: shared encoder -> mix block -> pooled latents -> MLP(concat(s,g)) -> distance."""
+    def __init__(self, N, G, d=64, heads=4, layers=3):
+        super().__init__()
+        self.n = N + 1
+        self.enc = Enc(N, G, d, heads); self.fid = nn.Embedding(N + 1, d)
+        self.block = Block(d, heads, layers)
+        self.head = nn.Sequential(nn.Linear(2 * d, 2 * d), nn.GELU(), nn.Linear(2 * d, 2 * d), nn.GELU(), nn.Linear(2 * d, 1))
+    def embed(self, s):
+        ids = torch.arange(self.n, device=s.device)
+        return self.block(self.enc(s) + self.fid(ids)[None]).mean(1)
+    def forward(self, s, g, **kw):
+        return self.head(torch.cat([self.embed(s), self.embed(g)], -1)).squeeze(-1)
+
+
 class SymEmbed(nn.Module):
     """Symmetric-embedding baseline: D(s,g) = ||f(s) - f(g)||_1 with three encoder variants.
     mlp: flatten tokens -> MLP.  attn: plain (non-shared) transformer, mean-pooled.
@@ -329,7 +368,7 @@ def main():
     ap.add_argument("--nag", type=int, default=4); ap.add_argument("--G", type=int, default=6)
     ap.add_argument("--Rmax", type=int, default=12); ap.add_argument("--T", type=int, default=14)
     ap.add_argument("--Rtrain", type=int, default=0, help="cap training-pair distance (0 = Rmax); eval always uses Rmax")
-    ap.add_argument("--arch", choices=["integ", "sym_mlp", "sym_attn", "sym_flat", "sym_rec", "iqe", "mrn"], default="integ")
+    ap.add_argument("--arch", choices=["integ", "sym_mlp", "sym_attn", "sym_flat", "sym_rec", "iqe", "mrn", "scalar"], default="integ")
     ap.add_argument("--globalbase", type=int, default=0, help="integ: add learned base once to the output")
     ap.add_argument("--maxnodes", type=int, default=8000, help="BFS ball node cap (raise for Rmax > 12)")
     ap.add_argument("--arrive", type=float, default=0.0, help="integ: arrival-loss weight (park at goal)")
@@ -361,11 +400,14 @@ def main():
     ap.add_argument("--steps", type=int, default=40000); ap.add_argument("--bs", type=int, default=128); ap.add_argument("--lr", type=float, default=2e-3)
     ap.add_argument("--poolq", type=int, default=2000); ap.add_argument("--nquery", type=int, default=80); ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--gradclip", type=float, default=0.0, help="grad-norm clip for ALL archs (0 = off; MRN nan safety)")
-    ap.add_argument("--enc", choices=["factored", "bmask", "marker"], default="factored")
+    ap.add_argument("--enc", choices=["factored", "bmask", "marker", "image"], default="factored")
+    ap.add_argument("--cnnw", type=int, default=64, help="--enc image: CNN width (switchyard best 64)")
+    ap.add_argument("--cnndepth", type=int, default=2, help="--enc image: conv layers (switchyard best 2)")
     ap.add_argument("--inject", type=int, default=0, help="per-agent constraint injection into position tokens")
     ap.add_argument("--heldout", choices=["", "combo", "links2", "dofhi", "dofhi2"], default="")
     a = ap.parse_args()
-    global ENC, INJECT, HELDMODE, _HELD, MAXN; ENC = a.enc; INJECT = bool(a.inject); HELDMODE = a.heldout; N = a.nag
+    global ENC, INJECT, HELDMODE, _HELD, MAXN, CNNW, CNNDEPTH; ENC = a.enc; INJECT = bool(a.inject); HELDMODE = a.heldout; N = a.nag
+    CNNW, CNNDEPTH = a.cnnw, a.cnndepth
     MAXN = a.maxnodes
     if a.heldout == "combo":
         _HELD = {((0, 0, 0), 1), ((1, 1, 1), 3), ((3, 0, 0), 2), ((0, 2, 0), 4), ((2, 2, 2), 7), ((1, 0, 2), 5)}
@@ -378,6 +420,8 @@ def main():
         model = LinMix(N, a.G, a.d, a.heads, a.layers, a.T).to(dev)
     elif a.arch in ("iqe", "mrn"):
         model = QmetHead(N, a.G, a.arch, a.d, a.heads, a.layers).to(dev)
+    elif a.arch == "scalar":
+        model = ScalarHead(N, a.G, a.d, a.heads, a.layers).to(dev)
     elif a.arch == "integ":
         model = Integrator(N, a.G, a.d, a.heads, a.layers, a.T).to(dev)
         if a.globalbase: model.gbase = nn.Parameter(torch.zeros((), device=dev))
@@ -606,6 +650,7 @@ def main():
         return out
 
     res = dict(nag=N, G=a.G, enc=a.enc, arch=a.arch, globalbase=a.globalbase, inject=a.inject, heldout=a.heldout, nskip=NSKIP[0], gradclip=a.gradclip,
+               lr=a.lr, cnnw=a.cnnw, cnndepth=a.cnndepth,
                Rtrain=a.Rtrain, Rmax=a.Rmax, steps=a.steps, seed=a.seed, d=a.d, layers=a.layers, T=a.T,
                variant={k: getattr(a, k) for k in ("resprox", "logd", "softcount", "stepcap", "proxybudget",
                                                    "bellman", "bellwalk", "tri", "bounds", "distill", "ematarget",
