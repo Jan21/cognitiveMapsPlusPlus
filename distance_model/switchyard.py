@@ -264,8 +264,11 @@ def train(a):
                     s.cattn = nn.MultiheadAttention(d, a.markerheads, batch_first=True)
                     s.bindhead = nn.Linear(d, ncell) if a.markeraux > 0 else None   # aux: decode bound -> true cell
             if a.enc == "image":                                  # CNN over the FULL rendered scene + cross-attn read
-                s.cnn = nn.Sequential(nn.Conv2d(IMGC, a.cnnw, 3, padding=1), nn.ReLU(),
-                                      nn.Conv2d(a.cnnw, d, 3, padding=1), nn.ReLU())
+                convs = [nn.Conv2d(IMGC, a.cnnw, 3, padding=1), nn.ReLU()]
+                for _ in range(max(0, a.cnndepth - 2)):           # extra hidden conv layers
+                    convs += [nn.Conv2d(a.cnnw, a.cnnw, 3, padding=1), nn.ReLU()]
+                convs += [nn.Conv2d(a.cnnw, d, 3, padding=1), nn.ReLU()]
+                s.cnn = nn.Sequential(*convs)
                 if a.readout == "xattn":                          # worker/crate query tokens cross-attend the feat map
                     s.imgpos = nn.Parameter(torch.randn(ncell, d) * 0.02)
                     s.iquery = nn.Parameter(torch.randn(2, d) * 0.02)
@@ -543,7 +546,7 @@ def train(a):
         out[name] = r
     print("RESULT " + json.dumps(dict(G=a.G, ngate=a.ngate, nlever=a.nlever, nmaps=a.nmaps, split=a.split,
                                       Rtrain=a.Rtrain, globalbase=a.globalbase, enc=a.enc, markeraux=a.markeraux,
-                                      markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, steps=a.steps, seed=a.seed,
+                                      markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, cnndepth=a.cnndepth, steps=a.steps, seed=a.seed,
                                       tag=a.tag, **out)), flush=True)
 
 def main():
@@ -563,6 +566,7 @@ def main():
     ap.add_argument("--readout", choices=["xattn", "convspatial", "convpool"], default="xattn",
                     help="--enc image: how factor tokens read the CNN feature map (xattn=cross-attention)")
     ap.add_argument("--cnnw", type=int, default=32, help="--enc image: CNN hidden width")
+    ap.add_argument("--cnndepth", type=int, default=2, help="--enc image: number of conv layers")
     ap.add_argument("--markeraux", type=float, default=0.0, help="marker: aux loss decoding bound token -> true cell (direct binding signal)")
     ap.add_argument("--markerheads", type=int, default=4, help="marker: attention heads for the binding")
     ap.add_argument("--bindmode", choices=["attn", "gather", "slot"], default="attn",
