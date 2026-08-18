@@ -1,0 +1,271 @@
+<title>Integrator Wiring Diagram</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{--bg:#eef1f5;--paper:#fff;--paper2:#f5f7fa;--line:#d3dae3;--ink:#161a21;--muted:#5c6675;--faint:#8a94a4;
+--cyan:#0e7c94;--cyan-soft:#0e7c9418;--amber:#b45309;--amber-soft:#b4530918;--code:#f0f3f7;--shadow:0 1px 2px rgba(20,30,45,.06),0 8px 24px rgba(20,30,45,.06)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1117;--paper:#141a22;--paper2:#111820;--line:#26303c;--ink:#e7ecf3;--muted:#9aa6b5;--faint:#6b7788;--cyan:#4cc6e0;--cyan-soft:#4cc6e022;--amber:#eab04a;--amber-soft:#eab04a1e;--code:#0f151c;--shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35)}}
+:root[data-theme="dark"]{--bg:#0d1117;--paper:#141a22;--paper2:#111820;--line:#26303c;--ink:#e7ecf3;--muted:#9aa6b5;--faint:#6b7788;--cyan:#4cc6e0;--cyan-soft:#4cc6e022;--amber:#eab04a;--amber-soft:#eab04a1e;--code:#0f151c;--shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16.5px;line-height:1.62;-webkit-font-smoothing:antialiased}
+.mono,code,pre,td.sh,td.sym{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.wrap{max-width:900px;margin:0 auto;padding:0 22px}
+header{padding:64px 0 26px;border-bottom:1px solid var(--line)}
+.eyebrow{font:600 12px/1 ui-monospace,monospace;letter-spacing:.16em;text-transform:uppercase;color:var(--cyan);margin:0 0 16px}
+h1{font-size:clamp(30px,5.4vw,44px);line-height:1.06;letter-spacing:-.025em;font-weight:680;margin:0 0 14px;text-wrap:balance}
+.lede{font-size:18px;color:var(--muted);max-width:66ch;margin:0}
+main{padding-bottom:90px}
+section{padding:44px 0 0}
+h2{font-size:23px;line-height:1.15;letter-spacing:-.02em;font-weight:660;margin:0 0 6px;text-wrap:balance}
+h2 .k{display:block;font:600 12px/1 ui-monospace,monospace;letter-spacing:.1em;color:var(--cyan);margin-bottom:9px}
+h3{font-size:16.5px;font-weight:640;margin:24px 0 6px}
+p{margin:11px 0} .muted{color:var(--muted)} .small{font-size:14px}
+code{font-size:.88em;background:var(--code);border:1px solid var(--line);border-radius:5px;padding:.05em .36em}
+pre{margin:14px 0;padding:14px 16px;background:var(--code);border:1px solid var(--line);border-radius:10px;overflow-x:auto;font-size:12.8px;line-height:1.55}
+pre .c{color:var(--faint)} pre .k{color:var(--cyan)} pre .a{color:var(--amber);font-weight:600}
+.tbl{width:100%;border-collapse:collapse;margin:12px 0 4px;font-size:14px;font-variant-numeric:tabular-nums}
+.tbl th,.tbl td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.tbl th{font:600 11.5px/1.2 ui-monospace,monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.tbl tr:last-child td{border-bottom:none}
+.tbl td.sh{color:var(--cyan);white-space:nowrap;font-size:13px}
+.tbl td.sym{white-space:nowrap;font-size:13px}
+.tbl td.num{text-align:right;font-family:ui-monospace,monospace;font-size:13px}
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--paper);box-shadow:var(--shadow);padding:4px 10px}
+.recipe{margin:26px 0 0;padding:16px 18px;border:1px solid var(--line);border-radius:12px;background:var(--paper);box-shadow:var(--shadow)}
+.recipe .lab{font:600 11px/1 ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);margin-bottom:8px}
+.stage{display:grid;grid-template-columns:150px 1fr;gap:16px;padding:14px 0;border-top:1px dashed var(--line)}
+.stage:first-of-type{border-top:none}
+.stage .slab{align-self:start;font-family:ui-monospace,monospace;font-size:12px;color:var(--muted);background:var(--paper2);border:1px solid var(--line);border-radius:9px;padding:10px 12px}
+.stage .slab b{display:block;color:var(--ink);font-size:12.5px;margin-bottom:4px}
+.stage .slab .sh{display:block;color:var(--cyan);margin-top:5px;font-size:11.5px}
+.note{margin:16px 0;padding:12px 16px 12px 18px;border-left:3px solid var(--cyan);background:var(--paper);border-radius:0 10px 10px 0}
+.note.warn{border-left-color:var(--amber)}
+.note .lab{font:600 11px/1 ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);margin-bottom:6px}
+.note.warn .lab{color:var(--amber)}
+.note p{margin:4px 0;font-size:14.5px}
+.tokrow{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0;font-family:ui-monospace,monospace;font-size:12px}
+.tk{border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--paper2)}
+.tk.mv{border-color:var(--amber);color:var(--amber);background:var(--amber-soft)}
+.tk.gl{border-color:var(--cyan);color:var(--cyan);background:var(--cyan-soft)}
+.tk.an{color:var(--muted)}
+ul{padding-left:20px;margin:6px 0} li{margin:4px 0}
+.foot{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);color:var(--faint);font-size:13px}
+@media (max-width:600px){.stage{grid-template-columns:1fr}}
+</style>
+<div class="wrap">
+<header>
+  <p class="eyebrow">CognitiveMaps++ · switchyard.py · class Integ (image, xattn)</p>
+  <h1>Every tensor from input state to predicted distance</h1>
+  <p class="lede">The exact computation of the current recall-flow integrator on the switchyard image setup, at the recipe used in the ledger. Shapes, ops, parameter counts, initialisation, data and loss. Nothing summarised away. Line numbers refer to <code>distance_model/switchyard.py</code> at commit <code>acf413d</code>.</p>
+  <div class="recipe"><div class="lab">reference recipe (integ own recipe, ledger bed 1)</div>
+<pre style="margin:0"><span class="c">python3 switchyard.py --train --enc image --readout xattn --nobaseline \
+   --d 128 --layers 4 --heads 4 --T 14 --nmaps 200 --poolq 2000 --steps 80000 --split map|wire</span>
+<span class="c"># implied defaults: G 7, ngate 3, nlever 2, nchute 1, Rmax 24, Rtrain 0, bs 128, lr 2e-3, cnnw 32, cnndepth 2,
+# markerheads 4, gradclip 0, latentnorm 0, seewalls 0, markeraux 0, recon none, hardattn 0, bellman 0, T-test = T</span></pre>
+    <p class="small muted" style="margin:10px 0 0">Total trainable parameters: <b class="mono" style="color:var(--ink)">659,233</b> (encoder 128,928 · shared block 529,920 · role 384 · scale 1).</p>
+  </div>
+</header>
+<main>
+
+<section>
+  <h2><span class="k">0 · SYMBOLS</span>Sizes that everything below is written in</h2>
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>symbol</th><th>value</th><th>meaning</th></tr>
+    <tr><td class="sym">G</td><td class="num">7</td><td>grid side; <code>ncell = G·G = 49</code> absolute cells, cell id <code>r·G + c</code></td></tr>
+    <tr><td class="sym">ngate / nlever / nchute</td><td class="num">3 / 2 / 1</td><td>gates, levers, chutes per map</td></tr>
+    <tr><td class="sym">NTOK</td><td class="num">11</td><td><code>3 + ngate + nlever + 3</code> = worker, crate, bits | 3 gates, 2 levers, plate, chute, wall-pool (line 250)</td></tr>
+    <tr><td class="sym">d</td><td class="num">128</td><td>token width everywhere (embeddings, CNN output, transformer)</td></tr>
+    <tr><td class="sym">h</td><td class="num">4</td><td>attention heads in the shared block AND in the image read (<code>markerheads</code>); head dim 32</td></tr>
+    <tr><td class="sym">L</td><td class="num">4</td><td>pre-norm transformer layers inside the weight-shared block</td></tr>
+    <tr><td class="sym">T</td><td class="num">14</td><td>recall passes; the same block is applied 14 times → 56 layer applications per forward</td></tr>
+    <tr><td class="sym">IMGC</td><td class="num">8</td><td>render channels: wall, worker, crate, gate, gate-open, lever, plate, chute</td></tr>
+    <tr><td class="sym">B</td><td class="num">128</td><td>batch (pairs) per step</td></tr>
+  </table></div>
+</section>
+
+<section>
+  <h2><span class="k">1 · INPUT</span>What one example is</h2>
+  <p>A training example is a triple <code>(x, g, m)</code>: start state, goal state, map id. States are <code>yard.vec(s)</code> (line 119): three integers</p>
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>field</th><th>type / range</th><th>meaning</th></tr>
+    <tr><td class="sym">x[0]</td><td>int, index into <code>yard.cells</code></td><td>worker position as a <b>map-local</b> cell index (cells = all non-wall cells plus the gap cells)</td></tr>
+    <tr><td class="sym">x[1]</td><td>int, index into <code>yard.cells</code></td><td>crate position, map-local</td></tr>
+    <tr><td class="sym">x[2]</td><td>int in [0, 2<sup>ngate</sup>)</td><td>gate bits; bit g = 1 means gate g is open (levers XOR wiring masks into these bits; the plate can force bits open transiently)</td></tr>
+  </table></div>
+  <p>The map id <code>m</code> selects a row from the <b>static per-map tensors</b> built once in <code>train()</code> (lines 229–246). These are the only way map geometry enters the model:</p>
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>tensor</th><th>shape</th><th>content</th></tr>
+    <tr><td class="sym">CELL[m]</td><td class="sh">(nmaps, 49) long</td><td>map-local cell index → absolute cell id <code>r·G+c</code>. Used to turn <code>x[0:2]</code> into absolute cells.</td></tr>
+    <tr><td class="sym">WALLIMG[m]</td><td class="sh">(nmaps, 49) float</td><td>1.0 at wall cells (cells with <code>yard.wall==True</code> that are not gates). Open doorways are 0 here → visible in the render.</td></tr>
+    <tr><td class="sym">GC[m]</td><td class="sh">(nmaps, 3) long</td><td>absolute cell of each gate g (order = gate index = bit index)</td></tr>
+    <tr><td class="sym">LC[m], LW[m]</td><td class="sh">(nmaps, 2) long, (nmaps, 2, 3) float</td><td>lever cells; lever wiring as a 0/1 mask over gates (LW[m,l,g] = 1 iff pulling lever l flips gate g)</td></tr>
+    <tr><td class="sym">PC[m], PW[m]</td><td class="sh">(nmaps,) long, (nmaps, 3) float</td><td>plate cell; plate wiring mask (gates forced open while the crate sits on the plate)</td></tr>
+    <tr><td class="sym">CC[m], CD[m]</td><td class="sh">(nmaps,) long, (nmaps,) long</td><td>chute cell and its allowed entry direction (0..3 = N S W E)</td></tr>
+    <tr><td class="sym">WALL[m], WN[m]</td><td class="sh">(nmaps, NW) long, (nmaps, 1) float</td><td>list of wall cells (padded to NW = max wall count) and the count; used only for the pooled wall token</td></tr>
+  </table></div>
+  <div class="note"><div class="lab">what the model does NOT get</div><p>No coordinates as numbers, no adjacency, no BFS. Wiring is given as masks (LW/PW); geometry only through the render (image path) and the wall pool. With <code>--seewalls 0</code> (this recipe) the 1–5 permanently open non-gate doorways per map are present only implicitly: as zeros in the render's wall channel and as absences in the pooled wall token.</p></div>
+</section>
+
+<section>
+  <h2><span class="k">2 · RENDER</span><code>Enc._render(x, m)</code> → (B, 8, 7, 7)   [lines 292–306]</h2>
+  <p>A zero image <code>(B, 8, 49)</code> is filled by scatters, then viewed as <code>(B, 8, 7, 7)</code>. <code>wc = CELL[m].gather(1, x[:,0:2])</code> gives absolute worker/crate cells; <code>bits = ((x[:,2] &gt;&gt; g) &amp; 1)</code> for g = 0..2.</p>
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>channel</th><th>op</th><th>value</th></tr>
+    <tr><td class="num">0</td><td class="sym">img[:,0] = WALLIMG[m]</td><td>binary wall mask (gate cells excluded, open doorways 0)</td></tr>
+    <tr><td class="num">1</td><td class="sym">scatter_(1, wc[:,0:1], 1.0)</td><td>one-hot worker cell</td></tr>
+    <tr><td class="num">2</td><td class="sym">scatter_(1, wc[:,1:2], 1.0)</td><td>one-hot crate cell</td></tr>
+    <tr><td class="num">3</td><td class="sym">scatter_(1, GC[m], 1.0)</td><td>1 at each of the 3 gate cells</td></tr>
+    <tr><td class="num">4</td><td class="sym">scatter_(1, GC[m], bits)</td><td>1 at gate g's cell iff bit g is open (dynamic!)</td></tr>
+    <tr><td class="num">5</td><td class="sym">scatter_(1, LC[m], 1.0)</td><td>1 at each lever cell</td></tr>
+    <tr><td class="num">6</td><td class="sym">scatter_(1, PC[m][:,None], 1.0)</td><td>1 at the plate cell</td></tr>
+    <tr><td class="num">7</td><td class="sym">scatter_(1, CC[m][:,None], 1.0)</td><td>1 at the chute cell (direction NOT rendered; it enters via the chute token)</td></tr>
+  </table></div>
+  <p class="small muted">Note channel 4 depends on the state's gate bits, so the render is a full picture of the current situation, not just the map. The lever→gate wiring is not drawn anywhere; it only reaches the model through the lever tokens (stage 5).</p>
+</section>
+
+<section>
+  <h2><span class="k">3 · CNN</span><code>Enc.cnn</code> → (B, 128, 7, 7)   [lines 273–277]</h2>
+<pre>Conv2d(8 → 32, kernel 3×3, padding 1)   <span class="c"># 8·32·9 + 32 = 2,336 params</span>
+ReLU
+Conv2d(32 → 128, kernel 3×3, padding 1) <span class="c"># 32·128·9 + 128 = 36,992 params</span>
+ReLU                                     <span class="c"># out: (B, d=128, 7, 7)</span></pre>
+  <p>Two 3×3 convs = a 5×5 receptive field on the 7×7 grid; every output cell sees its 2-neighbourhood. No pooling, no stride: spatial resolution is preserved so a query can still pick out one cell. (<code>--cnndepth</code> &gt; 2 inserts extra 32→32 convs; the ledger's depth probe showed 3–4 hurt.)</p>
+</section>
+
+<section>
+  <h2><span class="k">4 · IMAGE READ</span><code>Enc._image_read</code>, readout xattn → worker token <code>w</code>, crate token <code>c</code>   [lines 308–320]</h2>
+<pre>feat = cnn(render(x,m))                                  <span class="c"># (B,128,7,7)</span>
+fmap = feat.flatten(2).transpose(1,2) + imgpos[None]     <span class="c"># (B,49,128); imgpos: learned (49,128), init N(0,0.02²)</span>
+q    = (iquery + islot(arange(2)))[None].expand(B,-1,-1) <span class="c"># (B,2,128); iquery (2,128) N(0,0.02²), islot Embedding(2,128) N(0,1)</span>
+bound, _ = iattn(q, fmap, fmap)                          <span class="c"># nn.MultiheadAttention(128, 4 heads, batch_first)</span>
+w, c = bound[:,0], bound[:,1]                            <span class="c"># (B,128) each</span></pre>
+  <p>Inside <code>iattn</code> (standard PyTorch): <code>Q = q·W_q, K = fmap·W_k, V = fmap·W_v</code> (one packed in-projection 128→384 + bias), split into 4 heads of 32, scores <code>QKᵀ/√32</code> → softmax over the <b>49 cells</b> → weighted sum of V → concat heads → out-projection 128→128 + bias. 66,048 params. Dropout 0.</p>
+  <div class="note warn"><div class="lab">this is the binding</div><p>Nothing tells query 0 where the worker is. It must learn, from the distance loss alone, an attention pattern that lands on the worker's cell in the feature map and reads out a vector from which position can be recovered downstream. Its imprecision is the "binding bottleneck" measured in the ledger (supervised aux +0.10). In this recipe: no aux, soft attention.</p></div>
+</section>
+
+<section>
+  <h2><span class="k">5 · TOKEN BAG</span><code>Enc.forward(x, m)</code> → (B, 11, 128)   [lines 386–401]</h2>
+  <p>All embeddings are <code>nn.Embedding</code> tables (init N(0,1)) unless noted. <code>pos</code> is the shared 49×128 absolute-cell table used by every structural token.</p>
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>#</th><th>token</th><th>exact expression</th><th>shape</th></tr>
+    <tr><td class="num">0</td><td>worker</td><td class="sym">w</td><td class="sh">(B,128)</td></tr>
+    <tr><td class="num">1</td><td>crate</td><td class="sym">c</td><td class="sh">(B,128)</td></tr>
+    <tr><td class="num">2</td><td>gate bits</td><td class="sym">bt = Σ_{g=0..2} bitv[2·g + bit_g]</td><td class="sh">(B,128) — bitv: Embedding(6,128); one row per (gate, open/closed), summed</td></tr>
+    <tr><td class="num">3–5</td><td>gate g</td><td class="sym">gts_g = pos(GC[m,g]) + gid[g]</td><td class="sh">(B,3,128) — gid: Embedding(3,128)</td></tr>
+    <tr><td class="num">6–7</td><td>lever l</td><td class="sym">lvs_l = pos(LC[m,l]) + Σ_g LW[m,l,g]·gwire[g]</td><td class="sh">(B,2,128) — the wiring mask mixes gwire rows: this is where "which gates this lever flips" enters</td></tr>
+    <tr><td class="num">8</td><td>plate</td><td class="sym">plt = pos(PC[m]) + Σ_g PW[m,g]·pwire[g]</td><td class="sh">(B,128)</td></tr>
+    <tr><td class="num">9</td><td>chute</td><td class="sym">cht = pos(CC[m]) + cdir[CD[m]]</td><td class="sh">(B,128) — cdir: Embedding(4,128)</td></tr>
+    <tr><td class="num">10</td><td>wall pool</td><td class="sym">wal = Σ_{cells in WALL[m]} pos(cell) / WN[m]</td><td class="sh">(B,128) — mean of the wall cells' pos rows (padding cells contribute pos(0); WN counts real cells)</td></tr>
+  </table></div>
+<pre>tok = cat([w, c, bt, gts(3), lvs(2), plt, cht, wal], dim=1)   <span class="c"># (B,11,128)</span>
+tok = tok + fid(arange(11))[None]                              <span class="c"># fid: Embedding(11,128): token-slot identity</span></pre>
+  <p class="small muted">Sizes: pos 6,272 · bitv 768 · gid/gwire/pwire 384 each · cdir 512 · fid 1,408 · imgpos 6,272 · iquery/islot 256 each · iattn 66,048 · cnn 39,328. Also allocated but <b>unused</b> on the image path: cellemb (256), cpe (6,272), cellbase (128) — created because <code>enc != "factored"</code>; they receive no gradient. Encoder total 128,928.</p>
+  <div class="note"><div class="lab">wall-pool caveat</div><p>Padding: <code>WALL[m]</code> is zero-padded to NW, so padded slots add <code>pos(0)</code> (cell 0's embedding) into the sum before dividing by the true count. Cell 0 is a corner cell; this is a small constant bias per map, identical for train/test.</p></div>
+</section>
+
+<section>
+  <h2><span class="k">6 · ASSEMBLE THE SEQUENCE</span><code>Integ.forward</code>, before the loop   [lines 416–419]</h2>
+<pre>zs   = enc(x, m) + role[0]          <span class="c"># start tokens, (B,11,128)  role: Embedding(3,128)</span>
+zg   = enc(g, m) + role[1]          <span class="c"># goal tokens</span>
+base = cat([zg, enc(x, m) + role[2]], 1)   <span class="c"># (B,22,128): goal + START ANCHOR (enc(x) recomputed, same values)</span>
+tok  = cat([zs, base], 1)           <span class="c"># (B,33,128)</span>
+cost = zeros(B)</pre>
+  <div class="tokrow">
+    <span class="tk mv">0..10 zs = enc(x)+role0 (MOVES)</span>
+    <span class="tk gl">11..21 zg = enc(g)+role1 (fixed)</span>
+    <span class="tk an">22..32 anchor = enc(x)+role2 (fixed)</span>
+  </div>
+  <p>Three copies of the same 11-token bag, distinguished only by the role embedding added to every token. The encoder is called three times per forward (twice on x, once on g); the two enc(x) calls are identical numbers.</p>
+</section>
+
+<section>
+  <h2><span class="k">7 · THE RECALL LOOP</span>14 passes of one shared block   [lines 420–422]</h2>
+<pre><span class="k">for</span> t <span class="k">in</span> range(14):
+    z    = Block(tok)                                        <span class="c"># (B,33,128) full self-attention over all 33 tokens, no mask</span>
+    cost = cost <span class="a">+ (z[:, :11] - tok[:, :11]).norm(dim=-1).sum(-1)</span>   <span class="c"># L2 move length of each of the 11 STATE tokens, summed</span>
+    tok  = cat([z[:, :11], base], 1)                         <span class="c"># keep evolved state; RE-INJECT goal + anchor unchanged</span></pre>
+  <h3>Block = 4 × <code>nn.TransformerEncoderLayer(d=128, nhead=4, dim_feedforward=256, dropout=0, activation=gelu, norm_first=True)</code></h3>
+  <p>Per layer, with <code>x</code> the (B,33,128) input:</p>
+<pre>x = x + SelfAttn(LayerNorm₁(x))                       <span class="c"># MHA 4 heads × 32, QKV in-proj 128→384 (+bias), out-proj 128→128 (+bias)  66,048</span>
+x = x + Linear₂(GELU(Linear₁(LayerNorm₂(x))))         <span class="c"># 128→256→128 (+biases)  33,024 + 32,896</span>
+<span class="c"># LayerNorm₁,₂: 2·128 params each. Layer total 132,480. Four layers 529,920. The SAME four layers every pass.</span></pre>
+  <ul>
+    <li><b>What moves.</b> Only tokens 0..10 carry state forward. Goal and anchor tokens are overwritten with their original values every pass, so the block sees an unchanging destination and origin (the "recall").</li>
+    <li><b>What is measured.</b> After each pass, for each of the 11 state tokens, the Euclidean length of its displacement in R<sup>128</sup>; summed over tokens; summed over the 14 passes → one scalar per example. Goal/anchor displacements are never counted.</li>
+    <li><b>Depth.</b> 4 layers × 14 passes = 56 layer applications; attention cost 33×33 per layer.</li>
+    <li><b>Flags off in this recipe.</b> <code>--norecall</code> (would let goal drift), <code>--decodehead</code> (MLP on final state instead of the sum), <code>--arrive/--Tmin/--Ttest</code> (parking / anytime), <code>--globalbase</code>.</li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="k">8 · OUTPUT</span>one scalar   [line 427]</h2>
+<pre>D = softplus(scale) · cost        <span class="c"># scale: single learned parameter, init 0 → softplus(0)=0.693 at start</span></pre>
+  <p>That's the whole head: no MLP, no bias. Positivity is guaranteed by construction (norms ≥ 0, softplus &gt; 0). Any change in predicted distance must come from the state tokens moving more or less over the 14 passes.</p>
+</section>
+
+<section>
+  <h2><span class="k">9 · DATA</span>How pairs are made   [make_yards line 195, build_pool line 208]</h2>
+  <ul>
+    <li><b>Maps.</b> <code>nmaps=200</code> yards. <code>--split map</code>: train m%4≠0 (150 maps), test m%4=0 (50 maps, unseen layout AND wiring). <code>--split wire</code>: 200 layouts × 2 wirings; train wiring A, test the same layouts with wiring B.</li>
+    <li><b>Pool.</b> <code>poolq=2000</code> random anchor states on random train maps; BFS from each anchor over the joint (worker, crate, bits) graph; for every distance value <code>0&lt;dv≤Rmax=24</code> keep up to <code>max(1, 40//#distinct_dv)</code> targets → distance-stratified pairs (typically 25–40 per anchor → ~50–80k train pairs). Test pool: same procedure with a fixed rng on the test maps.</li>
+    <li><b>Batch.</b> 128 uniformly random pairs from the pool each step. No curriculum in this recipe.</li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="k">10 · TRAINING &amp; EVAL</span>   [lines 495–545]</h2>
+<pre>opt  = Adam(model.parameters(), lr=2e-3)      <span class="c"># default betas, no weight decay, no schedule</span>
+loss = smooth_l1_loss(D(x, g, m), bfs_distance)   <span class="c"># beta 1.0; no other terms in this recipe (aux/bellman/recon off)</span>
+80,000 steps; no grad clipping (--gradclip 0); non-finite-loss steps would be skipped (never triggered for integ)</pre>
+  <p><b>Eval.</b> Model in eval mode (no effect: dropout 0). Predict on the first 4000 train pairs and on the whole test pool in chunks of 4000. Reported: <code>train_mae</code>, <code>test_mae</code>, <code>test_corr</code> = Pearson r between predicted and true distance on the held-out pool. (<code>corr_beyond</code>/<code>mae_within</code> only when <code>--Rtrain</code> caps the training range.) Seeds change map generation, pool sampling and init.</p>
+</section>
+
+<section>
+  <h2><span class="k">11 · SHAPE LEDGER</span>one forward pass, end to end</h2>
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>stage</th><th>tensor</th><th>shape</th></tr>
+    <tr><td>input</td><td class="sym">x, g, m</td><td class="sh">(B,3) long ×2, (B,) long</td></tr>
+    <tr><td>render</td><td class="sym">img</td><td class="sh">(B,8,7,7)</td></tr>
+    <tr><td>cnn</td><td class="sym">feat</td><td class="sh">(B,128,7,7)</td></tr>
+    <tr><td>flatten + imgpos</td><td class="sym">fmap</td><td class="sh">(B,49,128)</td></tr>
+    <tr><td>queries</td><td class="sym">q</td><td class="sh">(B,2,128)</td></tr>
+    <tr><td>cross-attn</td><td class="sym">bound → w, c</td><td class="sh">(B,2,128) → 2 × (B,128)</td></tr>
+    <tr><td>token bag</td><td class="sym">enc(x,m)</td><td class="sh">(B,11,128)</td></tr>
+    <tr><td>sequence</td><td class="sym">tok = [zs; zg; anchor]</td><td class="sh">(B,33,128)</td></tr>
+    <tr><td>per pass</td><td class="sym">z = Block(tok); Δ = z[:,:11]−tok[:,:11]</td><td class="sh">(B,33,128); (B,11,128) → norms (B,11) → sum (B,)</td></tr>
+    <tr><td>after 14 passes</td><td class="sym">cost</td><td class="sh">(B,)</td></tr>
+    <tr><td>output</td><td class="sym">D = softplus(scale)·cost</td><td class="sh">(B,)</td></tr>
+  </table></div>
+</section>
+
+<section>
+  <h2><span class="k">12 · PARAMETER LEDGER</span>659,233 total</h2>
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>module</th><th>params</th><th>note</th></tr>
+    <tr><td>enc.cnn (2 convs)</td><td class="num">39,328</td><td></td></tr>
+    <tr><td>enc.iattn (MHA 128, 4h)</td><td class="num">66,048</td><td>the binding read</td></tr>
+    <tr><td>enc.pos / imgpos / cpe*</td><td class="num">6,272 each</td><td>49 cells × 128; *cpe unused on image path</td></tr>
+    <tr><td>enc.fid</td><td class="num">1,408</td><td>11 token ids</td></tr>
+    <tr><td>enc.bitv / gid / gwire / pwire / cdir</td><td class="num">768 / 384 / 384 / 384 / 512</td><td></td></tr>
+    <tr><td>enc.iquery / islot / cellemb* / cellbase*</td><td class="num">256 / 256 / 256 / 128</td><td>*unused on image path</td></tr>
+    <tr><td><b>encoder total</b></td><td class="num"><b>128,928</b></td><td></td></tr>
+    <tr><td>block (4 × pre-norm layer)</td><td class="num">529,920</td><td>132,480 per layer; shared across the 14 passes</td></tr>
+    <tr><td>role</td><td class="num">384</td><td>3 × 128</td></tr>
+    <tr><td>scale</td><td class="num">1</td><td>softplus'd multiplier</td></tr>
+    <tr><td><b>Integ total</b></td><td class="num"><b>659,233</b></td><td>≈ 80 % of it is the shared block</td></tr>
+  </table></div>
+</section>
+
+<section>
+  <h2><span class="k">13 · KNOBS THAT CHANGE THIS PICTURE</span>(all off in the reference recipe)</h2>
+  <ul>
+    <li><code>--enc factored|bmask</code>: stages 2–4 replaced by <code>w = pos(worker cell), c = pos(crate cell)</code> (exact lookup, no perception). <code>--enc marker</code>: additive canvas + query attention instead of CNN.</li>
+    <li><code>--readout convspatial|convpool</code>: replace the cross-attention read by per-agent spatial-softmax pooling / global mean pooling.</li>
+    <li><code>--seewalls 1</code>: appends up to 5 doorway tokens <code>pos(cell)+openkind</code> (or a learned <code>absent</code>) → NTOK 16, sequence 48.</li>
+    <li><code>--markeraux w</code>: adds <code>CE(Linear(bound_i) → true cell)</code> to the loss (supervised binding); <code>--recon tied|slot</code>, <code>--hardattn</code>: the unsupervised alternatives under test.</li>
+    <li><code>--bellman/--bellwarm/--ematarget/--bellrad</code>: adds a self-consistency loss on unlabeled far pairs (length-extrapolation recipe); <code>--arrive/--Tmin/--Ttest</code>: parking + anytime budgets; <code>--globalbase</code>: adds <code>softplus(gbase)</code> once; <code>--decodehead</code>: MLP on the mean final state instead of the accumulated cost; <code>--norecall</code>: stop re-injecting goal/anchor.</li>
+    <li>Baselines (<code>--iqeonly/--mrnonly/--symonly/--scalaronly</code>) reuse the <b>identical</b> encoder (stages 1–5), then: a non-shared <code>Block(d, heads, baselayers)</code> over the 11 tokens → mean over tokens → <code>Linear(128,128)</code> → head (IQE / MRNFixed / L1 distance / MLP on concat).</li>
+  </ul>
+</section>
+
+<div class="foot">Companions: “Recall-Flow Integrator” (mechanism-level explainer) · “Fair Benchmark Ledger” (results). Source of truth: <code>distance_model/switchyard.py</code>.</div>
+</main></div>

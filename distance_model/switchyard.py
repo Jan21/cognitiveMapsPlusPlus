@@ -252,6 +252,9 @@ def train(a):
     WALL, WN, GC, LC, LW, PC, PW, CC, CD, CELL, WALLIMG, OPENC, OPENM = (t.to(dev) for t in (WALL, WN, GC, LC, LW, PC, PW, CC, CD, CELL, WALLIMG, OPENC, OPENM))
     NTOK = 3 + a.ngate + a.nlever + 3 + (NOPEN if a.seewalls else 0)   # worker crate bits | gates levers plate chute wallpool [| open doorways]
     IMGC = 8                                                      # --enc image render channels: wall worker crate gate gateopen lever plate chute
+    PIMGC = 5 + a.nlever + 1 + 4                                  # --enc pureimage: wall worker crate gate gateopen | lever_l+its gates | plate+its gates | chute dir x4
+    if a.enc == "pureimage":                                      # NO symbolic tokens: slots (K queries) or all pixels
+        NTOK = a.slots if a.readout == "xattn" else ncell
 
     class Enc(nn.Module):
         """Structural, compositional encoding: unseen maps/wirings are new combinations of known pieces."""
@@ -288,6 +291,16 @@ def train(a):
                     s.ihead = nn.Conv2d(d, 2, 1)
                 else:                                             # convpool: global pool -> project to 2 tokens
                     s.ipool = nn.Linear(d, 2 * d)
+            if a.enc == "pureimage":                              # everything in pixels -> CNN -> K slots (or pixel tokens)
+                convs = [nn.Conv2d(PIMGC, a.cnnw, 3, padding=1), nn.ReLU()]
+                for _ in range(max(0, a.cnndepth - 2)):
+                    convs += [nn.Conv2d(a.cnnw, a.cnnw, 3, padding=1), nn.ReLU()]
+                convs += [nn.Conv2d(a.cnnw, d, 3, padding=1), nn.ReLU()]
+                s.pcnn = nn.Sequential(*convs)
+                s.pimgpos = nn.Parameter(torch.randn(ncell, d) * 0.02)
+                if a.readout == "xattn":                          # K generic learned slot queries (nothing named)
+                    s.squery = nn.Parameter(torch.randn(a.slots, d) * 0.02)
+                    s.sattn = nn.MultiheadAttention(d, a.markerheads, batch_first=True)
             s._aux = None                                         # set to 0 by training loop to collect binding aux
             if a.seewalls:                                        # open non-gate doorway tokens: pos(cell)+openkind | absent
                 s.openkind = nn.Parameter(torch.randn(d) * 0.02)
@@ -383,7 +396,36 @@ def train(a):
                 s._aux = s._aux + F.cross_entropy(s.bindhead(bound[:, 0]), wc[:, 0]) \
                                 + F.cross_entropy(s.bindhead(bound[:, 1]), wc[:, 1])
             return bound[:, 0], bound[:, 1]
+        def _render_pure(s, x, m):
+            """EVERYTHING as pixels: (B, PIMGC, G, G). wall | worker | crate | gate cells | gate-open bits |
+            per lever: its cell + the gate cells it toggles | plate cell + the gate cells it holds | chute cell in one of 4 direction channels."""
+            B, dev = x.shape[0], x.device
+            wc = CELL[m].gather(1, x[:, 0:2])
+            bits = torch.stack([(x[:, 2] >> g) & 1 for g in range(a.ngate)], 1).float()
+            img = torch.zeros(B, PIMGC, ncell, device=dev)
+            img[:, 0] = WALLIMG[m]
+            img[:, 1].scatter_(1, wc[:, 0:1], 1.0); img[:, 2].scatter_(1, wc[:, 1:2], 1.0)
+            img[:, 3].scatter_(1, GC[m], 1.0); img[:, 4].scatter_(1, GC[m], (bits > 0).float())
+            for l in range(a.nlever):                              # wiring drawn as shared "colour": lever l + gates it flips
+                img[:, 5 + l].scatter_(1, LC[m][:, l:l + 1], 1.0)
+                img[:, 5 + l].scatter_(1, GC[m], LW[m][:, l, :])
+            pc = 5 + a.nlever
+            img[:, pc].scatter_(1, PC[m][:, None], 1.0); img[:, pc].scatter_(1, GC[m], PW[m])
+            for dd_ in range(4):                                   # chute direction as channel choice
+                img[:, pc + 1 + dd_].scatter_(1, CC[m][:, None], (CD[m] == dd_).float()[:, None])
+            return img.view(B, PIMGC, a.G, a.G)
+        def _pure(s, x, m):
+            B = x.shape[0]
+            feat = s.pcnn(s._render_pure(x, m))                    # (B,d,G,G)
+            fmap = feat.flatten(2).transpose(1, 2) + s.pimgpos[None]   # (B,ncell,d)
+            if a.readout == "xattn":                               # K slots
+                q = s.squery[None].expand(B, -1, -1)
+                tok, _ = s.sattn(q, fmap, fmap)                    # (B,K,d)
+            else:                                                  # pixels: every cell is a token
+                tok = fmap
+            return tok + s.fid(torch.arange(NTOK, device=x.device))[None]
         def forward(s, x, m):
+            if a.enc == "pureimage": return s._pure(x, m)
             B, d = x.shape[0], s.pos.weight.shape[1]
             w, c = s._wc(x, m)
             bits = torch.stack([(x[:, 2] >> g) & 1 for g in range(a.ngate)], 1)
@@ -612,7 +654,8 @@ def train(a):
                                       markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, cnndepth=a.cnndepth, steps=a.steps, seed=a.seed,
                                       d=a.d, layers=a.layers, baselayers=(a.baselayers if a.baselayers > 0 else a.layers),
                                       heads=a.heads, T=a.T, lr=a.lr, latentnorm=a.latentnorm, gradclip=a.gradclip, seewalls=a.seewalls,
-                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn,
+                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall,
+                                      gatesopen=int(a.gatesopen), nopush=int(a.nopush), wire1=int(a.wire1), noplate=int(a.noplate),
                                       tag=a.tag, **out)), flush=True)
 
 def main():
@@ -627,9 +670,10 @@ def main():
     ap.add_argument("--lr", type=float, default=2e-3); ap.add_argument("--d", type=int, default=64)
     ap.add_argument("--layers", type=int, default=3); ap.add_argument("--T", type=int, default=10)
     ap.add_argument("--split", choices=["map", "wire"], default="map")
-    ap.add_argument("--enc", choices=["factored", "bmask", "marker", "image"], default="factored",
+    ap.add_argument("--enc", choices=["factored", "bmask", "marker", "image", "pureimage"], default="factored",
                     help="worker/crate input: factored index | bmask lossless canvas | marker canvas-binding | image CNN+readout")
-    ap.add_argument("--readout", choices=["xattn", "convspatial", "convpool"], default="xattn",
+    ap.add_argument("--slots", type=int, default=8, help="--enc pureimage: number of generic learned slot queries")
+    ap.add_argument("--readout", choices=["xattn", "convspatial", "convpool", "pixels"], default="xattn",
                     help="--enc image: how factor tokens read the CNN feature map (xattn=cross-attention)")
     ap.add_argument("--cnnw", type=int, default=32, help="--enc image: CNN hidden width")
     ap.add_argument("--cnndepth", type=int, default=2, help="--enc image: number of conv layers")
