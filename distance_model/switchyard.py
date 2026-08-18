@@ -299,11 +299,12 @@ def train(a):
                 else:                                             # convpool: global pool -> project to 2 tokens
                     s.ipool = nn.Linear(d, 2 * d)
             if a.enc == "pureimage":                              # everything in pixels -> CNN -> K slots (or pixel tokens)
-                convs = [nn.Conv2d(PIMGC + (2 if a.coordconv else 0), a.cnnw, 3, padding=1), nn.ReLU()]
+                kk, pd_ = a.cnnk, a.cnnk // 2                          # --cnnk 1 = per-pixel MLP (no spatial mixing)
+                convs = [nn.Conv2d(PIMGC + (2 if a.coordconv else 0), a.cnnw, kk, padding=pd_), nn.ReLU()]
                 if a.readout == "fgpix": s.emptytok = nn.Parameter(torch.randn(d) * 0.02)   # pad token for unlit slots
                 for _ in range(max(0, a.cnndepth - 2)):
-                    convs += [nn.Conv2d(a.cnnw, a.cnnw, 3, padding=1), nn.ReLU()]
-                convs += [nn.Conv2d(a.cnnw, d, 3, padding=1), nn.ReLU()]
+                    convs += [nn.Conv2d(a.cnnw, a.cnnw, kk, padding=pd_), nn.ReLU()]
+                convs += [nn.Conv2d(a.cnnw, d, kk, padding=pd_), nn.ReLU()]
                 s.pcnn = nn.Sequential(*convs)
                 s.pimgpos = nn.Parameter(torch.randn(ncell, d) * 0.02)
                 if a.readout == "xattn":                          # K generic learned slot queries (nothing named)
@@ -705,7 +706,7 @@ def train(a):
                                       markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, cnndepth=a.cnndepth, steps=a.steps, seed=a.seed,
                                       d=a.d, layers=a.layers, baselayers=(a.baselayers if a.baselayers > 0 else a.layers),
                                       heads=a.heads, T=a.T, lr=a.lr, latentnorm=a.latentnorm, gradclip=a.gradclip, seewalls=a.seewalls,
-                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath, supbind=a.supbind, coordconv=a.coordconv,
+                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath, supbind=a.supbind, coordconv=a.coordconv, cnnk=a.cnnk,
                                       gatesopen=int(a.gatesopen), nopush=int(a.nopush), wire1=int(a.wire1), noplate=int(a.noplate),
                                       tag=a.tag, **out)), flush=True)
 
@@ -726,6 +727,7 @@ def main():
     ap.add_argument("--slots", type=int, default=8, help="--enc pureimage: number of generic learned slot queries")
     ap.add_argument("--supbind", type=float, default=0.0, help="--enc pureimage: CEILING probe, Hungarian-matched supervised binding aux weight")
     ap.add_argument("--wirepath", type=int, default=0, help="--enc pureimage: draw lever->gate wiring as an L-shaped 0.5 path in the lever channel")
+    ap.add_argument("--cnnk", type=int, default=3, help="--enc pureimage: conv kernel size (1 = per-pixel MLP, no spatial mixing)")
     ap.add_argument("--coordconv", type=int, default=0, help="--enc pureimage: add x/y coordinate channels to the CNN input")
     ap.add_argument("--readout", choices=["xattn", "convspatial", "convpool", "pixels", "fgpix"], default="xattn",
                     help="--enc image: how factor tokens read the CNN feature map (xattn=cross-attention)")
