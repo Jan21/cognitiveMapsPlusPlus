@@ -261,7 +261,7 @@ def train(a):
     PIMGC = 5 + a.nlever + 1 + 4                                  # --enc pureimage: wall worker crate gate gateopen | lever_l+its gates | plate+its gates | chute dir x4
     NENT = 2 + a.ngate + a.nlever + (0 if a.noplate else 1) + a.nchute   # entities that can light a pixel
     if a.enc == "pureimage":                                      # NO symbolic tokens: slots (K queries) | all pixels | foreground pixels
-        NTOK = a.slots if a.readout == "xattn" else (NENT if a.readout == "fgpix" else ncell)
+        NTOK = a.slots if a.readout in ("xattn", "slotattn") else (NENT if a.readout == "fgpix" else ncell)
 
     class Enc(nn.Module):
         """Structural, compositional encoding: unseen maps/wirings are new combinations of known pieces."""
@@ -307,6 +307,15 @@ def train(a):
                 convs += [nn.Conv2d(a.cnnw, d, kk, padding=pd_), nn.ReLU()]
                 s.pcnn = nn.Sequential(*convs)
                 s.pimgpos = nn.Parameter(torch.randn(ncell, d) * 0.02)
+                if a.readout == "slotattn":                       # COMPETITIVE ITERATIVE SLOT ATTENTION (Locatello et al.)
+                    s.smu = nn.Parameter(torch.randn(a.slots, d) * 0.02)          # learned slot init (per-slot identity)
+                    s.slogsig = nn.Parameter(torch.zeros(a.slots, d) - 2.0)       # log-sigma for optional init noise
+                    s.sln_in = nn.LayerNorm(d); s.sln_s = nn.LayerNorm(d); s.sln_m = nn.LayerNorm(d)
+                    s.sq = nn.Linear(d, d, bias=False); s.sk = nn.Linear(d, d, bias=False); s.sv = nn.Linear(d, d, bias=False)
+                    s.sgru = nn.GRUCell(d, d)
+                    s.smlp = nn.Sequential(nn.Linear(d, 2 * d), nn.ReLU(), nn.Linear(2 * d, d))
+                    if a.recon == "slot":
+                        s.prdec = nn.Linear(d, d); s.prch = nn.Linear(d, PIMGC - 1)
                 if a.readout == "xattn":                          # K generic learned slot queries (nothing named)
                     s.squery = nn.Parameter(torch.randn(a.slots, d) * 0.02)
                     s.sattn = nn.MultiheadAttention(d, a.markerheads, batch_first=True)
@@ -444,6 +453,30 @@ def train(a):
                 tok = fmap.gather(1, order[..., None].expand(-1, -1, fmap.shape[-1]))
                 lit = fg.gather(1, order)[..., None]
                 tok = lit * tok + (1 - lit) * s.emptytok            # unlit slots -> learned empty token
+                return tok + s.fid(torch.arange(NTOK, device=x.device))[None]
+            if a.readout == "slotattn":                            # competitive iterative slot attention
+                d_ = fmap.shape[-1]; K = a.slots
+                inp = s.sln_in(fmap); k_ = s.sk(inp); v_ = s.sv(inp)                    # (B,N,d)
+                slots = s.smu[None].expand(B, -1, -1)
+                if a.slotnoise and s.training: slots = slots + s.slogsig.exp()[None] * torch.randn_like(slots)
+                for _ in range(a.slotiters):
+                    prev = slots
+                    q_ = s.sq(s.sln_s(slots))                                             # (B,K,d)
+                    logits = torch.einsum("bkd,bnd->bkn", q_, k_) / d_ ** 0.5           # (B,K,N)
+                    attn = logits.softmax(1)                                              # COMPETITION: softmax over SLOTS per pixel
+                    attn = attn / (attn.sum(-1, keepdim=True) + 1e-8)                     # weighted mean over pixels
+                    upd = torch.einsum("bkn,bnd->bkd", attn, v_)
+                    slots = s.sgru(upd.reshape(-1, d_), prev.reshape(-1, d_)).view(B, K, d_)
+                    slots = slots + s.smlp(s.sln_m(slots))
+                tok = slots
+                s._lastattn = attn.detach(); s._lastimg = img.detach()
+                if a.recon == "slot" and s._aux is not None:                              # same unsupervised recon aux
+                    imgf = img.flatten(2)[:, 1:]; tgt = (imgf > 0.75).float()
+                    p = (torch.einsum("bkd,nd->bkn", s.prdec(tok), s.pimgpos) / d_ ** 0.5).softmax(-1)
+                    ch = s.prch(tok).softmax(-1); pred = torch.einsum("bkc,bkn->bcn", ch, p)
+                    nent = tgt.sum((1, 2)).clamp(min=1)
+                    s._aux = s._aux - ((tgt * (pred + 1e-9).log()).sum((1, 2)) / nent).mean() \
+                                    + 2.0 * (torch.einsum("bkn,bjn->bkj", p, p).triu(1).sum((1, 2))).mean()
                 return tok + s.fid(torch.arange(NTOK, device=x.device))[None]
             if a.readout == "xattn":                               # K slots
                 q = s.squery[None].expand(B, -1, -1)
@@ -644,7 +677,7 @@ def train(a):
                 tgt = enc_t(PDt[b], PXtr[b]) if (a.resprox and not a.curriculum) else PDt[b]
                 aux_on = hasattr(model, "enc") and ((a.markeraux > 0 and getattr(model.enc, "bindhead", None) is not None)
                                                     or (a.recon != "none" and a.enc == "image")
-                                                    or ((a.recon == "slot" or a.supbind) and a.enc == "pureimage" and a.readout == "xattn"))
+                                                    or ((a.recon == "slot" or a.supbind) and a.enc == "pureimage" and a.readout in ("xattn", "slotattn")))
                 if aux_on:
                     model.enc._aux = torch.zeros((), device=dev)   # collect binding aux over this forward's enc calls
                 if parking:
@@ -695,7 +728,7 @@ def train(a):
         r = dict(train_mae=round((pr_tr - Dt[:4000]).abs().mean().item(), 3), slot0_is_worker=slot0w,
                  test_mae=round((pr - EDt).abs().mean().item(), 3),
                  test_corr=round(float(np.corrcoef(pr.cpu(), ED)[0, 1]), 3), nskip=nskip)
-        if a.enc == "pureimage" and a.readout == "xattn" and name == "integ":     # SLOT DIAGNOSTIC on test maps
+        if a.enc == "pureimage" and a.readout in ("xattn", "slotattn") and name == "integ":     # SLOT DIAGNOSTIC on test maps
             with torch.no_grad():
                 model(E1t[:1024], E2t[:1024], ECt[:1024])
                 att = model.enc._lastattn; im = model.enc._lastimg.flatten(2)     # (B,K,ncell), (B,C,ncell)  (last enc call = goal batch)
@@ -722,7 +755,7 @@ def train(a):
                                       markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, cnndepth=a.cnndepth, steps=a.steps, seed=a.seed,
                                       d=a.d, layers=a.layers, baselayers=(a.baselayers if a.baselayers > 0 else a.layers),
                                       heads=a.heads, T=a.T, lr=a.lr, latentnorm=a.latentnorm, gradclip=a.gradclip, seewalls=a.seewalls,
-                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath, supbind=a.supbind, coordconv=a.coordconv, cnnk=a.cnnk,
+                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath, supbind=a.supbind, coordconv=a.coordconv, cnnk=a.cnnk, slotiters=a.slotiters, slotnoise=a.slotnoise,
                                       gatesopen=int(a.gatesopen), nopush=int(a.nopush), wire1=int(a.wire1), noplate=int(a.noplate),
                                       tag=a.tag, **out)), flush=True)
 
@@ -745,7 +778,9 @@ def main():
     ap.add_argument("--wirepath", type=int, default=0, help="--enc pureimage: draw lever->gate wiring as an L-shaped 0.5 path in the lever channel")
     ap.add_argument("--cnnk", type=int, default=3, help="--enc pureimage: conv kernel size (1 = per-pixel MLP, no spatial mixing)")
     ap.add_argument("--coordconv", type=int, default=0, help="--enc pureimage: add x/y coordinate channels to the CNN input")
-    ap.add_argument("--readout", choices=["xattn", "convspatial", "convpool", "pixels", "fgpix"], default="xattn",
+    ap.add_argument("--slotiters", type=int, default=3, help="--readout slotattn: number of competitive attention iterations")
+    ap.add_argument("--slotnoise", type=int, default=0, help="--readout slotattn: sample slot init around learned mu (train only)")
+    ap.add_argument("--readout", choices=["xattn", "convspatial", "convpool", "pixels", "fgpix", "slotattn"], default="xattn",
                     help="--enc image: how factor tokens read the CNN feature map (xattn=cross-attention)")
     ap.add_argument("--cnnw", type=int, default=32, help="--enc image: CNN hidden width")
     ap.add_argument("--cnndepth", type=int, default=2, help="--enc image: number of conv layers")
