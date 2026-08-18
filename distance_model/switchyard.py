@@ -300,11 +300,13 @@ def train(a):
                     s.ipool = nn.Linear(d, 2 * d)
             if a.enc == "pureimage":                              # everything in pixels -> CNN -> K slots (or pixel tokens)
                 kk, pd_ = a.cnnk, a.cnnk // 2                          # --cnnk 1 = per-pixel MLP (no spatial mixing)
+                k2, p2 = (3, 1) if a.cnnmix else (kk, pd_)              # --cnnmix: 1x1 first (keep identity), 3x3 after (context)
                 convs = [nn.Conv2d(PIMGC + (2 if a.coordconv else 0), a.cnnw, kk, padding=pd_), nn.ReLU()]
                 if a.readout == "fgpix": s.emptytok = nn.Parameter(torch.randn(d) * 0.02)   # pad token for unlit slots
                 for _ in range(max(0, a.cnndepth - 2)):
-                    convs += [nn.Conv2d(a.cnnw, a.cnnw, kk, padding=pd_), nn.ReLU()]
-                convs += [nn.Conv2d(a.cnnw, d, kk, padding=pd_), nn.ReLU()]
+                    convs += [nn.Conv2d(a.cnnw, a.cnnw, k2, padding=p2), nn.ReLU()]
+                convs += [nn.Conv2d(a.cnnw, d, k2, padding=p2), nn.ReLU()]
+                if a.slotln: s.slotln = nn.LayerNorm(d)
                 s.pcnn = nn.Sequential(*convs)
                 s.pimgpos = nn.Parameter(torch.randn(ncell, d) * 0.02)
                 if a.readout == "slotattn":                       # COMPETITIVE ITERATIVE SLOT ATTENTION (Locatello et al.)
@@ -484,6 +486,9 @@ def train(a):
                 s._lastattn = attw.detach(); s._lastimg = img.detach()
                 if a.attnent > 0 and s._aux is not None:           # sharpen: penalise attention entropy (soft 'crisp read')
                     s._aux = s._aux + a.attnent * (-(attw * (attw + 1e-9).log()).sum(-1)).mean()
+                if a.attnovl > 0 and s._aux is not None:           # slot DIVERSITY: penalise overlapping attention maps
+                    s._aux = s._aux + a.attnovl * torch.einsum("bkn,bjn->bkj", attw, attw).triu(1).sum((1, 2)).mean()
+                if a.slotln: tok = s.slotln(tok)
                 if a.recon == "slot" and s._aux is not None:       # slots reconstruct the entity channels of their OWN input
                     img = s._render_pure(x, m).flatten(2)[:, 1:]   # (B,PIMGC-1,ncell) all channels except walls
                     tgt = (img > 0.75).float()                     # entity cells only (wire paths at 0.5 excluded)
@@ -679,7 +684,7 @@ def train(a):
                 tgt = enc_t(PDt[b], PXtr[b]) if (a.resprox and not a.curriculum) else PDt[b]
                 aux_on = hasattr(model, "enc") and ((a.markeraux > 0 and getattr(model.enc, "bindhead", None) is not None)
                                                     or (a.recon != "none" and a.enc == "image")
-                                                    or ((a.recon == "slot" or a.supbind or a.attnent > 0) and a.enc == "pureimage" and a.readout in ("xattn", "slotattn")))
+                                                    or ((a.recon == "slot" or a.supbind or a.attnent > 0 or a.attnovl > 0) and a.enc == "pureimage" and a.readout in ("xattn", "slotattn")))
                 if aux_on:
                     model.enc._aux = torch.zeros((), device=dev)   # collect binding aux over this forward's enc calls
                 if parking:
@@ -702,8 +707,11 @@ def train(a):
                 if aux_on and isinstance(model.enc._aux, torch.Tensor):
                     loss = loss + (a.markeraux if a.markeraux > 0 else a.supbind if a.supbind > 0 else a.reconw) * model.enc._aux
                     model.enc._aux = None                          # off during any eval / bellman-only forwards
-                if a.warmup > 0:                                   # linear lr warmup (slot attention needs it)
-                    for gparam in opt.param_groups: gparam["lr"] = a.lr * min(1.0, (step + 1) / a.warmup)
+                if a.warmup > 0 or a.cosine:                       # linear lr warmup (+ optional cosine decay to 5%)
+                    import math
+                    wu = min(1.0, (step + 1) / a.warmup) if a.warmup > 0 else 1.0
+                    cd = (0.05 + 0.95 * 0.5 * (1 + math.cos(math.pi * min(1.0, step / max(1, a.steps))))) if a.cosine else 1.0
+                    for gparam in opt.param_groups: gparam["lr"] = a.lr * wu * cd
                 if not torch.isfinite(loss):                       # skip non-finite spikes (MRN); don't poison weights
                     opt.zero_grad(set_to_none=True); nskip += 1; step += 1; continue
                 opt.zero_grad(); loss.backward()
@@ -759,7 +767,7 @@ def train(a):
                                       markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, cnndepth=a.cnndepth, steps=a.steps, seed=a.seed,
                                       d=a.d, layers=a.layers, baselayers=(a.baselayers if a.baselayers > 0 else a.layers),
                                       heads=a.heads, T=a.T, lr=a.lr, latentnorm=a.latentnorm, gradclip=a.gradclip, seewalls=a.seewalls,
-                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath, supbind=a.supbind, coordconv=a.coordconv, cnnk=a.cnnk, slotiters=a.slotiters, slotnoise=a.slotnoise, warmup=a.warmup, attnent=a.attnent,
+                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath, supbind=a.supbind, coordconv=a.coordconv, cnnk=a.cnnk, slotiters=a.slotiters, slotnoise=a.slotnoise, warmup=a.warmup, attnent=a.attnent, attnovl=a.attnovl, slotln=a.slotln, cnnmix=a.cnnmix, cosine=a.cosine, bs=a.bs, curriculum=int(a.curriculum),
                                       gatesopen=int(a.gatesopen), nopush=int(a.nopush), wire1=int(a.wire1), noplate=int(a.noplate),
                                       tag=a.tag, **out)), flush=True)
 
@@ -782,6 +790,10 @@ def main():
     ap.add_argument("--wirepath", type=int, default=0, help="--enc pureimage: draw lever->gate wiring as an L-shaped 0.5 path in the lever channel")
     ap.add_argument("--cnnk", type=int, default=3, help="--enc pureimage: conv kernel size (1 = per-pixel MLP, no spatial mixing)")
     ap.add_argument("--coordconv", type=int, default=0, help="--enc pureimage: add x/y coordinate channels to the CNN input")
+    ap.add_argument("--attnovl", type=float, default=0.0, help="--enc pureimage xattn: slot attention-overlap penalty (diversity)")
+    ap.add_argument("--slotln", type=int, default=0, help="--enc pureimage xattn: LayerNorm on slot tokens")
+    ap.add_argument("--cnnmix", type=int, default=0, help="--enc pureimage: 1x1 first conv, 3x3 afterwards")
+    ap.add_argument("--cosine", type=int, default=0, help="cosine lr decay to 5% over training (after warmup)")
     ap.add_argument("--attnent", type=float, default=0.0, help="--enc pureimage xattn: attention-entropy penalty weight (sharpen slots)")
     ap.add_argument("--warmup", type=int, default=0, help="linear lr warmup steps (0 = off)")
     ap.add_argument("--slotiters", type=int, default=3, help="--readout slotattn: number of competitive attention iterations")
