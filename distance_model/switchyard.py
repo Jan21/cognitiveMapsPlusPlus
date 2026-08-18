@@ -310,6 +310,8 @@ def train(a):
                     if a.recon == "slot":                          # UNSUPERVISED: K slots explain ALL entity channels exclusively
                         s.prdec = nn.Linear(d, d)                  # slot -> spatial query over pimgpos
                         s.prch = nn.Linear(d, PIMGC - 1)           # slot -> which entity channel (walls excluded)
+                    if a.supbind:                                  # CEILING probe: Hungarian-matched supervised binding
+                        s.sbdec = nn.Linear(d, d)
             s._aux = None                                         # set to 0 by training loop to collect binding aux
             if a.seewalls:                                        # open non-gate doorway tokens: pos(cell)+openkind | absent
                 s.openkind = nn.Parameter(torch.randn(d) * 0.02)
@@ -441,6 +443,20 @@ def train(a):
                     nent = tgt.sum((1, 2)).clamp(min=1)            # entities per example
                     s._aux = s._aux - ((tgt * (pred + 1e-9).log()).sum((1, 2)) / nent).mean() \
                                     + 2.0 * (torch.einsum("bkn,bjn->bkj", p, p).triu(1).sum((1, 2))).mean()   # slot overlap penalty
+                if a.supbind and s._aux is not None:               # CEILING: optimal slot<->entity assignment, CE on matches
+                    from scipy.optimize import linear_sum_assignment
+                    d_ = fmap.shape[-1]
+                    logp = (torch.einsum("bkd,nd->bkn", s.sbdec(tok), s.pimgpos) / d_ ** 0.5).log_softmax(-1)   # (B,K,ncell)
+                    wc = CELL[m].gather(1, x[:, 0:2])
+                    ents = torch.cat([wc, GC[m], LC[m], PC[m][:, None], CC[m][:, None]], 1)   # (B,E) true entity cells
+                    E = ents.shape[1]; K = logp.shape[1]
+                    cost = -logp.gather(2, ents[:, None, :].expand(-1, K, -1))               # (B,K,E)
+                    ce = torch.zeros((), device=x.device)
+                    cn = cost.detach().cpu().numpy()
+                    for b_ in range(x.shape[0]):
+                        rows, cols = linear_sum_assignment(cn[b_])
+                        ce = ce + cost[b_, rows, cols].sum() / len(rows)
+                    s._aux = s._aux + ce / x.shape[0]
             else:                                                  # pixels: every cell is a token
                 tok = fmap
             return tok + s.fid(torch.arange(NTOK, device=x.device))[None]
@@ -612,7 +628,7 @@ def train(a):
                 tgt = enc_t(PDt[b], PXtr[b]) if (a.resprox and not a.curriculum) else PDt[b]
                 aux_on = hasattr(model, "enc") and ((a.markeraux > 0 and getattr(model.enc, "bindhead", None) is not None)
                                                     or (a.recon != "none" and a.enc == "image")
-                                                    or (a.recon == "slot" and a.enc == "pureimage" and a.readout == "xattn"))
+                                                    or ((a.recon == "slot" or a.supbind) and a.enc == "pureimage" and a.readout == "xattn"))
                 if aux_on:
                     model.enc._aux = torch.zeros((), device=dev)   # collect binding aux over this forward's enc calls
                 if parking:
@@ -633,7 +649,7 @@ def train(a):
                         btgt = 1 + dn.min(-1).values
                     loss = loss + bw * F.smooth_l1_loss(model(U0t[ub], UGt[ub], UCt[ub]), btgt)
                 if aux_on and isinstance(model.enc._aux, torch.Tensor):
-                    loss = loss + (a.markeraux if a.markeraux > 0 else a.reconw) * model.enc._aux
+                    loss = loss + (a.markeraux if a.markeraux > 0 else a.supbind if a.supbind > 0 else a.reconw) * model.enc._aux
                     model.enc._aux = None                          # off during any eval / bellman-only forwards
                 if not torch.isfinite(loss):                       # skip non-finite spikes (MRN); don't poison weights
                     opt.zero_grad(set_to_none=True); nskip += 1; step += 1; continue
@@ -675,7 +691,7 @@ def train(a):
                                       markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, cnndepth=a.cnndepth, steps=a.steps, seed=a.seed,
                                       d=a.d, layers=a.layers, baselayers=(a.baselayers if a.baselayers > 0 else a.layers),
                                       heads=a.heads, T=a.T, lr=a.lr, latentnorm=a.latentnorm, gradclip=a.gradclip, seewalls=a.seewalls,
-                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath,
+                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath, supbind=a.supbind,
                                       gatesopen=int(a.gatesopen), nopush=int(a.nopush), wire1=int(a.wire1), noplate=int(a.noplate),
                                       tag=a.tag, **out)), flush=True)
 
@@ -694,6 +710,7 @@ def main():
     ap.add_argument("--enc", choices=["factored", "bmask", "marker", "image", "pureimage"], default="factored",
                     help="worker/crate input: factored index | bmask lossless canvas | marker canvas-binding | image CNN+readout")
     ap.add_argument("--slots", type=int, default=8, help="--enc pureimage: number of generic learned slot queries")
+    ap.add_argument("--supbind", type=float, default=0.0, help="--enc pureimage: CEILING probe, Hungarian-matched supervised binding aux weight")
     ap.add_argument("--wirepath", type=int, default=0, help="--enc pureimage: draw lever->gate wiring as an L-shaped 0.5 path in the lever channel")
     ap.add_argument("--readout", choices=["xattn", "convspatial", "convpool", "pixels"], default="xattn",
                     help="--enc image: how factor tokens read the CNN feature map (xattn=cross-attention)")
