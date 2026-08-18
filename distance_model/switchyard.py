@@ -700,6 +700,8 @@ def train(a):
                 if aux_on and isinstance(model.enc._aux, torch.Tensor):
                     loss = loss + (a.markeraux if a.markeraux > 0 else a.supbind if a.supbind > 0 else a.reconw) * model.enc._aux
                     model.enc._aux = None                          # off during any eval / bellman-only forwards
+                if a.warmup > 0:                                   # linear lr warmup (slot attention needs it)
+                    for gparam in opt.param_groups: gparam["lr"] = a.lr * min(1.0, (step + 1) / a.warmup)
                 if not torch.isfinite(loss):                       # skip non-finite spikes (MRN); don't poison weights
                     opt.zero_grad(set_to_none=True); nskip += 1; step += 1; continue
                 opt.zero_grad(); loss.backward()
@@ -755,7 +757,7 @@ def train(a):
                                       markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, cnndepth=a.cnndepth, steps=a.steps, seed=a.seed,
                                       d=a.d, layers=a.layers, baselayers=(a.baselayers if a.baselayers > 0 else a.layers),
                                       heads=a.heads, T=a.T, lr=a.lr, latentnorm=a.latentnorm, gradclip=a.gradclip, seewalls=a.seewalls,
-                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath, supbind=a.supbind, coordconv=a.coordconv, cnnk=a.cnnk, slotiters=a.slotiters, slotnoise=a.slotnoise,
+                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath, supbind=a.supbind, coordconv=a.coordconv, cnnk=a.cnnk, slotiters=a.slotiters, slotnoise=a.slotnoise, warmup=a.warmup,
                                       gatesopen=int(a.gatesopen), nopush=int(a.nopush), wire1=int(a.wire1), noplate=int(a.noplate),
                                       tag=a.tag, **out)), flush=True)
 
@@ -778,6 +780,7 @@ def main():
     ap.add_argument("--wirepath", type=int, default=0, help="--enc pureimage: draw lever->gate wiring as an L-shaped 0.5 path in the lever channel")
     ap.add_argument("--cnnk", type=int, default=3, help="--enc pureimage: conv kernel size (1 = per-pixel MLP, no spatial mixing)")
     ap.add_argument("--coordconv", type=int, default=0, help="--enc pureimage: add x/y coordinate channels to the CNN input")
+    ap.add_argument("--warmup", type=int, default=0, help="linear lr warmup steps (0 = off)")
     ap.add_argument("--slotiters", type=int, default=3, help="--readout slotattn: number of competitive attention iterations")
     ap.add_argument("--slotnoise", type=int, default=0, help="--readout slotattn: sample slot init around learned mu (train only)")
     ap.add_argument("--readout", choices=["xattn", "convspatial", "convpool", "pixels", "fgpix", "slotattn"], default="xattn",
