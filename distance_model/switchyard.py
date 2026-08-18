@@ -259,8 +259,9 @@ def train(a):
     NTOK = 3 + a.ngate + a.nlever + 3 + (NOPEN if a.seewalls else 0)   # worker crate bits | gates levers plate chute wallpool [| open doorways]
     IMGC = 8                                                      # --enc image render channels: wall worker crate gate gateopen lever plate chute
     PIMGC = 5 + a.nlever + 1 + 4                                  # --enc pureimage: wall worker crate gate gateopen | lever_l+its gates | plate+its gates | chute dir x4
-    if a.enc == "pureimage":                                      # NO symbolic tokens: slots (K queries) or all pixels
-        NTOK = a.slots if a.readout == "xattn" else ncell
+    NENT = 2 + a.ngate + a.nlever + (0 if a.noplate else 1) + a.nchute   # entities that can light a pixel
+    if a.enc == "pureimage":                                      # NO symbolic tokens: slots (K queries) | all pixels | foreground pixels
+        NTOK = a.slots if a.readout == "xattn" else (NENT if a.readout == "fgpix" else ncell)
 
     class Enc(nn.Module):
         """Structural, compositional encoding: unseen maps/wirings are new combinations of known pieces."""
@@ -298,7 +299,8 @@ def train(a):
                 else:                                             # convpool: global pool -> project to 2 tokens
                     s.ipool = nn.Linear(d, 2 * d)
             if a.enc == "pureimage":                              # everything in pixels -> CNN -> K slots (or pixel tokens)
-                convs = [nn.Conv2d(PIMGC, a.cnnw, 3, padding=1), nn.ReLU()]
+                convs = [nn.Conv2d(PIMGC + (2 if a.coordconv else 0), a.cnnw, 3, padding=1), nn.ReLU()]
+                if a.readout == "fgpix": s.emptytok = nn.Parameter(torch.randn(d) * 0.02)   # pad token for unlit slots
                 for _ in range(max(0, a.cnndepth - 2)):
                     convs += [nn.Conv2d(a.cnnw, a.cnnw, 3, padding=1), nn.ReLU()]
                 convs += [nn.Conv2d(a.cnnw, d, 3, padding=1), nn.ReLU()]
@@ -428,8 +430,20 @@ def train(a):
             return img.view(B, PIMGC, a.G, a.G)
         def _pure(s, x, m):
             B = x.shape[0]
-            feat = s.pcnn(s._render_pure(x, m))                    # (B,d,G,G)
+            img = s._render_pure(x, m)                             # (B,PIMGC,G,G)
+            cin = img
+            if a.coordconv:                                        # explicit x/y coordinate channels
+                yy, xx = torch.meshgrid(torch.linspace(-1, 1, a.G, device=x.device), torch.linspace(-1, 1, a.G, device=x.device), indexing="ij")
+                cin = torch.cat([img, yy[None, None].expand(B, 1, -1, -1), xx[None, None].expand(B, 1, -1, -1)], 1)
+            feat = s.pcnn(cin)                                     # (B,d,G,G)
             fmap = feat.flatten(2).transpose(1, 2) + s.pimgpos[None]   # (B,ncell,d)
+            if a.readout == "fgpix":                               # FOREGROUND pixels as tokens: cells lit in any entity channel
+                fg = (img.flatten(2)[:, 1:] > 0.75).any(1).float()  # (B,ncell) non-wall, non-wirepath
+                order = torch.argsort(fg + 1e-3 * torch.rand_like(fg), dim=1, descending=True)[:, :NTOK]   # lit cells first
+                tok = fmap.gather(1, order[..., None].expand(-1, -1, fmap.shape[-1]))
+                lit = fg.gather(1, order)[..., None]
+                tok = lit * tok + (1 - lit) * s.emptytok            # unlit slots -> learned empty token
+                return tok + s.fid(torch.arange(NTOK, device=x.device))[None]
             if a.readout == "xattn":                               # K slots
                 q = s.squery[None].expand(B, -1, -1)
                 tok, _ = s.sattn(q, fmap, fmap)                    # (B,K,d)
@@ -691,7 +705,7 @@ def train(a):
                                       markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, cnndepth=a.cnndepth, steps=a.steps, seed=a.seed,
                                       d=a.d, layers=a.layers, baselayers=(a.baselayers if a.baselayers > 0 else a.layers),
                                       heads=a.heads, T=a.T, lr=a.lr, latentnorm=a.latentnorm, gradclip=a.gradclip, seewalls=a.seewalls,
-                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath, supbind=a.supbind,
+                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath, supbind=a.supbind, coordconv=a.coordconv,
                                       gatesopen=int(a.gatesopen), nopush=int(a.nopush), wire1=int(a.wire1), noplate=int(a.noplate),
                                       tag=a.tag, **out)), flush=True)
 
@@ -712,7 +726,8 @@ def main():
     ap.add_argument("--slots", type=int, default=8, help="--enc pureimage: number of generic learned slot queries")
     ap.add_argument("--supbind", type=float, default=0.0, help="--enc pureimage: CEILING probe, Hungarian-matched supervised binding aux weight")
     ap.add_argument("--wirepath", type=int, default=0, help="--enc pureimage: draw lever->gate wiring as an L-shaped 0.5 path in the lever channel")
-    ap.add_argument("--readout", choices=["xattn", "convspatial", "convpool", "pixels"], default="xattn",
+    ap.add_argument("--coordconv", type=int, default=0, help="--enc pureimage: add x/y coordinate channels to the CNN input")
+    ap.add_argument("--readout", choices=["xattn", "convspatial", "convpool", "pixels", "fgpix"], default="xattn",
                     help="--enc image: how factor tokens read the CNN feature map (xattn=cross-attention)")
     ap.add_argument("--cnnw", type=int, default=32, help="--enc image: CNN hidden width")
     ap.add_argument("--cnndepth", type=int, default=2, help="--enc image: number of conv layers")
