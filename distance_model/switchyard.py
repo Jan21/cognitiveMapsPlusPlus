@@ -482,6 +482,8 @@ def train(a):
                 q = s.squery[None].expand(B, -1, -1)
                 tok, attw = s.sattn(q, fmap, fmap, need_weights=True, average_attn_weights=True)   # (B,K,d), (B,K,ncell)
                 s._lastattn = attw.detach(); s._lastimg = img.detach()
+                if a.attnent > 0 and s._aux is not None:           # sharpen: penalise attention entropy (soft 'crisp read')
+                    s._aux = s._aux + a.attnent * (-(attw * (attw + 1e-9).log()).sum(-1)).mean()
                 if a.recon == "slot" and s._aux is not None:       # slots reconstruct the entity channels of their OWN input
                     img = s._render_pure(x, m).flatten(2)[:, 1:]   # (B,PIMGC-1,ncell) all channels except walls
                     tgt = (img > 0.75).float()                     # entity cells only (wire paths at 0.5 excluded)
@@ -677,7 +679,7 @@ def train(a):
                 tgt = enc_t(PDt[b], PXtr[b]) if (a.resprox and not a.curriculum) else PDt[b]
                 aux_on = hasattr(model, "enc") and ((a.markeraux > 0 and getattr(model.enc, "bindhead", None) is not None)
                                                     or (a.recon != "none" and a.enc == "image")
-                                                    or ((a.recon == "slot" or a.supbind) and a.enc == "pureimage" and a.readout in ("xattn", "slotattn")))
+                                                    or ((a.recon == "slot" or a.supbind or a.attnent > 0) and a.enc == "pureimage" and a.readout in ("xattn", "slotattn")))
                 if aux_on:
                     model.enc._aux = torch.zeros((), device=dev)   # collect binding aux over this forward's enc calls
                 if parking:
@@ -757,7 +759,7 @@ def train(a):
                                       markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, cnndepth=a.cnndepth, steps=a.steps, seed=a.seed,
                                       d=a.d, layers=a.layers, baselayers=(a.baselayers if a.baselayers > 0 else a.layers),
                                       heads=a.heads, T=a.T, lr=a.lr, latentnorm=a.latentnorm, gradclip=a.gradclip, seewalls=a.seewalls,
-                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath, supbind=a.supbind, coordconv=a.coordconv, cnnk=a.cnnk, slotiters=a.slotiters, slotnoise=a.slotnoise, warmup=a.warmup,
+                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath, supbind=a.supbind, coordconv=a.coordconv, cnnk=a.cnnk, slotiters=a.slotiters, slotnoise=a.slotnoise, warmup=a.warmup, attnent=a.attnent,
                                       gatesopen=int(a.gatesopen), nopush=int(a.nopush), wire1=int(a.wire1), noplate=int(a.noplate),
                                       tag=a.tag, **out)), flush=True)
 
@@ -780,6 +782,7 @@ def main():
     ap.add_argument("--wirepath", type=int, default=0, help="--enc pureimage: draw lever->gate wiring as an L-shaped 0.5 path in the lever channel")
     ap.add_argument("--cnnk", type=int, default=3, help="--enc pureimage: conv kernel size (1 = per-pixel MLP, no spatial mixing)")
     ap.add_argument("--coordconv", type=int, default=0, help="--enc pureimage: add x/y coordinate channels to the CNN input")
+    ap.add_argument("--attnent", type=float, default=0.0, help="--enc pureimage xattn: attention-entropy penalty weight (sharpen slots)")
     ap.add_argument("--warmup", type=int, default=0, help="linear lr warmup steps (0 = off)")
     ap.add_argument("--slotiters", type=int, default=3, help="--readout slotattn: number of competitive attention iterations")
     ap.add_argument("--slotnoise", type=int, default=0, help="--readout slotattn: sample slot init around learned mu (train only)")
