@@ -233,18 +233,24 @@ def train(a):
     PW = torch.zeros(len(yards), a.ngate); CC = torch.zeros(len(yards), dtype=torch.long); CD = torch.zeros(len(yards), dtype=torch.long)
     CELL = torch.zeros(len(yards), ncell, dtype=torch.long)      # map-local cell id -> absolute grid cell
     WALLIMG = torch.zeros(len(yards), ncell)                     # per-map binary wall image (for --enc image render)
+    NOPEN = (4 - a.ngate) + 4                                     # --seewalls: max open NON-gate cross cells (arm gaps + extras)
+    OPENC = torch.zeros(len(yards), NOPEN, dtype=torch.long); OPENM = torch.zeros(len(yards), NOPEN)
     for i, y in enumerate(yards):
         wl = [r * a.G + c for r in range(a.G) for c in range(a.G) if y.wall[r, c] and (r, c) not in y.gates]
         WALL[i, :len(wl)] = torch.tensor(wl); WN[i] = max(1, len(wl))
         for cidx in wl: WALLIMG[i, cidx] = 1.0
+        wr_ = wc_ = a.G // 2
+        cross = [(r, wc_) for r in range(a.G)] + [(wr_, c) for c in range(a.G) if c != wc_]
+        opn = [r * a.G + c for (r, c) in cross if not y.wall[r, c] and (r, c) not in y.gates]   # passable, NOT a gate
+        OPENC[i, :len(opn)] = torch.tensor(opn[:NOPEN]); OPENM[i, :len(opn)] = 1.0
         GC[i] = torch.tensor([cell(y, g) for g in y.gates]); LC[i] = torch.tensor([cell(y, l) for l in y.levers])
         for li, wm in enumerate(y.wiring): LW[i, li] = torch.tensor([(wm >> g) & 1 for g in range(a.ngate)], dtype=torch.float)
         PC[i] = cell(y, y.plate); PW[i] = torch.tensor([(y.platemask >> g) & 1 for g in range(a.ngate)], dtype=torch.float)
         ch = list(y.chutes.items())[0] if y.chutes else (((0, 0)), 0)
         CC[i] = cell(y, ch[0]); CD[i] = ch[1]
         CELL[i, :len(y.cells)] = torch.tensor([cell(y, rc) for rc in y.cells])
-    WALL, WN, GC, LC, LW, PC, PW, CC, CD, CELL, WALLIMG = (t.to(dev) for t in (WALL, WN, GC, LC, LW, PC, PW, CC, CD, CELL, WALLIMG))
-    NTOK = 3 + a.ngate + a.nlever + 3                             # worker crate bits | gates levers plate chute wallpool
+    WALL, WN, GC, LC, LW, PC, PW, CC, CD, CELL, WALLIMG, OPENC, OPENM = (t.to(dev) for t in (WALL, WN, GC, LC, LW, PC, PW, CC, CD, CELL, WALLIMG, OPENC, OPENM))
+    NTOK = 3 + a.ngate + a.nlever + 3 + (NOPEN if a.seewalls else 0)   # worker crate bits | gates levers plate chute wallpool [| open doorways]
     IMGC = 8                                                      # --enc image render channels: wall worker crate gate gateopen lever plate chute
 
     class Enc(nn.Module):
@@ -280,6 +286,9 @@ def train(a):
                 else:                                             # convpool: global pool -> project to 2 tokens
                     s.ipool = nn.Linear(d, 2 * d)
             s._aux = None                                         # set to 0 by training loop to collect binding aux
+            if a.seewalls:                                        # open non-gate doorway tokens: pos(cell)+openkind | absent
+                s.openkind = nn.Parameter(torch.randn(d) * 0.02)
+                s.absent = nn.Parameter(torch.randn(d) * 0.02)
         def _render(s, x, m):
             """render the FULL state to an (B, IMGC, G, G) image (walls/worker/crate/gate/gateopen/lever/plate/chute)."""
             B, dev = x.shape[0], x.device
@@ -360,7 +369,11 @@ def train(a):
             plt = s.pos(PC[m]) + torch.einsum("bg,gd->bd", PW[m], s.pwire.weight)
             cht = s.pos(CC[m]) + s.cdir(CD[m])
             wal = s.pos(WALL[m]).sum(1) / WN[m]
-            tok = torch.cat([w[:, None], c[:, None], bt[:, None], gts, lvs, plt[:, None], cht[:, None], wal[:, None]], 1)
+            toks = [w[:, None], c[:, None], bt[:, None], gts, lvs, plt[:, None], cht[:, None], wal[:, None]]
+            if a.seewalls:
+                om = OPENM[m][..., None]                           # (B,NOPEN,1)
+                toks.append(om * (s.pos(OPENC[m]) + s.openkind) + (1 - om) * s.absent)
+            tok = torch.cat(toks, 1)
             return tok + s.fid(torch.arange(NTOK, device=x.device))[None]
 
     class Block(nn.Module):
@@ -567,7 +580,7 @@ def train(a):
                                       Rtrain=a.Rtrain, globalbase=a.globalbase, enc=a.enc, markeraux=a.markeraux,
                                       markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, cnndepth=a.cnndepth, steps=a.steps, seed=a.seed,
                                       d=a.d, layers=a.layers, baselayers=(a.baselayers if a.baselayers > 0 else a.layers),
-                                      heads=a.heads, T=a.T, lr=a.lr, latentnorm=a.latentnorm, gradclip=a.gradclip,
+                                      heads=a.heads, T=a.T, lr=a.lr, latentnorm=a.latentnorm, gradclip=a.gradclip, seewalls=a.seewalls,
                                       tag=a.tag, **out)), flush=True)
 
 def main():
@@ -621,6 +634,7 @@ def main():
     ap.add_argument("--baselayers", type=int, default=-1, help="mix-block depth for sym/qmet/scalar baselines (-1 = use --layers)")
     ap.add_argument("--latentnorm", type=int, default=0, help="LayerNorm on baseline latents before the metric head (fixes MRN nan; fair, swept)")
     ap.add_argument("--gradclip", type=float, default=0.0, help="clip grad norm before opt.step (0=off; general nan safety, applied to all models)")
+    ap.add_argument("--seewalls", type=int, default=0, help="encode open NON-gate cross doorways as tokens (else only via the pooled wall token)")
     ap.add_argument("--tag", default="")
     a = ap.parse_args()
     if a.probe: probe(a)

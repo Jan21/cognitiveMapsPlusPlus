@@ -1,0 +1,288 @@
+<title>Fair Benchmark Ledger</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --bg:#f3f4f2; --paper:#ffffff; --paper2:#eaece8; --line:#d5d9d2;
+  --ink:#171a17; --muted:#5b625a; --faint:#8a918a;
+  --teal:#0f766e; --teal-soft:#0f766e1a; --amber:#b7791f; --amber-soft:#b7791f1c;
+  --win:#1f7a4d; --tie:#8a6d1f; --lose:#a83a3a; --nan:#7b8794;
+  --code:#eef0ec; --shadow:0 1px 2px rgba(15,25,20,.05),0 10px 26px rgba(15,25,20,.06);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1311; --paper:#161b18; --paper2:#121714; --line:#283029;
+    --ink:#e8ece7; --muted:#a3ab9f; --faint:#6f776e;
+    --teal:#4fc3b5; --teal-soft:#4fc3b522; --amber:#e3ad4d; --amber-soft:#e3ad4d22;
+    --win:#5fcf8f; --tie:#d9b45a; --lose:#e07070; --nan:#8a95a3;
+    --code:#0f1412; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1311; --paper:#161b18; --paper2:#121714; --line:#283029;
+  --ink:#e8ece7; --muted:#a3ab9f; --faint:#6f776e;
+  --teal:#4fc3b5; --teal-soft:#4fc3b522; --amber:#e3ad4d; --amber-soft:#e3ad4d22;
+  --win:#5fcf8f; --tie:#d9b45a; --lose:#e07070; --nan:#8a95a3;
+  --code:#0f1412; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16.5px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.wrap{max-width:900px;margin:0 auto;padding:0 22px}
+header{padding:64px 0 26px;border-bottom:1px solid var(--line)}
+.eyebrow{font:600 12px/1 ui-monospace,monospace;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);margin:0 0 16px}
+h1{font-size:clamp(32px,5.5vw,46px);line-height:1.05;letter-spacing:-.025em;font-weight:680;margin:0 0 16px;text-wrap:balance}
+.lede{font-size:18.5px;color:var(--muted);max-width:64ch;margin:0;text-wrap:pretty}
+.lede b{color:var(--ink);font-weight:600}
+main{padding-bottom:90px}
+section{padding:46px 0 0}
+h2{font-size:24px;line-height:1.15;letter-spacing:-.02em;font-weight:660;margin:0 0 4px;text-wrap:balance}
+h2 .k{display:block;font:600 12px/1 ui-monospace,monospace;letter-spacing:.1em;color:var(--teal);margin-bottom:9px}
+h3{font-size:17px;font-weight:640;margin:26px 0 6px}
+p{margin:12px 0}
+.muted{color:var(--muted)} .small{font-size:14px}
+code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;background:var(--code);border:1px solid var(--line);border-radius:5px;padding:.06em .36em}
+
+/* verdict */
+.verdict{margin:28px 0 0;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.vcard{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px 16px 14px;box-shadow:var(--shadow)}
+.vcard .lab{font:600 11px/1 ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px}
+.vcard.win .lab{color:var(--win)} .vcard.tie .lab{color:var(--tie)} .vcard.lose .lab{color:var(--lose)}
+.vcard .big{font-size:15px;font-weight:600;line-height:1.35;margin-bottom:6px}
+.vcard .sub{font-size:13.5px;color:var(--muted);line-height:1.45}
+@media (max-width:640px){.verdict{grid-template-columns:1fr}}
+
+/* tables */
+.tbl{width:100%;border-collapse:collapse;margin:14px 0 6px;font-size:14.5px;font-variant-numeric:tabular-nums}
+.tbl th,.tbl td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:right;vertical-align:top}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl th{font:600 11.5px/1.2 ui-monospace,monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.tbl tr:last-child td{border-bottom:none}
+.tbl td.h{font-family:ui-monospace,Menlo,monospace;font-size:13.5px}
+.tbl td.ours{color:var(--amber);font-weight:640}
+.tbl td.best{font-weight:640}
+.tbl td.nan{color:var(--nan)}
+.tbl .sd{color:var(--faint);font-size:12px}
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--paper);box-shadow:var(--shadow);padding:6px 10px}
+.legend{font-size:13px;color:var(--faint);margin:8px 0 0}
+.legend .a{color:var(--amber);font-weight:640}
+
+/* margin chart */
+.chart{margin:16px 0 4px;background:var(--paper);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:14px 16px 8px}
+.chart canvas{display:block;width:100%;height:auto}
+.chart .cap{font-size:13px;color:var(--faint);margin:6px 0 4px}
+
+/* notes */
+.note{margin:18px 0;padding:14px 16px 14px 18px;border-left:3px solid var(--teal);background:var(--paper);border-radius:0 10px 10px 0}
+.note.warn{border-left-color:var(--amber)}
+.note .lab{font:600 11px/1 ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--teal);margin-bottom:6px}
+.note.warn .lab{color:var(--amber)}
+.note p{margin:4px 0;font-size:14.5px}
+ul{padding-left:20px;margin:8px 0} li{margin:5px 0}
+.inv{font-size:13.5px}
+.inv td{padding:6px 10px}
+.foot{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);color:var(--faint);font-size:13px}
+</style>
+
+<div class="wrap">
+<header>
+  <p class="eyebrow">CognitiveMaps++ · distance model · 2026-08-17 → 08-18</p>
+  <h1>Where the integrator actually wins: a fair-benchmark ledger</h1>
+  <p class="lede">Twelve hours, ~230 runs on CIIRC A40s, dgx-osu and the OSU workstations. Every baseline retuned (depth × lr, nan-guarded, same encoder / data / loss / steps), our model rerun at its own validated recipe, seeds everywhere. <b>Verdict: the recall-flow integrator's edge is real but narrow, and it lives in one place: generalizing to unseen coupling structure between factors under weak entity binding.</b> It has no edge on length extrapolation or unseen-map spatial reading.</p>
+
+  <div class="verdict">
+    <div class="vcard win"><div class="lab">leads</div>
+      <div class="big">Held-out coupling structure (crateworld combo / links2)</div>
+      <div class="sub">marker canvas: <span class="mono">0.99 / 0.98</span> vs best baseline 0.93 / 0.92 (+0.06 / +0.08). CNN image: 0.97 vs 0.95 (+0.02). Switchyard rewired-causality (wire): +0.04.</div></div>
+    <div class="vcard tie"><div class="lab">ties</div>
+      <div class="big">In-range structural generalization when binding is clean</div>
+      <div class="sub">Switchyard image map +0.025 (within ~1 sd). Gridworld unseen maps in-range: integ ≈ IQE. Crateworld dofhi: sym ≥ integ.</div></div>
+    <div class="vcard lose"><div class="lab">no edge</div>
+      <div class="big">Length extrapolation</div>
+      <div class="sub">Gridworld fixed 8→19: every metric head extrapolates; MRN best. Crateworld 8→25: sym + bellrad 0.76 ≥ integ 0.74. Gridworld unseen-map beyond-range: MRN 0.92, integ 0.08–0.20.</div></div>
+  </div>
+</header>
+
+<main>
+
+<section id="chart">
+  <h2><span class="k">AT A GLANCE</span>Integrator margin over the best tuned baseline, per bed</h2>
+  <div class="chart"><canvas id="cv" width="1200" height="520" aria-label="Bar chart of integrator margin over best baseline per benchmark bed"></canvas>
+  <div class="cap">Positive = integrator ahead. Metric is test correlation (structural beds) or corr_beyond (length beds). Bars are seed means; the best baseline is chosen per bed after tuning.</div></div>
+</section>
+
+<section id="sy">
+  <h2><span class="k">BED 1 · SWITCHYARD, CNN IMAGE</span>Structural generalization on unseen maps (map) and rewired causality (wire)</h2>
+  <p class="muted small">Encoder shared by all heads: 8-channel render → 2-conv CNN (w64) → worker/crate query tokens cross-attend the feature map (unsupervised binding). 200 maps, 80k steps, smooth-L1 to BFS. Baselines tuned over depth {2,4} × d {128,256} × lr {2e-3,1e-3,3e-4}; integrator at its original validated recipe (lr 2e-3, L4 d128, T14, no clip). 3 seeds.</p>
+  <div class="tblwrap"><table class="tbl">
+    <thead><tr><th>head</th><th>map</th><th>wire</th><th>seeds</th><th>note</th></tr></thead>
+    <tbody>
+      <tr><td class="h ours">integ (own recipe)</td><td class="ours best">0.806 <span class="sd">±.017</span></td><td class="ours best">0.818 <span class="sd">±.031</span></td><td>3 / 3</td><td class="muted small">.827/.807/.785 · .850/.827/.777</td></tr>
+      <tr><td class="h">iqe (L4 d128)</td><td>0.781 <span class="sd">±.010</span></td><td>0.770 <span class="sd">±.020</span></td><td>3 / 3</td><td></td></tr>
+      <tr><td class="h">scalar (L2 d128)</td><td>0.769 <span class="sd">±.012</span></td><td>0.776 <span class="sd">±.021</span></td><td>3 / 3</td><td class="muted small">no-inductive-bias control</td></tr>
+      <tr><td class="h">sym (L2 d128)</td><td>0.758 <span class="sd">±.020</span></td><td>0.768 <span class="sd">±.000</span></td><td>3 / 3</td><td></td></tr>
+      <tr><td class="h">mrn (L2 d128)</td><td>0.797</td><td class="nan">nan</td><td>1 / 0</td><td class="muted small">2 of 3 map seeds and 1 of 3 wire seeds diverge; d256 diverges immediately</td></tr>
+      <tr><td class="h muted">integ (fair-bench recipe, lr 1e-3 + clip, L2 d256)</td><td class="muted">0.788 <span class="sd">±.020</span></td><td class="muted">0.786 <span class="sd">±.020</span></td><td class="muted">3 / 3</td><td class="muted small">what the first fair pass reported; lr 1e-3 costs ≈0.07 (isolated)</td></tr>
+      <tr><td class="h muted">integ + supervised binding aux</td><td class="muted">0.885</td><td class="muted">0.861</td><td class="muted">1 / 1</td><td class="muted small">upper bound: binding is the CNN bottleneck (+0.10)</td></tr>
+    </tbody></table></div>
+  <p class="legend"><span class="a">amber</span> = our model. Margin over best baseline: <b>+0.025 map, +0.04 wire</b> — the wire edge is about one seed-sd; the earlier “+0.15” was two-layer-locked baselines × single seeds × MRN nan.</p>
+</section>
+
+<section id="cwmk">
+  <h2><span class="k">BED 2 · CRATEWORLD, MARKER CANVAS</span>Held-out coupling configurations, image-position input</h2>
+  <p class="muted small">4 agents on a 6×6 grid, agents drawn as markers on a shared canvas (encoder must bind each agent by learned query attention). Coupling (which agents are linked, mobility knobs) is given symbolically. Splits: <code>combo</code> = unseen link/knob combinations, <code>links2</code> = unseen two-link sets, <code>dofhi</code> = extrapolate to more free DOF. Recipe: L4 d128 T14, lr 2e-3, 80k. 2 seeds.</p>
+  <div class="tblwrap"><table class="tbl">
+    <thead><tr><th>head</th><th>combo</th><th>links2</th><th>dofhi</th></tr></thead>
+    <tbody>
+      <tr><td class="h ours">integ</td><td class="ours best">0.985–0.994</td><td class="ours best">0.955–0.987</td><td class="ours best">0.965–0.998</td></tr>
+      <tr><td class="h">sym</td><td>0.92 / 0.93</td><td>0.88 / 0.92</td><td>0.96 / 0.97</td></tr>
+      <tr><td class="h">scalar</td><td>0.88 / 0.93</td><td>0.88 / 0.88</td><td>0.86 / 0.96</td></tr>
+      <tr><td class="h">iqe</td><td>0.04 / 0.90</td><td>0.87 / 0.89</td><td>0.96 / 0.97</td></tr>
+      <tr><td class="h">mrn</td><td>0.87 / 0.88</td><td class="nan">nan / nan</td><td class="nan">nan / nan</td></tr>
+    </tbody></table></div>
+  <p class="legend">Margins: <b>combo +0.06, links2 +0.08, dofhi ≈ tie.</b> The integrator is also the least binding-sensitive head: IQE collapses on one combo seed, MRN cannot train on links2/dofhi at all.</p>
+</section>
+
+<section id="cwimg">
+  <h2><span class="k">BED 3 · CRATEWORLD, CNN IMAGE</span>Same splits, switchyard-aligned encoder</h2>
+  <p class="muted small">One channel per agent → 2-conv CNN (w64) → per-agent query cross-attention, identical to bed 1's encoder. Baselines tuned over depth {2,4} × lr {1e-3, 2e-3}, best config per head per split, 2 seeds; integrator at its recipe, 2 seeds (third seed still running).</p>
+  <div class="tblwrap"><table class="tbl">
+    <thead><tr><th>head (best cfg)</th><th>combo</th><th>links2</th><th>dofhi</th></tr></thead>
+    <tbody>
+      <tr><td class="h ours">integ (L4 lr2e-3)</td><td class="ours best">0.972 / 0.971</td><td class="ours best">0.965 / 0.976</td><td class="ours">0.900 / 0.940</td></tr>
+      <tr><td class="h">scalar (L2 lr1e-3)</td><td>0.954 / 0.956</td><td>0.949 / 0.954</td><td>0.876 / 0.886</td></tr>
+      <tr><td class="h">sym (L4 lr1e-3)</td><td>0.926 / 0.933</td><td>0.909 / 0.918</td><td class="best">0.970 / 0.955</td></tr>
+      <tr><td class="h">iqe (L4 lr1e-3)</td><td>0.920 / 0.913</td><td>0.883 / 0.841</td><td>0.939 / 0.908</td></tr>
+      <tr><td class="h">mrn (L2)</td><td>0.889 / 0.866</td><td>0.868 / 0.858</td><td>0.874 / 0.869</td></tr>
+    </tbody></table></div>
+  <p class="legend">Margins: <b>combo +0.02, links2 +0.02, dofhi −0.04</b> (sym wins). A clean CNN encoder lifts every baseline (IQE combo 0.04 → 0.92) and shrinks the integrator's lead; scalar becomes the closest competitor. Same pattern as switchyard.</p>
+</section>
+
+<section id="gw">
+  <h2><span class="k">BED 4 · KEYS-&amp;-DOORS GRIDWORLD</span>The bed where length-gen “worked very well”: everyone length-generalizes</h2>
+  <p class="muted small">Baselines had never been run here. Shared reader: 2-conv CNN over the rendered map + per-factor cross-attention. Fixed map 8×8, train dist ≤8, test to 19, 90k steps, Ttest 22. Random: 1200 maps, unseen maps at test, train ≤8, 45k. Baseline depth {2,4}, lr 1e-3, integ 2 seeds.</p>
+  <h3>Fixed map · length extrapolation (train ≤8 → 19)</h3>
+  <div class="tblwrap"><table class="tbl">
+    <thead><tr><th>head</th><th>in-range MAE</th><th>flat_d</th><th>corr_beyond</th><th>mae_beyond</th></tr></thead>
+    <tbody>
+      <tr><td class="h">mrn L2</td><td>0.015</td><td>18</td><td class="best">0.987</td><td class="best">0.12</td></tr>
+      <tr><td class="h">iqe L2</td><td>0.017</td><td>17</td><td>0.975</td><td>0.23</td></tr>
+      <tr><td class="h">sym L2</td><td>0.042</td><td class="best">19</td><td>0.955</td><td>0.29</td></tr>
+      <tr><td class="h ours">integ s0 / s1</td><td class="ours">0.035 / 0.040</td><td class="ours">15 / 12</td><td class="ours">0.964 / 0.862</td><td class="ours">0.44 / 1.12</td></tr>
+      <tr><td class="h">scalar L2</td><td>0.016</td><td>15</td><td>0.935</td><td>0.47</td></tr>
+      <tr><td class="h muted">sym L4, scalar L4</td><td class="nan" colspan="4">diverged (depth-4 non-recurrent heads unstable at lr 1e-3)</td></tr>
+    </tbody></table></div>
+  <h3>Random layouts · unseen maps (in-range) and beyond-range</h3>
+  <div class="tblwrap"><table class="tbl">
+    <thead><tr><th>head</th><th>near (in-range MAE)</th><th>corr_within</th><th>corr_beyond</th><th>mae_beyond</th></tr></thead>
+    <tbody>
+      <tr><td class="h">iqe L2</td><td class="best">0.109</td><td>0.998</td><td>0.62</td><td>3.58</td></tr>
+      <tr><td class="h ours">integ s0 / s1</td><td class="ours">0.138 / 0.116</td><td class="ours">0.995 / 0.996</td><td class="ours">0.20 / 0.08</td><td class="ours">5.6 / 6.1</td></tr>
+      <tr><td class="h">iqe L4</td><td>0.136</td><td>0.996</td><td>0.70</td><td>3.59</td></tr>
+      <tr><td class="h">mrn L4</td><td>0.172</td><td>0.992</td><td class="best">0.92</td><td class="best">1.63</td></tr>
+      <tr><td class="h">sym L2 / L4</td><td>0.213 / 0.212</td><td>0.99</td><td>0.55 / 0.56</td><td>4.6</td></tr>
+      <tr><td class="h">scalar L2 / L4</td><td class="nan">2.0 (fails)</td><td class="nan">0.01</td><td class="nan">−0.13</td><td class="nan">10.5</td></tr>
+    </tbody></table></div>
+  <p class="legend">In-range on unseen maps, integ ≈ IQE; the scalar control fails completely (metric bias is needed, but any metric head has it). Beyond-range on unseen maps, MRN L4 extrapolates and the integrator is worst but scalar. The original “flat 19” integ result was a favourable seed.</p>
+</section>
+
+<section id="cwlen">
+  <h2><span class="k">BED 5 · CRATEWORLD LENGTH-GEN</span>2 agents, 14×14, train ≤8 → test 25, bellman + bellwarm + EMA target</h2>
+  <p class="muted small">Prior claim: integ 0.74 [0.70–0.81] with bellrad, MRN 0.64, IQE 0.47 (baselines at one depth / one lr). Retuned baselines over depth {2,4,6} × lr {3e-4, 1e-3, 2e-3}, sym added, bellrad tried on sym. Metric corr_beyond. Single seed for the new cells.</p>
+  <div class="tblwrap"><table class="tbl">
+    <thead><tr><th>head</th><th>corr_beyond</th><th>mae_beyond</th><th>mae_within</th><th>config</th></tr></thead>
+    <tbody>
+      <tr><td class="h">sym + bellrad</td><td class="best">0.759</td><td class="best">2.60</td><td class="best">0.165</td><td class="muted small">L4 lr1e-3 (bellrad lifts sym 0.31 → 0.76)</td></tr>
+      <tr><td class="h ours">integ + bellrad (prior, 3 seeds)</td><td class="ours">0.74 [0.70–0.81]</td><td class="ours">—</td><td class="ours">—</td><td class="muted small">0.65 without bellrad</td></tr>
+      <tr><td class="h">mrn</td><td>0.691 / 0.688</td><td>4.04 / 3.76</td><td>0.23 / 0.66</td><td class="muted small">L2 lr1e-3 / L4 lr2e-3 (was 0.64)</td></tr>
+      <tr><td class="h">iqe</td><td>0.578</td><td>6.88</td><td>0.33</td><td class="muted small">L2 lr1e-3 (was 0.47)</td></tr>
+    </tbody></table></div>
+  <p class="legend">bellrad is <b>not</b> integ-specific: it hurts MRN, helps sym enormously. Tuned, the symmetric embedding matches the integrator on the length axis.</p>
+</section>
+
+<section id="method">
+  <h2><span class="k">METHOD FINDINGS</span>What changed the numbers, and what didn't</h2>
+  <ul>
+    <li><b>Baselines were two-layer-locked.</b> <code>Sym/Qmet/Scalar</code> ignored <code>--layers</code>; IQE's best is 4 layers, and unlocking it alone moved IQE wire 0.70 → 0.77. Now <code>--baselayers</code>, <code>--heads</code>, <code>--gradclip</code>, non-finite-step guard (<code>nskip</code>), and every hyper-parameter is in the RESULT json.</li>
+    <li><b>The “layernorm bug” is real and inverted:</b> a LayerNorm on the latent before the metric head <em>hurts</em> IQE (0.77 → 0.56) and MRN. It is a swept knob, off in every table above.</li>
+    <li><b>Our own drop was self-inflicted.</b> The first fair pass ran the integrator at lr 1e-3 + gradclip (chosen on an 8k screen). Verbatim replication of the original command on current code reproduces 0.827/0.807/0.785 map and 0.850/0.827 wire exactly; lr 1e-3 alone costs ≈0.07. No code regression.</li>
+    <li><b>MRN is fragile</b>: diverges at d256, on crateworld links2/dofhi (marker), and on 2/3 switchyard seeds; when it trains it is competitive. Gradclip does not save it (the spike is in the forward pass).</li>
+    <li><b>Binding is the CNN bottleneck</b>: supervised binding aux lifts the integrator 0.79 → 0.885/0.861 on switchyard. Worth an unsupervised route (temporal consistency, not plain reconstruction).</li>
+    <li><b>Recall depth is a weak lever in-range</b>: T2 0.76 → T4 0.77/0.82 → T14 0.79/0.78 → T20 0.81/0.84 (seed 0) but T20 seed 2 collapses to 0.71/0.69. Not a reliable gain.</li>
+    <li><b>Run-to-run noise ≈ 0.02–0.03</b> at fixed seed on the image beds. Differences under 0.03 are not results.</li>
+  </ul>
+  <div class="note warn"><div class="lab">what this means for the story</div>
+    <p>The defensible claim is narrow: <b>on unseen coupling structure between factors, and increasingly so as entity binding gets harder, the accumulator generalizes better than tuned quasimetric / symmetric / scalar heads</b> (crateworld combo/links2 +0.06–0.08 on marker, +0.02 on CNN; switchyard wire +0.04). Length extrapolation and unseen-map reading are not where it wins. A new environment should amplify held-out coupling structure with rendered (not symbolic) dependencies.</p></div>
+</section>
+
+<section id="inv">
+  <h2><span class="k">RUN INVENTORY</span>Where the raw outputs live</h2>
+  <div class="tblwrap"><table class="tbl inv">
+    <thead><tr><th>bed</th><th>machine</th><th>files</th><th>runs</th></tr></thead>
+    <tbody>
+      <tr><td>switchyard screen / B1 / B2 / T / aux / replication / completion</td><td>CIIRC</td><td class="mono">distance_model/{baseScreen,baseFull,baseSeeds,tSweep,auxProbe,replicate,cwImg[55-58]}_*.out</td><td>24+16+25+10+4+9+5</td></tr>
+      <tr><td>crateworld marker held-out</td><td>dgx-osu / phd boxes</td><td class="mono">~/crateworld/cw_*.out · cwmk_*.out (+ prior dgx_dm_*/dm_*)</td><td>16 + 15</td></tr>
+      <tr><td>crateworld CNN-image held-out</td><td>CIIRC</td><td class="mono">distance_model/cwImg_[0-53]_*.out · cwImg2_*.out</td><td>54 + 15</td></tr>
+      <tr><td>gridworld fixed / random</td><td>CIIRC</td><td class="mono">gridworld/gwBench_*.out</td><td>20</td></tr>
+      <tr><td>crateworld length-gen tuning</td><td>phd boxes</td><td class="mono">~/crateworld/cwlen_*.out</td><td>12</td></tr>
+    </tbody></table></div>
+  <p class="muted small">Drivers committed on <code>distance-model</code>: <code>baseScreen/baseFull/baseSeeds/tSweep/auxProbe/replicate/cwImg/cwImg2.sbatch</code>, <code>gridworld/gwBench.sbatch</code>, <code>cw_osu_runner.sh</code>, <code>cwlen_phd_runner.sh</code>, <code>cwmk_phd_runner.sh</code>. Harness changes: <code>switchyard.py</code>, <code>integ_distance.py</code> (<code>--enc image</code>, <code>--arch scalar</code>), <code>gridworld/gw_probe.py</code> (baseline heads).</p>
+</section>
+
+<div class="foot">Companion: “Recall-Flow Integrator” explainer (model mechanics). Prior single-seed / locked-baseline numbers in <code>length_gen_results.md</code> and <code>image_model_campaign.html</code> are superseded by this ledger where they conflict.</div>
+</main>
+</div>
+
+<script>
+(function(){
+  var cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+  function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+  // (label, margin, note)
+  var rows=[
+    ["crateworld marker · links2", 0.08, "0.98 vs sym 0.90"],
+    ["crateworld marker · combo",  0.06, "0.99 vs sym 0.93"],
+    ["switchyard image · wire",    0.04, "0.818 vs scalar 0.776"],
+    ["switchyard image · map",     0.025,"0.806 vs iqe 0.781"],
+    ["crateworld image · combo",   0.02, "0.97 vs scalar 0.95"],
+    ["crateworld image · links2",  0.02, "0.97 vs scalar 0.95"],
+    ["gridworld random · in-range (corr)", 0.00, "≈ iqe"],
+    ["crateworld marker · dofhi",  0.00, "≈ sym / iqe"],
+    ["crateworld length-gen (corr_beyond)", -0.02, "0.74 vs sym+bellrad 0.76"],
+    ["gridworld fixed · length (corr_beyond)", -0.03, "0.91 vs mrn 0.99"],
+    ["crateworld image · dofhi",   -0.04, "0.92 vs sym 0.96"],
+    ["gridworld random · beyond (corr)", -0.78, "0.14 vs mrn 0.92"]
+  ];
+  function draw(){
+    var dpr=Math.min(window.devicePixelRatio||1,2);
+    var W=cv.clientWidth||900, rowH=34, top=18, H=top+rows.length*rowH+30;
+    cv.width=W*dpr; cv.height=H*dpr; cv.style.height=H+'px'; ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,W,H);
+    var labW=Math.min(300,W*0.36), x0=labW+10, x1=W-120, zeroFrac=0.82; // negative space smaller
+    var xmin=-0.12, xmax=0.10;
+    var xz=x0+(x1-x0)*((0-xmin)/(xmax-xmin));
+    function X(v){ v=Math.max(xmin,Math.min(xmax,v)); return x0+(x1-x0)*((v-xmin)/(xmax-xmin)); }
+    ctx.font='12px ui-monospace,monospace';
+    // grid
+    [-0.10,-0.05,0,0.05,0.10].forEach(function(v){
+      ctx.strokeStyle=css('--line'); ctx.lineWidth=v===0?1.5:1; ctx.globalAlpha=v===0?1:.7;
+      ctx.beginPath(); ctx.moveTo(X(v),top-6); ctx.lineTo(X(v),H-24); ctx.stroke(); ctx.globalAlpha=1;
+      ctx.fillStyle=css('--faint'); ctx.textAlign='center'; ctx.fillText((v>0?'+':'')+v.toFixed(2), X(v), H-8);
+    });
+    rows.forEach(function(r,i){
+      var y=top+i*rowH+rowH/2;
+      ctx.fillStyle=css('--ink'); ctx.textAlign='right'; ctx.font='13px system-ui,sans-serif';
+      ctx.fillText(r[0], labW, y+4);
+      var m=r[1], clipped=m<xmin;
+      var col = m>0.03? css('--win') : (m<-0.03? css('--lose') : css('--tie'));
+      var xa=X(Math.min(0,m)), xb=X(Math.max(0,m));
+      ctx.fillStyle=col; ctx.globalAlpha=.85;
+      ctx.fillRect(Math.min(xa,xb), y-10, Math.max(2,Math.abs(xb-xa)), 20); ctx.globalAlpha=1;
+      if(clipped){ ctx.fillStyle=css('--paper'); ctx.fillRect(x0+2,y-12,6,24); ctx.fillStyle=col; ctx.font='11px ui-monospace,monospace'; ctx.textAlign='left'; ctx.fillText('◄ '+m.toFixed(2), x0+10, y+4); }
+      ctx.fillStyle=css('--muted'); ctx.font='12px ui-monospace,monospace'; ctx.textAlign='left';
+      ctx.fillText((m>0?'+':'')+m.toFixed(2)+'  '+r[2], x1+8, y+4);
+    });
+  }
+  draw(); window.addEventListener('resize',draw);
+  try{ new MutationObserver(draw).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']}); }catch(e){}
+  try{ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',draw);}catch(e){}
+})();
+</script>
