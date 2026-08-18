@@ -447,7 +447,8 @@ def train(a):
                 return tok + s.fid(torch.arange(NTOK, device=x.device))[None]
             if a.readout == "xattn":                               # K slots
                 q = s.squery[None].expand(B, -1, -1)
-                tok, _ = s.sattn(q, fmap, fmap)                    # (B,K,d)
+                tok, attw = s.sattn(q, fmap, fmap, need_weights=True, average_attn_weights=True)   # (B,K,d), (B,K,ncell)
+                s._lastattn = attw.detach(); s._lastimg = img.detach()
                 if a.recon == "slot" and s._aux is not None:       # slots reconstruct the entity channels of their OWN input
                     img = s._render_pure(x, m).flatten(2)[:, 1:]   # (B,PIMGC-1,ncell) all channels except walls
                     tgt = (img > 0.75).float()                     # entity cells only (wire paths at 0.5 excluded)
@@ -694,6 +695,21 @@ def train(a):
         r = dict(train_mae=round((pr_tr - Dt[:4000]).abs().mean().item(), 3), slot0_is_worker=slot0w,
                  test_mae=round((pr - EDt).abs().mean().item(), 3),
                  test_corr=round(float(np.corrcoef(pr.cpu(), ED)[0, 1]), 3), nskip=nskip)
+        if a.enc == "pureimage" and a.readout == "xattn" and name == "integ":     # SLOT DIAGNOSTIC on test maps
+            with torch.no_grad():
+                model(E1t[:1024], E2t[:1024], ECt[:1024])
+                att = model.enc._lastattn; im = model.enc._lastimg.flatten(2)     # (B,K,ncell), (B,C,ncell)  (last enc call = goal batch)
+                ent = -(att * (att + 1e-9).log()).sum(-1).mean(0)                 # (K,) mean attention entropy (max = ln 49 = 3.89)
+                top = att.argmax(-1)                                              # (B,K) argmax cell per slot
+                names = ["wall", "worker", "crate", "gate", "gateopen"] + [f"lever{l}" for l in range(a.nlever)] + ["plate", "chuteN", "chuteS", "chuteW", "chuteE"]
+                hist = {}
+                for k in range(att.shape[1]):
+                    ch = im.gather(2, top[:, k][:, None, None].expand(-1, im.shape[1], -1)).squeeze(-1)   # (B,C) channels lit at slot k's argmax cell
+                    lit = (ch > 0.75).float().mean(0)                              # fraction of examples where argmax cell has channel c lit
+                    empty = float(((ch[:, 1:] > 0.75).sum(1) == 0).float().mean())
+                    hist[f"slot{k}"] = {"H": round(float(ent[k]), 2), "empty": round(empty, 2),
+                                        **{names[c]: round(float(lit[c]), 2) for c in range(im.shape[1]) if float(lit[c]) >= 0.05}}
+                r["slotdiag"] = hist
         if a.Rtrain and a.Rtrain < a.Rmax:
             far = EDt > a.Rtrain
             r["mae_within"] = round((pr[~far] - EDt[~far]).abs().mean().item(), 3)
