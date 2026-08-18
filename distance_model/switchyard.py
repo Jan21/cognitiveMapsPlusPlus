@@ -235,6 +235,7 @@ def train(a):
     WALLIMG = torch.zeros(len(yards), ncell)                     # per-map binary wall image (for --enc image render)
     NOPEN = (4 - a.ngate) + 4                                     # --seewalls: max open NON-gate cross cells (arm gaps + extras)
     OPENC = torch.zeros(len(yards), NOPEN, dtype=torch.long); OPENM = torch.zeros(len(yards), NOPEN)
+    WIREPATH = torch.zeros(len(yards), a.nlever, ncell)          # --wirepath render: 0.5 along lever->gate L-paths
     for i, y in enumerate(yards):
         wl = [r * a.G + c for r in range(a.G) for c in range(a.G) if y.wall[r, c] and (r, c) not in y.gates]
         WALL[i, :len(wl)] = torch.tensor(wl); WN[i] = max(1, len(wl))
@@ -243,13 +244,18 @@ def train(a):
         cross = [(r, wc_) for r in range(a.G)] + [(wr_, c) for c in range(a.G) if c != wc_]
         opn = [r * a.G + c for (r, c) in cross if not y.wall[r, c] and (r, c) not in y.gates]   # passable, NOT a gate
         OPENC[i, :len(opn)] = torch.tensor(opn[:NOPEN]); OPENM[i, :len(opn)] = 1.0
+        for l, (lr_, lc_) in enumerate(y.levers):                 # --wirepath: L-shaped path (row then col) lever -> wired gates
+            for g, (gr_, gc_) in enumerate(y.gates):
+                if (y.wiring[l] >> g) & 1:
+                    for c_ in range(min(lc_, gc_), max(lc_, gc_) + 1): WIREPATH[i, l, lr_ * a.G + c_] = 0.5
+                    for r_ in range(min(lr_, gr_), max(lr_, gr_) + 1): WIREPATH[i, l, r_ * a.G + gc_] = 0.5
         GC[i] = torch.tensor([cell(y, g) for g in y.gates]); LC[i] = torch.tensor([cell(y, l) for l in y.levers])
         for li, wm in enumerate(y.wiring): LW[i, li] = torch.tensor([(wm >> g) & 1 for g in range(a.ngate)], dtype=torch.float)
         PC[i] = cell(y, y.plate); PW[i] = torch.tensor([(y.platemask >> g) & 1 for g in range(a.ngate)], dtype=torch.float)
         ch = list(y.chutes.items())[0] if y.chutes else (((0, 0)), 0)
         CC[i] = cell(y, ch[0]); CD[i] = ch[1]
         CELL[i, :len(y.cells)] = torch.tensor([cell(y, rc) for rc in y.cells])
-    WALL, WN, GC, LC, LW, PC, PW, CC, CD, CELL, WALLIMG, OPENC, OPENM = (t.to(dev) for t in (WALL, WN, GC, LC, LW, PC, PW, CC, CD, CELL, WALLIMG, OPENC, OPENM))
+    WALL, WN, GC, LC, LW, PC, PW, CC, CD, CELL, WALLIMG, OPENC, OPENM, WIREPATH = (t.to(dev) for t in (WALL, WN, GC, LC, LW, PC, PW, CC, CD, CELL, WALLIMG, OPENC, OPENM, WIREPATH))
     NTOK = 3 + a.ngate + a.nlever + 3 + (NOPEN if a.seewalls else 0)   # worker crate bits | gates levers plate chute wallpool [| open doorways]
     IMGC = 8                                                      # --enc image render channels: wall worker crate gate gateopen lever plate chute
     PIMGC = 5 + a.nlever + 1 + 4                                  # --enc pureimage: wall worker crate gate gateopen | lever_l+its gates | plate+its gates | chute dir x4
@@ -301,6 +307,9 @@ def train(a):
                 if a.readout == "xattn":                          # K generic learned slot queries (nothing named)
                     s.squery = nn.Parameter(torch.randn(a.slots, d) * 0.02)
                     s.sattn = nn.MultiheadAttention(d, a.markerheads, batch_first=True)
+                    if a.recon == "slot":                          # UNSUPERVISED: K slots explain ALL entity channels exclusively
+                        s.prdec = nn.Linear(d, d)                  # slot -> spatial query over pimgpos
+                        s.prch = nn.Linear(d, PIMGC - 1)           # slot -> which entity channel (walls excluded)
             s._aux = None                                         # set to 0 by training loop to collect binding aux
             if a.seewalls:                                        # open non-gate doorway tokens: pos(cell)+openkind | absent
                 s.openkind = nn.Parameter(torch.randn(d) * 0.02)
@@ -407,6 +416,7 @@ def train(a):
             img[:, 1].scatter_(1, wc[:, 0:1], 1.0); img[:, 2].scatter_(1, wc[:, 1:2], 1.0)
             img[:, 3].scatter_(1, GC[m], 1.0); img[:, 4].scatter_(1, GC[m], (bits > 0).float())
             for l in range(a.nlever):                              # wiring drawn as shared "colour": lever l + gates it flips
+                if a.wirepath: img[:, 5 + l] = img[:, 5 + l] + WIREPATH[m, l]   # 0.5 along an L-path lever -> each wired gate
                 img[:, 5 + l].scatter_(1, LC[m][:, l:l + 1], 1.0)
                 img[:, 5 + l].scatter_(1, GC[m], LW[m][:, l, :])
             pc = 5 + a.nlever
@@ -421,6 +431,16 @@ def train(a):
             if a.readout == "xattn":                               # K slots
                 q = s.squery[None].expand(B, -1, -1)
                 tok, _ = s.sattn(q, fmap, fmap)                    # (B,K,d)
+                if a.recon == "slot" and s._aux is not None:       # slots reconstruct the entity channels of their OWN input
+                    img = s._render_pure(x, m).flatten(2)[:, 1:]   # (B,PIMGC-1,ncell) all channels except walls
+                    tgt = (img > 0.75).float()                     # entity cells only (wire paths at 0.5 excluded)
+                    d_ = fmap.shape[-1]
+                    p = (torch.einsum("bkd,nd->bkn", s.prdec(tok), s.pimgpos) / d_ ** 0.5).softmax(-1)   # (B,K,ncell)
+                    ch = s.prch(tok).softmax(-1)                   # (B,K,C)  which channel each slot explains
+                    pred = torch.einsum("bkc,bkn->bcn", ch, p)     # (B,C,ncell) mixture over slots
+                    nent = tgt.sum((1, 2)).clamp(min=1)            # entities per example
+                    s._aux = s._aux - ((tgt * (pred + 1e-9).log()).sum((1, 2)) / nent).mean() \
+                                    + 2.0 * (torch.einsum("bkn,bjn->bkj", p, p).triu(1).sum((1, 2))).mean()   # slot overlap penalty
             else:                                                  # pixels: every cell is a token
                 tok = fmap
             return tok + s.fid(torch.arange(NTOK, device=x.device))[None]
@@ -591,7 +611,8 @@ def train(a):
                 b = torch.randint(0, len(P1t), (a.bs,), device=dev)
                 tgt = enc_t(PDt[b], PXtr[b]) if (a.resprox and not a.curriculum) else PDt[b]
                 aux_on = hasattr(model, "enc") and ((a.markeraux > 0 and getattr(model.enc, "bindhead", None) is not None)
-                                                    or (a.recon != "none" and a.enc == "image"))
+                                                    or (a.recon != "none" and a.enc == "image")
+                                                    or (a.recon == "slot" and a.enc == "pureimage" and a.readout == "xattn"))
                 if aux_on:
                     model.enc._aux = torch.zeros((), device=dev)   # collect binding aux over this forward's enc calls
                 if parking:
@@ -654,7 +675,7 @@ def train(a):
                                       markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, cnndepth=a.cnndepth, steps=a.steps, seed=a.seed,
                                       d=a.d, layers=a.layers, baselayers=(a.baselayers if a.baselayers > 0 else a.layers),
                                       heads=a.heads, T=a.T, lr=a.lr, latentnorm=a.latentnorm, gradclip=a.gradclip, seewalls=a.seewalls,
-                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall,
+                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath,
                                       gatesopen=int(a.gatesopen), nopush=int(a.nopush), wire1=int(a.wire1), noplate=int(a.noplate),
                                       tag=a.tag, **out)), flush=True)
 
@@ -673,6 +694,7 @@ def main():
     ap.add_argument("--enc", choices=["factored", "bmask", "marker", "image", "pureimage"], default="factored",
                     help="worker/crate input: factored index | bmask lossless canvas | marker canvas-binding | image CNN+readout")
     ap.add_argument("--slots", type=int, default=8, help="--enc pureimage: number of generic learned slot queries")
+    ap.add_argument("--wirepath", type=int, default=0, help="--enc pureimage: draw lever->gate wiring as an L-shaped 0.5 path in the lever channel")
     ap.add_argument("--readout", choices=["xattn", "convspatial", "convpool", "pixels"], default="xattn",
                     help="--enc image: how factor tokens read the CNN feature map (xattn=cross-attention)")
     ap.add_argument("--cnnw", type=int, default=32, help="--enc image: CNN hidden width")
