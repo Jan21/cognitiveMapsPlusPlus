@@ -281,6 +281,9 @@ def train(a):
                     s.islot = nn.Embedding(2, d)
                     s.iattn = nn.MultiheadAttention(d, a.markerheads, batch_first=True)
                     s.bindhead = nn.Linear(d, ncell) if a.markeraux > 0 else None   # PROBE: supervised binding aux on image
+                    if a.recon != "none": s.rdec = nn.Linear(d, d)   # reconstruction decoder: slot -> query over imgpos
+                    if a.hardattn:                                    # own single-head attention (for straight-through)
+                        s.hq = nn.Linear(d, d); s.hk = nn.Linear(d, d); s.hv = nn.Linear(d, d)
                 elif a.readout == "convspatial":                  # per-agent conv logits + spatial softmax pool
                     s.ihead = nn.Conv2d(d, 2, 1)
                 else:                                             # convpool: global pool -> project to 2 tokens
@@ -310,9 +313,30 @@ def train(a):
             feat = s.cnn(s._render(x, m))                          # (B,d,G,G)
             B = x.shape[0]
             if a.readout == "xattn":
+                img = s._render(x, m)                                            # keep for reconstruction targets
                 fmap = feat.flatten(2).transpose(1, 2) + s.imgpos[None]         # (B,ncell,d)
                 q = (s.iquery + s.islot(torch.arange(2, device=x.device)))[None].expand(B, -1, -1)
-                bound, _ = s.iattn(q, fmap, fmap)
+                if a.hardattn:                                                   # straight-through top-1 read
+                    sc = torch.einsum("bqd,bkd->bqk", s.hq(q), s.hk(fmap)) / fmap.shape[-1] ** 0.5
+                    soft = sc.softmax(-1)
+                    hard = torch.zeros_like(soft).scatter_(-1, soft.argmax(-1, keepdim=True), 1.0)
+                    w = hard + soft - soft.detach()
+                    bound = torch.einsum("bqk,bkd->bqd", w, s.hv(fmap))
+                else:
+                    bound, _ = s.iattn(q, fmap, fmap)
+                if a.recon != "none" and s._aux is not None:                     # UNSUPERVISED: reconstruct own input channels
+                    d_ = fmap.shape[-1]
+                    logits = torch.einsum("bqd,kd->bqk", s.rdec(bound), s.imgpos) / d_ ** 0.5   # (B,2,ncell)
+                    ent = img[:, 1:3].flatten(2)                                 # (B,2,ncell) worker / crate one-hot channels
+                    if a.recon == "tied":                                        # slot i explains entity channel i
+                        s._aux = s._aux + F.cross_entropy(logits.reshape(-1, logits.shape[-1]), ent.argmax(-1).reshape(-1))
+                    else:                                                        # slot: explain the UNION mask, no identity, exclusive
+                        p = logits.softmax(-1)                                   # (B,2,ncell)
+                        mix = 0.5 * (p[:, 0] + p[:, 1])
+                        mask = ent.sum(1) / 2.0                                  # two entity cells, weight 1/2 each
+                        s._aux = s._aux - (mask * (mix + 1e-9).log()).sum(-1).mean() \
+                                        + 2.0 * (p[:, 0] * p[:, 1]).sum(-1).mean()   # overlap penalty
+                        s._slotstat = (p[:, 0].argmax(-1) == ent[:, 0].argmax(-1)).float().mean()   # slot0==worker consistency
                 if getattr(s, "bindhead", None) is not None and s._aux is not None:   # supervised binding aux (upper-bound probe)
                     wc = CELL[m].gather(1, x[:, 0:2])                          # true worker/crate cells
                     s._aux = s._aux + F.cross_entropy(s.bindhead(bound[:, 0]), wc[:, 0]) \
@@ -524,7 +548,8 @@ def train(a):
             for _ in range(int(a.steps * frac)):
                 b = torch.randint(0, len(P1t), (a.bs,), device=dev)
                 tgt = enc_t(PDt[b], PXtr[b]) if (a.resprox and not a.curriculum) else PDt[b]
-                aux_on = a.markeraux > 0 and hasattr(model, "enc") and getattr(model.enc, "bindhead", None) is not None
+                aux_on = hasattr(model, "enc") and ((a.markeraux > 0 and getattr(model.enc, "bindhead", None) is not None)
+                                                    or (a.recon != "none" and a.enc == "image"))
                 if aux_on:
                     model.enc._aux = torch.zeros((), device=dev)   # collect binding aux over this forward's enc calls
                 if parking:
@@ -545,7 +570,7 @@ def train(a):
                         btgt = 1 + dn.min(-1).values
                     loss = loss + bw * F.smooth_l1_loss(model(U0t[ub], UGt[ub], UCt[ub]), btgt)
                 if aux_on and isinstance(model.enc._aux, torch.Tensor):
-                    loss = loss + a.markeraux * model.enc._aux
+                    loss = loss + (a.markeraux if a.markeraux > 0 else a.reconw) * model.enc._aux
                     model.enc._aux = None                          # off during any eval / bellman-only forwards
                 if not torch.isfinite(loss):                       # skip non-finite spikes (MRN); don't poison weights
                     opt.zero_grad(set_to_none=True); nskip += 1; step += 1; continue
@@ -566,7 +591,13 @@ def train(a):
             pr = torch.cat([model(E1t[i:i + 4000], E2t[i:i + 4000], ECt[i:i + 4000]) for i in range(0, len(E1t), 4000)])
             if a.resprox:
                 pr_tr = dec_t(pr_tr, PXtr[:4000]); pr = dec_t(pr, PXte)
-        r = dict(train_mae=round((pr_tr - Dt[:4000]).abs().mean().item(), 3),
+        if a.recon == "slot" and a.enc == "image" and hasattr(model, "enc"):     # unsupervised slot identity consistency
+            with torch.no_grad():
+                model.enc._aux = torch.zeros((), device=dev); model(E1t[:2000], E2t[:2000], ECt[:2000])
+                slot0w = round(float(getattr(model.enc, "_slotstat", float("nan"))), 3); model.enc._aux = None
+        else:
+            slot0w = None
+        r = dict(train_mae=round((pr_tr - Dt[:4000]).abs().mean().item(), 3), slot0_is_worker=slot0w,
                  test_mae=round((pr - EDt).abs().mean().item(), 3),
                  test_corr=round(float(np.corrcoef(pr.cpu(), ED)[0, 1]), 3), nskip=nskip)
         if a.Rtrain and a.Rtrain < a.Rmax:
@@ -581,6 +612,7 @@ def train(a):
                                       markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, cnndepth=a.cnndepth, steps=a.steps, seed=a.seed,
                                       d=a.d, layers=a.layers, baselayers=(a.baselayers if a.baselayers > 0 else a.layers),
                                       heads=a.heads, T=a.T, lr=a.lr, latentnorm=a.latentnorm, gradclip=a.gradclip, seewalls=a.seewalls,
+                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn,
                                       tag=a.tag, **out)), flush=True)
 
 def main():
@@ -634,6 +666,11 @@ def main():
     ap.add_argument("--baselayers", type=int, default=-1, help="mix-block depth for sym/qmet/scalar baselines (-1 = use --layers)")
     ap.add_argument("--latentnorm", type=int, default=0, help="LayerNorm on baseline latents before the metric head (fixes MRN nan; fair, swept)")
     ap.add_argument("--gradclip", type=float, default=0.0, help="clip grad norm before opt.step (0=off; general nan safety, applied to all models)")
+    ap.add_argument("--recon", choices=["none", "tied", "slot"], default="none",
+                    help="image xattn: UNSUPERVISED reconstruction aux from the model's OWN input channels. tied: slot i decodes "
+                         "its own entity channel; slot: slots jointly+exclusively explain the entity mask (no identity given)")
+    ap.add_argument("--reconw", type=float, default=1.0, help="reconstruction aux weight")
+    ap.add_argument("--hardattn", type=int, default=0, help="image xattn: straight-through hard (top-1 cell) attention read")
     ap.add_argument("--seewalls", type=int, default=0, help="encode open NON-gate cross doorways as tokens (else only via the pooled wall token)")
     ap.add_argument("--tag", default="")
     a = ap.parse_args()
