@@ -71,8 +71,9 @@ decode head 1.19-1.50. => In the FACTORED setting the two readouts tie (accumula
 best-on-held-out checkpoint selection shifts MAE by only 0.02-0.07. Single seed each; code
 `paper_data/reference/switchyard_walls.py`.
 
-**On the IMAGE setting the decode head COLLAPSES** (same joint recurrence, same slots/recipe as the final integrator,
-3 seeds, 80k): map corr 0.50 / 0.60 / nan (MAE 5.7), wire 0.39-0.69 (MAE 4.5) vs accumulation 0.860 / 0.852 (MAE 2.2).
-With learned slot perception, reading the distance off the final latent state is unstable; summing per-step
-displacements is what makes the recurrence trainable. The readout is therefore load-bearing exactly where perception
-is learned -- the paper's setting -- and interchangeable only when tokens are exact symbols.
+**On the IMAGE setting the decode head fails to FIT at the shared recipe** (same joint recurrence, slots and recipe
+as the final integrator, 3 seeds, 80k): train MAE 4-6, test corr 0.39-0.69 / MAE 4.5-5.7 vs accumulation 0.860 / 0.852
+(MAE 2.2, train MAE ~0.5). This is an optimisation failure, not a generalisation gap; a decode-head-specific
+hyper-parameter screen (lr, warmup, T, schedule) is running to determine whether any recipe rescues it. Pending that,
+the safe statement is: under learned slot perception the accumulation readout trains robustly where the decode head
+does not, at the recipe that serves the accumulation readout.
