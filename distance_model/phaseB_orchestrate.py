@@ -17,7 +17,7 @@ for it in range(60):
     nl=leo.count("RESULT"); nc=ci.count("RESULT")
     ql=re.search(r"===Q (\d+)",leo); qc=re.search(r"===Q (\d+)",ci)
     print(f"[{time.strftime('%H:%M')}] A: leo {nl}/99 (q {ql.group(1) if ql else '?'}), ciirc {nc}/36 (q {qc.group(1) if qc else '?'})", flush=True)
-    if nl>=95+230 and nc>=34: break
+    if nl>=78 and nc>=34: break      # Leonardo: MRN-slots L5 (9) + A2 L5 (72); CIIRC: fgcc L5 grid (36)
     if ql and qc and ql.group(1)=="0" and qc.group(1)=="0" and it>2: break
     time.sleep(600)
 open(S+"tuneA.txt","w").write(leo+ci)
@@ -45,8 +45,7 @@ for d in rows:
 print("best per (rung, head):"); 
 for k in sorted(best): print("  ",k,best[k])
 def cfg(rung,hh):
-    grp = "L2" if rung in ("L0","L1","L2") else ("L3" if rung=="L3" else ("L5" if ("L5",hh) in best else "L3"))
-    return best.get((grp,hh)) or best.get(("L3",hh)) or best.get(("L2",hh))
+    return best.get(("L5",hh))        # ONE setting per model, tuned on the full switchyard, used at every rung
 # ---- generate phase B
 base="--enc pureimage --heads 4 --cnnw 64 --cnndepth 2 --nmaps 200 --poolq 2000 --steps 80000 --gradclip 1.0 --warmup 2000"
 R=[("L0","--gatesopen --nopush"),("L1","--gatesopen"),("L2","--wire1 --noplate"),("L3","--noplate"),("L4","--nchute 0"),("L5",""),("L6","--ngate 4 --nlever 3")]
