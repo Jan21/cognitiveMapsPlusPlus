@@ -677,6 +677,8 @@ def train(a):
         UCt = torch.as_tensor(np.array(UC), device=dev)
         print(f"bellman pool {len(U0)} nmax {nmax}", flush=True)
     for name, model in models:
+        NPARAM = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print(f"{name} params {NPARAM}", flush=True)
         opt = torch.optim.Adam(model.parameters(), a.lr)
         parking = name == "integ" and (a.arrive > 0 or a.Tmin >= 0)
         shadow = None
@@ -745,7 +747,7 @@ def train(a):
                 slot0w = round(float(getattr(model.enc, "_slotstat", float("nan"))), 3); model.enc._aux = None
         else:
             slot0w = None
-        r = dict(train_mae=round((pr_tr - Dt[:4000]).abs().mean().item(), 3), slot0_is_worker=slot0w,
+        r = dict(train_mae=round((pr_tr - Dt[:4000]).abs().mean().item(), 3), slot0_is_worker=slot0w, params=NPARAM,
                  test_mae=round((pr - EDt).abs().mean().item(), 3),
                  test_corr=round(float(np.corrcoef(pr.cpu(), ED)[0, 1]), 3), nskip=nskip)
         if a.enc == "pureimage" and a.readout in ("xattn", "slotattn") and name == "integ":     # SLOT DIAGNOSTIC on test maps
