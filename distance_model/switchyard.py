@@ -699,7 +699,7 @@ def train(a):
             import copy
             shadow = copy.deepcopy(model)
             for p in shadow.parameters(): p.requires_grad_(False)
-        step = 0; nskip = 0
+        step = 0; nskip = 0; best_c = float("-inf"); best_m = float("inf")
         for frac, (P1, P2, PD, PCm) in phases:
             P1t, P2t, PDt, PCt = (torch.as_tensor(x, device=dev) for x in (P1, P2, PD, PCm))
             for _ in range(int(a.steps * frac)):
@@ -746,6 +746,14 @@ def train(a):
                             ps.mul_(a.emam).add_(pm, alpha=1 - a.emam)
                 if step % max(1, a.steps // 4) == 0:
                     print(f"{name} step {step} loss {loss.item():.3f}", flush=True)
+                if a.evalevery > 0 and step > 0 and step % a.evalevery == 0:   # held-out eval curve (best-checkpoint diagnostic)
+                    with torch.no_grad():
+                        prv = torch.cat([model(E1t[i:i + 4000], E2t[i:i + 4000], ECt[i:i + 4000]) for i in range(0, len(E1t), 4000)])
+                        if a.resprox: prv = dec_t(prv, PXte)
+                        vm = float((prv - EDt).abs().mean().item()); vc = float(np.corrcoef(prv.cpu(), ED)[0, 1])
+                    if vm < best_m: best_m = vm
+                    if vc > best_c: best_c = vc
+                    print(f"{name} step {step} evalmae {vm:.3f} evalcorr {vc:.3f}", flush=True)
                 step += 1
         if name == "integ" and a.Ttest > 0: model.T = a.Ttest
         model.eval()
@@ -763,6 +771,9 @@ def train(a):
         r = dict(train_mae=round((pr_tr - Dt[:4000]).abs().mean().item(), 3), slot0_is_worker=slot0w, params=NPARAM,
                  test_mae=round((pr - EDt).abs().mean().item(), 3),
                  test_corr=round(float(np.corrcoef(pr.cpu(), ED)[0, 1]), 3), nskip=nskip)
+        if a.evalevery > 0:                                        # best point on the held-out eval curve (incl. final eval)
+            r["best_mae"] = round(min(best_m, r["test_mae"]), 3)
+            r["best_corr"] = round(max(best_c, r["test_corr"]), 3)
         if a.enc == "pureimage" and a.readout in ("xattn", "slotattn") and name == "integ":     # SLOT DIAGNOSTIC on test maps
             with torch.no_grad():
                 model(E1t[:1024], E2t[:1024], ECt[:1024])
@@ -856,6 +867,7 @@ def main():
     ap.add_argument("--mrnonly", action="store_true", help="train ONLY the torchqmet MRNFixed baseline")
     ap.add_argument("--scalaronly", action="store_true", help="train ONLY the scalar-head baseline")
     ap.add_argument("--scalarsp", type=int, default=0, help="softplus on the scalar-head output (matches reference concat_mlp)")
+    ap.add_argument("--evalevery", type=int, default=0, help="eval on the held-out pool every N steps; RESULT gains best_mae/best_corr")
     ap.add_argument("--lencurr", type=int, default=0, help="length curriculum: train range grows 8 -> 12 -> Rtrain")
     ap.add_argument("--heads", type=int, default=4, help="attention heads for every transformer block (d must be divisible)")
     ap.add_argument("--baselayers", type=int, default=-1, help="mix-block depth for sym/qmet/scalar baselines (-1 = use --layers; 0 = no transformer)")
