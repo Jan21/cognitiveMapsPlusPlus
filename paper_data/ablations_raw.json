@@ -389,5 +389,36 @@
    "mae": 2.834,
    "train_mae": 1.105
   }
+ },
+ "scalar_softplus_probe": {
+  "note": "L5 map, 200 maps, 80k, --scalarsp 1; refs without softplus: scalarO 0.721+-0.025, scalarMO 0.730+-0.046",
+  "scalarO_sp": {
+   "corr": [
+    0.737,
+    0.701
+   ],
+   "mae": [
+    3.36,
+    3.65
+   ],
+   "train_mae": [
+    0.68,
+    0.61
+   ]
+  },
+  "scalarMO_sp": {
+   "corr": [
+    0.698,
+    0.665
+   ],
+   "mae": [
+    3.85,
+    4.17
+   ],
+   "train_mae": [
+    3.69,
+    2.58
+   ]
+  }
  }
 }

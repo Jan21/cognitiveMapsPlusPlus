@@ -101,6 +101,10 @@ schedule (cosine tested, no gain); non-finite-loss skip guard.
 ### 3e. Normalisation / extras
 `--latentnorm` (LayerNorm on the latent before the metric head): **hurts** IQE/MRN (IQE 0.77 → 0.56 on the hybrid
 bed) — off everywhere. Objectness input channel: on/off for every baseline (helps IQE ≈ +0.03 at L2–L5, others ≤ +0.02).
+Softplus on the scalar head output (reference concat_mlp parity, `--scalarsp`): tested at L5 best variants, 2 seeds;
+flat on the flatten variant (0.719 vs 0.721) and worse + underfitting on the slot variant (0.682 vs 0.730) — off in
+all tables (raw: `ablations_raw.json / scalar_softplus_probe`). IQE / MRN / sym need no such constraint (nonnegative
+by construction).
 
 ### 3f. Earlier on-bed tuning (slot tokens, 40k/80k) used for the first ladders
 depth {2,4,6} × lr {5e-4,1e-3,2e-3} at L2/L3 for IQE/sym/scalar; best then: IQE 4L/1e-3, sym 4L/2e-3, scalar 2L/5e-4
