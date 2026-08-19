@@ -46,7 +46,10 @@ for rung,fl in R:
             if use_hint: A.append((f"Bp_{rung}{sp}_integH_s{sd}", f"{base} {fl} --split {sp} --seed {sd} {INTEG} {HINT[use_hint]}"))
             for hh,(unc,mat) in BASE.items():
                 A.append((f"Bp_{rung}{sp}_{hh}_s{sd}", f"{base} {fl} --split {sp} --seed {sd} {unc} --{hh}only"))
-                if mat: A.append((f"Bp_{rung}{sp}_{hh}M_s{sd}", f"{base} {fl} --split {sp} --seed {sd} {mat} --{hh}only"))
+                A.append((f"Bp_{rung}{sp}_{hh}O_s{sd}", f"{base} {fl} --split {sp} --seed {sd} {unc} --objch 1 --{hh}only"))     # + objectness channel (fair)
+                if mat:
+                    A.append((f"Bp_{rung}{sp}_{hh}M_s{sd}", f"{base} {fl} --split {sp} --seed {sd} {mat} --{hh}only"))
+                    A.append((f"Bp_{rung}{sp}_{hh}MO_s{sd}", f"{base} {fl} --split {sp} --seed {sd} {mat} --objch 1 --{hh}only"))
 lines=[f' "python3 switchyard.py --train {cmd} --tag {tag}"' for tag,cmd in A]
 sb=f'''#!/bin/bash
 #SBATCH -A EUHPC_B38_121
