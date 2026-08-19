@@ -570,7 +570,7 @@ def train(a):
                 z = s.block(tok); cost = cost + (z[:, :NTOK] - tok[:, :NTOK]).norm(dim=-1).sum(-1)
                 tok = z if a.norecall else torch.cat([z[:, :NTOK], base], 1)
             if s.head is not None:                                 # decode-head ablation: same recurrence, no accumulation
-                out = s.head(tok[:, :NTOK].mean(1)).squeeze(-1)
+                out = F.softplus(s.head(tok[:, :NTOK].mean(1)).squeeze(-1))   # softplus matches reference scalar_mlp
             else:
                 out = F.softplus(s.scale) * cost
                 out = out + F.softplus(s.gbase) if s.gbase is not None else out

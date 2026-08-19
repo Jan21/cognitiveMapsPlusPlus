@@ -77,10 +77,15 @@ as the final integrator, 3 seeds, 80k): train MAE 4-6, test corr 0.39-0.69 / MAE
 (MAE 2.2, train MAE ~0.5). A decode-head-specific hyper-parameter screen (seed 0, 80k each) did **not** rescue it:
 lr 3e-4 → 0.704 / 3.60 (train MAE 2.1), lr 5e-4 → 0.753 / 3.39 (train 3.1), lr 2e-3 → nan, warm-up 8k → 0.525,
 T 1 → 0.645, T 8 → 0.588, cosine decay → 0.710. Best screened decode head 0.753 vs accumulation 0.860 at matched
-budget, and every configuration remains underfit (train MAE ≥ 2 vs 0.5). Statement for the paper: in the factored
-setting the two readouts tie; under learned slot perception the accumulation readout trains robustly while the decode
-head cannot be made to fit by tuning lr, warm-up, recurrence depth or schedule. Raw numbers:
+budget, and every configuration remains underfit (train MAE ≥ 2 vs 0.5). Raw numbers:
 `ablations_raw.json / decodehead_screen`.
+
+**CAVEAT (open, 2026-08-19): implementation mismatch found.** The reference `scalar_mlp` applies a softplus to the
+decoded output; our `--decodehead` did not (unconstrained linear output). All image decode-head numbers above were run
+without the softplus. Fixed to match the reference; a probe (image L5, lr 1e-3 / 5e-4, 2 seeds each, plus a
+never-before-run SYMBOLIC control of our implementation at the symbolic recipe) is running (`leo_dhfix.sbatch`).
+Until it lands, do not claim the decode head cannot fit on images; the safe statement is only the factored-setting
+tie from the verbatim reference code.
 
 ## Training-map diversity (probe, final recipe, 683 training-split maps vs 200)
 Scaling the map pool 200 → 683 (identical protocol, m%4 held-out split, 171 unseen test maps, 80k steps, 3 seeds)
