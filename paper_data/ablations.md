@@ -67,7 +67,12 @@ variant was scaled up.
 Verbatim reference commands (with eval curve): integrate (D = softplus(scale) * sum ||dz||) FINAL 0.961 corr / 1.18 MAE,
 best-on-held-out 1.16; decode head (same joint recurrence, MLP on final tokens) FINAL 0.957 / 1.26, best 1.19;
 concat_mlp (no recurrence, separate encodings) 0.758 / 3.32. Late-training test-MAE spread: integrate 1.16-1.31,
-decode head 1.19-1.50. => In range, the load-bearing component is the recurrent joint processing; the accumulation
-readout ties or slightly beats the decode head and is noticeably more stable late in training. Best-on-held-out
-checkpoint selection shifts MAE by only 0.02-0.07 (not a source of bias in the reference numbers). Single seed each;
-code `paper_data/reference/switchyard_walls.py`, outputs Leonardo `refVerbatim_*/refCheck_*`.
+decode head 1.19-1.50. => In the FACTORED setting the two readouts tie (accumulation slightly better and more stable late in training);
+best-on-held-out checkpoint selection shifts MAE by only 0.02-0.07. Single seed each; code
+`paper_data/reference/switchyard_walls.py`.
+
+**On the IMAGE setting the decode head COLLAPSES** (same joint recurrence, same slots/recipe as the final integrator,
+3 seeds, 80k): map corr 0.50 / 0.60 / nan (MAE 5.7), wire 0.39-0.69 (MAE 4.5) vs accumulation 0.860 / 0.852 (MAE 2.2).
+With learned slot perception, reading the distance off the final latent state is unstable; summing per-step
+displacements is what makes the recurrence trainable. The readout is therefore load-bearing exactly where perception
+is learned -- the paper's setting -- and interchangeable only when tokens are exact symbols.
