@@ -64,7 +64,10 @@ variant was scaled up.
 
 
 ## Readout ablation: accumulation vs decode head (factored setting, reference code, 512 maps, 60k, L5 unseen maps)
-integrate (D = softplus(scale) * sum_t sum_i ||dz_i||): 0.958 corr / 1.24 MAE. decode head (same joint recurrence,
-MLP on the final tokens): 0.959 / 1.20. concat_mlp (no recurrence, separate encodings): 0.758 / 3.32.
-=> In range, the load-bearing component is the recurrent joint processing; the accumulation readout is one
-instantiation of it and is not required for in-range accuracy. (Single seed; her code `switchyard_walls.py`.)
+Verbatim reference commands (with eval curve): integrate (D = softplus(scale) * sum ||dz||) FINAL 0.961 corr / 1.18 MAE,
+best-on-held-out 1.16; decode head (same joint recurrence, MLP on final tokens) FINAL 0.957 / 1.26, best 1.19;
+concat_mlp (no recurrence, separate encodings) 0.758 / 3.32. Late-training test-MAE spread: integrate 1.16-1.31,
+decode head 1.19-1.50. => In range, the load-bearing component is the recurrent joint processing; the accumulation
+readout ties or slightly beats the decode head and is noticeably more stable late in training. Best-on-held-out
+checkpoint selection shifts MAE by only 0.02-0.07 (not a source of bias in the reference numbers). Single seed each;
+code `paper_data/reference/switchyard_walls.py`, outputs Leonardo `refVerbatim_*/refCheck_*`.

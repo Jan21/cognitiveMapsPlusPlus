@@ -148,6 +148,7 @@ re-injection) and only replaces the displacement sum by an MLP decode head -- in
 integrator's `--decodehead` ablation. Verified by running her code at her exact command (512 maps, seewalls, 60k,
 L5 unseen maps): scalar_mlp 0.959 corr / 1.20 MAE ~= integrate 0.958 / 1.24, while her own true scalar baseline
 (`concat_mlp`, separate encodings, no recurrence) gets 0.758 / 3.32 -- the same level as our tuned scalar. Two
-consequences recorded: (a) scalar_mlp belongs in the READOUT-ABLATION table (accumulation vs decode head; in-range
-they tie, i.e. the recurrent joint processing, not the accumulation formula, carries the in-range edge); (b) her
+consequences recorded: (a) scalar_mlp belongs in the READOUT-ABLATION table (accumulation vs decode head; in-range the accumulation
+readout ties or slightly beats it, 1.18 vs 1.26 MAE verbatim, and is more stable late in training -- the recurrent
+joint processing carries the in-range edge); (b) her
 run also shows map diversity is a strong lever for the integrator (0.958 at 512 maps vs 0.904 at our standard 200).
