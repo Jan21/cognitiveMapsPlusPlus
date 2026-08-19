@@ -89,6 +89,71 @@ D = softplus(scale) · cost                             <span class="c"># one le
   <div class="pipe"><div class="slab"><b>training</b><span class="sh">Adam 1e-3 · clip 1 · warm-up 2k · 80k</span></div><div class="say"><h4>The "safe recipe"</h4><p>Smooth-L1 to the BFS distance, batch 128, 150 training maps. Learning rate 1e-3 with gradient clipping and a 2k-step warm-up: at 2e-3 without clipping the slot/token read collapsed on some seeds (a token would never bind the worker and training plateaued at MAE ≈ 3). This recipe removed the bimodal seeds.</p></div></div>
 </section>
 
+
+<section>
+  <h2><span class="k">2½ · THE TOKENS, IN PLAIN WORDS</span>What "foreground-pixel tokens + coordinate channels" means</h2>
+  <p>The transformer that does the reasoning does not look at a picture. It looks at a short <em>list of items</em>. Everything in this section is about how the picture becomes that list, without anyone telling the model what a gate or a lever is.</p>
+
+  <h3>The picture is a stack of stencils</h3>
+  <p>The state is not one RGB image; it is a stack of 12 black-and-white 7×7 stencils, one per kind of thing: one stencil has a dot where the worker is, one where the crate is, one marks the gate cells, one marks which gates are currently open, one stencil per lever marks that lever <em>and</em> the gates it toggles (that is how the wiring is drawn: lever and its gates share a stencil), one marks the plate and the gates it holds open, four mark the chute and the one direction you may enter it from, and one marks the walls. Most cells are empty on every stencil. About 7–9 cells have at least one dot.</p>
+
+  <h3>Step A: two extra stencils that just say "where am I"</h3>
+  <p><b>Coordinate channels</b> (<code>coordconv</code>): we add two more 7×7 planes that are the same for every state: one whose value increases left→right (the x coordinate, from −1 to +1) and one that increases top→bottom (the y coordinate). They contain no information about the game; they let every cell "know" its own position as a number, in the same way a sticker on a map might have its grid reference printed on it.</p>
+
+  <h3>Step B: describe each cell on its own</h3>
+  <p>A tiny neural network (two layers, <code>1×1</code> convolutions) is applied to <em>each cell separately</em>. It reads the 12 stencil values plus the 2 coordinates at that cell and writes a 128-number description of that cell. Because it looks at one cell at a time and never at neighbours, the description of a cell cannot be contaminated by what sits next to it: a closed gate stays "closed gate at (3, 5)", it does not blur into "something gate-ish around the middle". (Our earlier 3×3 network did exactly that blurring, and it was the single biggest cause of failure.)</p>
+
+  <h3>Step C: keep only the cells where something is</h3>
+  <p>Now the rule: <b>a cell is an object if any stencil has a dot in it</b> (walls excluded). That is all. No learned detector, no labels, no notion of "this is a lever". Empty cells are dropped; the ~7–9 lit cells become the list. Each list item is that cell's 128-number description plus a learned code for its position. If two things sit on one cell (the worker standing on a lever), that cell is one item whose description carries both dots. To keep the list a fixed length (9 at full complexity), unused places are filled with a learned "nothing here" item, and each place gets a small learned tag so the transformer can tell places apart (the order among real items is random, so the tag carries no meaning about <em>what</em> the item is).</p>
+
+  <div class="card svgwrap"><svg viewBox="0 0 900 260" role="img" aria-label="A 7x7 grid with a few lit cells becomes a short list of tokens, each carrying what and where">
+    <g font-family="ui-monospace,monospace" font-size="12">
+      <!-- grid -->
+      <g transform="translate(20,20)">
+        <rect x="0" y="0" width="210" height="210" fill="var(--paper2)" stroke="var(--line)"/>
+        <g stroke="var(--line)" stroke-width="1">
+          <line x1="30" y1="0" x2="30" y2="210"/><line x1="60" y1="0" x2="60" y2="210"/><line x1="90" y1="0" x2="90" y2="210"/><line x1="120" y1="0" x2="120" y2="210"/><line x1="150" y1="0" x2="150" y2="210"/><line x1="180" y1="0" x2="180" y2="210"/>
+          <line x1="0" y1="30" x2="210" y2="30"/><line x1="0" y1="60" x2="210" y2="60"/><line x1="0" y1="90" x2="210" y2="90"/><line x1="0" y1="120" x2="210" y2="120"/><line x1="0" y1="150" x2="210" y2="150"/><line x1="0" y1="180" x2="210" y2="180"/>
+        </g>
+        <!-- walls cross -->
+        <rect x="90" y="0" width="30" height="210" fill="var(--faint)" opacity=".35"/><rect x="0" y="90" width="210" height="30" fill="var(--faint)" opacity=".35"/>
+        <!-- entities -->
+        <circle cx="45" cy="45" r="9" fill="var(--c-integ)"/><text x="45" y="49" text-anchor="middle" font-size="10" fill="#fff">W</text>
+        <rect x="156" y="36" width="18" height="18" fill="#8b5e34"/><text x="165" y="49" text-anchor="middle" font-size="10" fill="#fff">C</text>
+        <rect x="93" y="36" width="24" height="18" fill="var(--c-iqe)"/><text x="105" y="49" text-anchor="middle" font-size="10" fill="#fff">g0</text>
+        <rect x="93" y="156" width="24" height="18" fill="var(--c-sym)"/><text x="105" y="169" text-anchor="middle" font-size="10" fill="#fff">g1</text>
+        <rect x="36" y="93" width="18" height="24" fill="var(--c-mrn)"/><text x="45" y="109" text-anchor="middle" font-size="10" fill="#fff">g2</text>
+        <text x="165" y="139" text-anchor="middle" font-size="12" fill="var(--c-iqe)">┃</text><text x="165" y="128" text-anchor="middle" font-size="9" fill="var(--c-iqe)">L0</text>
+        <text x="15" y="199" text-anchor="middle" font-size="12" fill="var(--c-sym)">┃</text><text x="15" y="188" text-anchor="middle" font-size="9" fill="var(--c-sym)">L1</text>
+        <rect x="126" y="186" width="18" height="18" fill="none" stroke="var(--faint)" stroke-dasharray="3,2"/><text x="135" y="199" text-anchor="middle" font-size="9" fill="var(--faint)">P</text>
+        <text x="195" y="79" text-anchor="middle" font-size="12" fill="#7c3aed">▶</text>
+        <text x="105" y="235" text-anchor="middle" fill="var(--muted)">49 cells, 9 lit</text>
+      </g>
+      <path d="M245,125 L300,125" stroke="var(--faint)" stroke-width="1.5" marker-end="url(#ar)"/>
+      <text x="272" y="112" text-anchor="middle" fill="var(--faint)" font-size="11">keep lit cells</text>
+      <!-- tokens -->
+      <g transform="translate(305,22)" fill="var(--ink)">
+        <text x="0" y="0" font-weight="600" fill="var(--ink)">token list (order arbitrary)</text>
+        <g transform="translate(0,14)">
+          <rect x="0" y="0" width="570" height="22" rx="5" fill="var(--amber-soft)" stroke="var(--c-integ)"/><text x="8" y="15">worker · at (1,1) · [128 numbers: "worker here" + coords]</text>
+          <rect x="0" y="26" width="570" height="22" rx="5" fill="var(--paper2)" stroke="var(--line)"/><text x="8" y="41">crate · at (1,5)</text>
+          <rect x="0" y="52" width="570" height="22" rx="5" fill="var(--paper2)" stroke="var(--line)"/><text x="8" y="67">gate cell, OPEN, in lever-0's stencil · at (1,3)</text>
+          <rect x="0" y="78" width="570" height="22" rx="5" fill="var(--paper2)" stroke="var(--line)"/><text x="8" y="93">gate cell, closed, in lever-1's stencil · at (5,3)</text>
+          <rect x="0" y="104" width="570" height="22" rx="5" fill="var(--paper2)" stroke="var(--line)"/><text x="8" y="119">gate cell, closed, in plate's stencil · at (3,1)</text>
+          <rect x="0" y="130" width="570" height="22" rx="5" fill="var(--paper2)" stroke="var(--line)"/><text x="8" y="145">lever 0 · at (4,5)   ·   lever 1 · at (6,0)   ·   plate · at (6,4)   ·   chute, enter from W · at (2,6)</text>
+          <rect x="0" y="156" width="570" height="22" rx="5" fill="var(--paper2)" stroke="var(--line)" stroke-dasharray="4,3"/><text x="8" y="171" fill="var(--faint)">"nothing here" (padding to 9)</text>
+          <text x="0" y="200" fill="var(--muted)" font-size="11">each item = WHAT (which stencils were lit) + WHERE (coordinates + position code); the transformer gets 9 items per state, twice (start, goal)</text>
+        </g>
+      </g>
+    </g></svg></div>
+
+  <h3>Why this helps so much</h3>
+  <p>The distance in this world depends on <em>exact</em> facts: is gate 1 closed, which lever opens it, exactly where is that lever. The alternative readout ("slots": a few learned queries that softly attend over all 49 cells) has to <em>find</em> each object by attention, and soft attention smears position: it may report "the lever is somewhere around (4.3, 4.6)". A wrong cell means a wrong detour, and a detour is many moves. Foreground tokens hand over the exact cell; coordinate channels make its position a plain number the network can add and subtract. Together they took the full-switchyard score from 0.80 to 0.875 (error −25%).</p>
+
+  <h3>What it is not, and the honest caveat</h3>
+  <p>It is not a hand-built object model: nothing says which token is a lever, which gate belongs to which lever, or what any of it means; that must still be learned from the distance signal alone, and the transformer must still associate a closed gate with the lever whose stencil it shares. What <em>is</em> assumed is a property of this rendered world: empty cells are truly empty, so "lit = object" is exact. In natural images that rule would not exist; there the lit-cell step must be replaced by a learned detector or by the slot readout, which is why we also report the pure-slot integrator (16 slots, no rule: 0.843 / 0.852) and are testing hints that only <em>add</em> an "object vs background" feature channel instead of using the rule.</p>
+</section>
+
 <section>
   <h2><span class="k">3 · THE BASELINES</span>Same tokens, different heads</h2>
   <p>Every baseline reuses the <em>identical</em> encoder (render → coordconv → 1×1 → fgpix tokens, or the 12-slot cross-attention variant, whichever scores better for that head), then encodes each state <strong>separately</strong>:</p>
