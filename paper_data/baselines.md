@@ -139,3 +139,15 @@ diversity) 0.799 (2 seeds); 560 maps without seewalls 0.796. All within noise of
 the integrator (0.904). Neither the extra map diversity, the doorway tokens, nor the 4-layer/lr-1e-3 setting changes
 the scalar baseline's level; the sheet's implied strength does not replicate, consistent with the earlier `--seewalls`
 finding.
+
+
+## 7. Naming collision resolved: her "scalar_mlp" is not a scalar baseline
+The reference code (`paper_data/reference/switchyard_walls.py`) marks `scalar_mlp` as RECURRENT: it runs the
+integrator's full joint recurrence (T weight-shared passes over [state | goal | anchor | context] with goal
+re-injection) and only replaces the displacement sum by an MLP decode head -- in our code that exact model is the
+integrator's `--decodehead` ablation. Verified by running her code at her exact command (512 maps, seewalls, 60k,
+L5 unseen maps): scalar_mlp 0.959 corr / 1.20 MAE ~= integrate 0.958 / 1.24, while her own true scalar baseline
+(`concat_mlp`, separate encodings, no recurrence) gets 0.758 / 3.32 -- the same level as our tuned scalar. Two
+consequences recorded: (a) scalar_mlp belongs in the READOUT-ABLATION table (accumulation vs decode head; in-range
+they tie, i.e. the recurrent joint processing, not the accumulation formula, carries the in-range edge); (b) her
+run also shows map diversity is a strong lever for the integrator (0.958 at 512 maps vs 0.904 at our standard 200).
