@@ -67,8 +67,10 @@ scalar param-matched: --readout xattn --slots 12 --cnnk 1 --basepool mean --base
 Rung flags: L0 `--gatesopen --nopush`, L1 `--gatesopen`, L2 `--wire1 --noplate`, L3 `--noplate`, L4 `--nchute 0`,
 L5 (none), L6 `--ngate 4 --nlever 3`.
 
-For comparison, the integrator used in the same tables: 16 learned slots (1×1 encoder, width 64) + objectness channel,
-d 256, 3-layer shared block, T = 4, lr 1e-3; 1.9 M params (its d 128 / 12-slot version: 0.56 M).
+For comparison, the integrator used in the same tables: 16 learned slots (1×1 encoder, width 64) + the objectness
+input channel (no attention steering of any kind), d 256, 3-layer shared block, T = 4, lr 1e-3; 1.9 M params (its
+d 128 / 12-slot version: 0.56 M). Flags: `--enc pureimage --cnnk 1 --cnnw 64 --readout xattn --slots 16 --objch 1 --d 256
+--layers 3 --T 4 --lr 1e-3 --gradclip 1.0 --warmup 2000 --nobaseline`.
 
 ---
 
@@ -120,8 +122,8 @@ the headline numbers.
 ---
 
 ## 5. Result at a glance (phase B′, best baseline variant per rung; full tables in `distance_model/phaseBp_results.json`)
-Integrator (slots + objectness channel) minus best baseline, corr, map / wire: L0 −0.035 / −0.028, L1 −0.005 / −0.009,
-L2 +0.084 / +0.091, L3 +0.109 / +0.099, L4 +0.091 / +0.102, L5 +0.087 / +0.104, L6 +0.054 / +0.069. Baselines win
+Integrator (slots + objectness channel) minus best baseline, corr, map / wire: L0 −0.040 / −0.021, L1 −0.009 / −0.010,
+L2 +0.067 / +0.092, L3 +0.072 / +0.083, L4 +0.060 / +0.033, L5 +0.087 / +0.077, L6 +0.051 / +0.050. Baselines win
 only where there is no coupling (plain maze, push); the biggest baseline there is a 2–6.7 M-parameter flatten-MLP.
 
 Files: tuning grids `leo_tuneA.sbatch`, `leo_tuneA2.sbatch`, `leo_tuneA3.sbatch`, `tuneA5.sbatch`; selection
