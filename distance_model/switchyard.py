@@ -538,7 +538,7 @@ def train(a):
         def __init__(s, d, h, l):
             super().__init__()
             s.ls = nn.ModuleList([nn.TransformerEncoderLayer(d, h, 2 * d, dropout=0.0, activation="gelu",
-                                  batch_first=True, norm_first=True) for _ in range(l)])
+                                  batch_first=True, norm_first=True) for _ in range(max(0, l))])   # l=0 -> identity
         def forward(s, z):
             for l in s.ls: z = l(z)
             return z
@@ -566,16 +566,24 @@ def train(a):
                 return out, (tok[:, :NTOK] - (s.enc(g, m) + s.role.weight[0])).norm(dim=-1).mean(-1)
             return out
 
-    BL = a.baselayers if a.baselayers > 0 else a.layers            # baseline mix-block depth (tunable, fair)
+    BL = a.baselayers if a.baselayers >= 0 else a.layers           # baseline mix-block depth (tunable, fair; 0 = no transformer)
+
+    class Pool(nn.Module):
+        """baseline state pooling: mean over tokens (default) or FLATTEN all tokens -> Linear (keeps which-token-where)."""
+        def __init__(s, d):
+            super().__init__()
+            s.flat = nn.Sequential(nn.Linear(NTOK * d, 2 * d), nn.GELU(), nn.Linear(2 * d, d)) if a.basepool == "flat" else None
+        def forward(s, z):
+            return s.flat(z.flatten(1)) if s.flat is not None else z.mean(1)
 
     class Sym(nn.Module):
         """Symmetric-embedding baseline on the same structural encoder: D = ||f(s) - f(g)||_1."""
         def __init__(s, d=a.d):
             super().__init__()
-            s.enc = Enc(d); s.mix = Block(d, a.heads, BL); s.proj = nn.Linear(d, d)
+            s.enc = Enc(d); s.mix = Block(d, a.heads, BL); s.pool = Pool(d); s.proj = nn.Linear(d, d)
             s.ln = nn.LayerNorm(d) if a.latentnorm else None
         def emb1(s, x, m):
-            e = s.proj(s.mix(s.enc(x, m)).mean(1))
+            e = s.proj(s.pool(s.mix(s.enc(x, m))))
             return s.ln(e) if s.ln is not None else e
         def forward(s, x, g, m):
             return (s.emb1(x, m) - s.emb1(g, m)).abs().sum(-1)
@@ -585,11 +593,11 @@ def train(a):
         def __init__(s, kind, d=a.d):
             super().__init__()
             import torchqmet
-            s.enc = Enc(d); s.mix = Block(d, a.heads, BL); s.proj = nn.Linear(d, d)
+            s.enc = Enc(d); s.mix = Block(d, a.heads, BL); s.pool = Pool(d); s.proj = nn.Linear(d, d)
             s.ln = nn.LayerNorm(d) if a.latentnorm else None       # standard pre-quasimetric norm; fixes MRN nan
             s.head = torchqmet.IQE(d, dim_per_component=16) if kind == "iqe" else torchqmet.MRNFixed(d)
         def emb1(s, x, m):
-            e = s.proj(s.mix(s.enc(x, m)).mean(1))
+            e = s.proj(s.pool(s.mix(s.enc(x, m))))
             return s.ln(e) if s.ln is not None else e
         def forward(s, x, g, m):
             return s.head(s.emb1(x, m), s.emb1(g, m))
@@ -597,11 +605,11 @@ def train(a):
     class Scalar(nn.Module):
         def __init__(s, d=a.d):
             super().__init__()
-            s.enc = Enc(d); s.mix = Block(d, a.heads, BL)
+            s.enc = Enc(d); s.mix = Block(d, a.heads, BL); s.pool = Pool(d)
             s.ln = nn.LayerNorm(d) if a.latentnorm else None
             s.head = nn.Sequential(nn.Linear(2 * d, 2 * d), nn.GELU(), nn.Linear(2 * d, 2 * d), nn.GELU(), nn.Linear(2 * d, 1))
         def forward(s, x, g, m):
-            hs = s.mix(s.enc(x, m)).mean(1); hg = s.mix(s.enc(g, m)).mean(1)
+            hs = s.pool(s.mix(s.enc(x, m))); hg = s.pool(s.mix(s.enc(g, m)))
             if s.ln is not None: hs, hg = s.ln(hs), s.ln(hg)
             return s.head(torch.cat([hs, hg], 1)).squeeze(-1)
 
@@ -765,9 +773,9 @@ def train(a):
     print("RESULT " + json.dumps(dict(G=a.G, ngate=a.ngate, nlever=a.nlever, nmaps=a.nmaps, split=a.split,
                                       Rtrain=a.Rtrain, globalbase=a.globalbase, enc=a.enc, markeraux=a.markeraux,
                                       markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, cnndepth=a.cnndepth, steps=a.steps, seed=a.seed,
-                                      d=a.d, layers=a.layers, baselayers=(a.baselayers if a.baselayers > 0 else a.layers),
+                                      d=a.d, layers=a.layers, baselayers=(a.baselayers if a.baselayers >= 0 else a.layers),
                                       heads=a.heads, T=a.T, lr=a.lr, latentnorm=a.latentnorm, gradclip=a.gradclip, seewalls=a.seewalls,
-                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath, supbind=a.supbind, coordconv=a.coordconv, cnnk=a.cnnk, slotiters=a.slotiters, slotnoise=a.slotnoise, warmup=a.warmup, attnent=a.attnent, attnovl=a.attnovl, slotln=a.slotln, cnnmix=a.cnnmix, cosine=a.cosine, bs=a.bs, curriculum=int(a.curriculum),
+                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath, supbind=a.supbind, coordconv=a.coordconv, cnnk=a.cnnk, slotiters=a.slotiters, slotnoise=a.slotnoise, warmup=a.warmup, attnent=a.attnent, attnovl=a.attnovl, slotln=a.slotln, cnnmix=a.cnnmix, cosine=a.cosine, bs=a.bs, curriculum=int(a.curriculum), basepool=a.basepool,
                                       gatesopen=int(a.gatesopen), nopush=int(a.nopush), wire1=int(a.wire1), noplate=int(a.noplate),
                                       tag=a.tag, **out)), flush=True)
 
@@ -832,7 +840,8 @@ def main():
     ap.add_argument("--scalaronly", action="store_true", help="train ONLY the scalar-head baseline")
     ap.add_argument("--lencurr", type=int, default=0, help="length curriculum: train range grows 8 -> 12 -> Rtrain")
     ap.add_argument("--heads", type=int, default=4, help="attention heads for every transformer block (d must be divisible)")
-    ap.add_argument("--baselayers", type=int, default=-1, help="mix-block depth for sym/qmet/scalar baselines (-1 = use --layers)")
+    ap.add_argument("--baselayers", type=int, default=-1, help="mix-block depth for sym/qmet/scalar baselines (-1 = use --layers; 0 = no transformer)")
+    ap.add_argument("--basepool", choices=["mean", "flat"], default="mean", help="baseline pooling: mean over tokens | flatten all tokens -> MLP")
     ap.add_argument("--latentnorm", type=int, default=0, help="LayerNorm on baseline latents before the metric head (fixes MRN nan; fair, swept)")
     ap.add_argument("--gradclip", type=float, default=0.0, help="clip grad norm before opt.step (0=off; general nan safety, applied to all models)")
     ap.add_argument("--recon", choices=["none", "tied", "slot"], default="none",

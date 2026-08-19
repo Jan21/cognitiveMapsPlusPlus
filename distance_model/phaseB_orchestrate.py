@@ -12,12 +12,12 @@ def head(d):
         if h in d: return h,d[h]
 # ---- wait for phase A
 for it in range(60):
-    leo=ssh("leonardo",'grep -h "^RESULT" $CINECA_SCRATCH/cmpp_out/tuneA_*.out 2>/dev/null; echo "===Q $(squeue --me -h | wc -l)"')
+    leo=ssh("leonardo",'grep -h "^RESULT" $CINECA_SCRATCH/cmpp_out/tuneA_*.out $CINECA_SCRATCH/cmpp_out/tuneA2_*.out 2>/dev/null; echo "===Q $(squeue --me -h | wc -l)"')
     ci=ssh("ciirc-old-cluster",'cd ~/cognitiveMapsPlusPlus/distance_model; grep -h "^RESULT" tuneA5_*.out 2>/dev/null; echo "===Q $(squeue -h -u hulajan1 -n tuneA5 | wc -l)"')
     nl=leo.count("RESULT"); nc=ci.count("RESULT")
     ql=re.search(r"===Q (\d+)",leo); qc=re.search(r"===Q (\d+)",ci)
     print(f"[{time.strftime('%H:%M')}] A: leo {nl}/99 (q {ql.group(1) if ql else '?'}), ciirc {nc}/36 (q {qc.group(1) if qc else '?'})", flush=True)
-    if nl>=95 and nc>=34: break
+    if nl>=95+230 and nc>=34: break
     if ql and qc and ql.group(1)=="0" and qc.group(1)=="0" and it>2: break
     time.sleep(600)
 open(S+"tuneA.txt","w").write(leo+ci)
@@ -27,38 +27,42 @@ for fn in ("tuneA.txt","leo.txt"):
     for l in open(S+fn):
         if not l.startswith("RESULT"): continue
         d=json.loads(l[7:]); t=d.get("tag","")
-        if t.startswith("tA_") or t.startswith("ft_"): rows.append(d)
+        if t.startswith("tA_") or t.startswith("tA2_") or t.startswith("ft_"): rows.append(d)
 best=defaultdict(dict)   # best[(group, head)] = (score, readout, L, lr)
 for d in rows:
     t=d["tag"]; h,r=head(d); c=r["test_corr"]
     if c is None: continue
-    if t.startswith("tA_"):
-        _,rung,ro,hh,Ls,lrs=t.split("_"); ro="fgcc" if ro=="fgcc" else "slots"
+    pool="mean"; dd=128
+    if t.startswith("tA2_"):
+        _,rung,en,hh,Ls,ds=t.split("_"); L=int(Ls[1:]); dd=int(ds[1:]); lr="1e-3"
+        ro={"pixk3ccF":"pixk3cc","pixk1ccF":"pixk1cc","fgccF":"fgcc","slotsF":"slots","pixk1ccM":"pixk1cc"}[en]; pool="flat" if en.endswith("F") else "mean"
+    elif t.startswith("tA_"):
+        _,rung,ro,hh,Ls,lrs=t.split("_"); ro="fgcc" if ro=="fgcc" else "slots"; L=int(Ls[1:]); lr=lrs[2:]
     else:
-        _,rung,hh,Ls,lrs=t.split("_"); ro="slots"
-    L=int(Ls[1:]); lr=lrs[2:]
+        _,rung,hh,Ls,lrs=t.split("_"); ro="slots"; L=int(Ls[1:]); lr=lrs[2:]
     key=(rung,hh)
-    if key not in best or c>best[key][0]: best[key]=(c,ro,L,lr)
+    if key not in best or c>best[key][0]: best[key]=(c,ro,L,lr,pool,dd)
 print("best per (rung, head):"); 
 for k in sorted(best): print("  ",k,best[k])
 def cfg(rung,hh):
     grp = "L2" if rung in ("L0","L1","L2") else ("L3" if rung=="L3" else ("L5" if ("L5",hh) in best else "L3"))
     return best.get((grp,hh)) or best.get(("L3",hh)) or best.get(("L2",hh))
 # ---- generate phase B
-base="--enc pureimage --cnnk 1 --d 128 --heads 4 --cnnw 64 --cnndepth 2 --nmaps 200 --poolq 2000 --steps 80000 --gradclip 1.0 --warmup 2000"
+base="--enc pureimage --heads 4 --cnnw 64 --cnndepth 2 --nmaps 200 --poolq 2000 --steps 80000 --gradclip 1.0 --warmup 2000"
 R=[("L0","--gatesopen --nopush"),("L1","--gatesopen"),("L2","--wire1 --noplate"),("L3","--noplate"),("L4","--nchute 0"),("L5",""),("L6","--ngate 4 --nlever 3")]
 A=[]
 for rung,fl in R:
     for sp in ("map","wire"):
         for sd in (0,1,2):
-            A.append((f"B_{rung}{sp}_integ_s{sd}", f"{base} {fl} --split {sp} --seed {sd} --readout fgpix --coordconv 1 --T 4 --layers 4 --lr 1e-3 --nobaseline"))
-            A.append((f"B_{rung}{sp}_integL3_s{sd}", f"{base} {fl} --split {sp} --seed {sd} --readout fgpix --coordconv 1 --T 4 --layers 3 --lr 1e-3 --nobaseline"))
+            A.append((f"B_{rung}{sp}_integ_s{sd}", f"{base} {fl} --split {sp} --seed {sd} --cnnk 1 --d 128 --readout fgpix --coordconv 1 --T 4 --layers 4 --lr 1e-3 --nobaseline"))
+            A.append((f"B_{rung}{sp}_integL3_s{sd}", f"{base} {fl} --split {sp} --seed {sd} --cnnk 1 --d 128 --readout fgpix --coordconv 1 --T 4 --layers 3 --lr 1e-3 --nobaseline"))
             for hh in ("iqe","mrn","sym","scalar"):
                 c=cfg(rung,hh)
                 if not c: continue
-                _,ro,L,lr=c
-                rd = "--readout fgpix --coordconv 1" if ro=="fgcc" else "--readout xattn --slots 12"
-                A.append((f"B_{rung}{sp}_{hh}_s{sd}", f"{base} {fl} --split {sp} --seed {sd} {rd} --{hh}only --baselayers {L} --lr {lr}"))
+                _,ro,L,lr,pool,dd=c
+                rd = {"fgcc":"--readout fgpix --coordconv 1 --cnnk 1","slots":"--readout xattn --slots 12 --cnnk 1",
+                      "pixk3cc":"--readout pixels --cnnk 3 --coordconv 1","pixk1cc":"--readout pixels --cnnk 1 --coordconv 1"}[ro]
+                A.append((f"B_{rung}{sp}_{hh}_s{sd}", f"{base} {fl} --split {sp} --seed {sd} {rd} --{hh}only --baselayers {L} --lr {lr} --basepool {pool} --d {dd}"))
 lines=[f' "python3 switchyard.py --train {cmd} --tag {tag}"' for tag,cmd in A]
 sb=f'''#!/bin/bash
 #SBATCH -A EUHPC_B38_121
