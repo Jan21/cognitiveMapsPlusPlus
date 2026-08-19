@@ -1,0 +1,199 @@
+<title>Image Integrator, Explained and Scored</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{--bg:#eef1f5;--paper:#fff;--paper2:#f5f7fa;--line:#d3dae3;--ink:#161a21;--muted:#5c6675;--faint:#8a94a4;--cyan:#0e7c94;--cyan-soft:#0e7c9418;--amber:#b45309;--amber-soft:#b4530918;--code:#f0f3f7;--shadow:0 1px 2px rgba(20,30,45,.06),0 8px 24px rgba(20,30,45,.06);
+--c-integ:#b45309;--c-iqe:#0e7c94;--c-sym:#5b7fb5;--c-scalar:#8a94a4;--c-mrn:#3f9c8a;--c-ref:#c8a24a;--grid:#e3e8ee}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1117;--paper:#141a22;--paper2:#111820;--line:#26303c;--ink:#e7ecf3;--muted:#9aa6b5;--faint:#6b7788;--cyan:#4cc6e0;--cyan-soft:#4cc6e022;--amber:#eab04a;--amber-soft:#eab04a1e;--code:#0f151c;--shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);--c-integ:#eab04a;--c-iqe:#4cc6e0;--c-sym:#8fa8dc;--c-scalar:#8a94a4;--c-mrn:#5fc9b5;--c-ref:#d9b45a;--grid:#1e2733}}
+:root[data-theme="dark"]{--bg:#0d1117;--paper:#141a22;--paper2:#111820;--line:#26303c;--ink:#e7ecf3;--muted:#9aa6b5;--faint:#6b7788;--cyan:#4cc6e0;--cyan-soft:#4cc6e022;--amber:#eab04a;--amber-soft:#eab04a1e;--code:#0f151c;--shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);--c-integ:#eab04a;--c-iqe:#4cc6e0;--c-sym:#8fa8dc;--c-scalar:#8a94a4;--c-mrn:#5fc9b5;--c-ref:#d9b45a;--grid:#1e2733}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16.5px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.mono,code,pre{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.wrap{max-width:920px;margin:0 auto;padding:0 22px}
+header{padding:60px 0 24px;border-bottom:1px solid var(--line)}
+.eyebrow{font:600 12px/1 ui-monospace,monospace;letter-spacing:.16em;text-transform:uppercase;color:var(--cyan);margin:0 0 14px}
+h1{font-size:clamp(30px,5.2vw,44px);line-height:1.06;letter-spacing:-.025em;font-weight:680;margin:0 0 12px;text-wrap:balance}
+.lede{font-size:18px;color:var(--muted);max-width:66ch;margin:0} .lede b{color:var(--ink);font-weight:600}
+main{padding-bottom:90px} section{padding:44px 0 0}
+h2{font-size:23px;line-height:1.15;letter-spacing:-.02em;font-weight:660;margin:0 0 6px;text-wrap:balance}
+h2 .k{display:block;font:600 12px/1 ui-monospace,monospace;letter-spacing:.1em;color:var(--cyan);margin-bottom:8px}
+h3{font-size:17px;font-weight:640;margin:22px 0 6px}
+p{margin:11px 0} .muted{color:var(--muted)} .small{font-size:14px}
+code{font-size:.88em;background:var(--code);border:1px solid var(--line);border-radius:5px;padding:.05em .36em}
+pre{margin:12px 0;padding:14px 16px;background:var(--code);border:1px solid var(--line);border-radius:10px;overflow-x:auto;font-size:12.8px;line-height:1.55}
+pre .c{color:var(--faint)} pre .k{color:var(--cyan)} pre .a{color:var(--amber);font-weight:600}
+.card{margin:16px 0;background:var(--paper);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:16px 18px}
+.chart canvas{display:block;width:100%;height:auto}
+.cap{font-size:13px;color:var(--faint);margin:6px 0 0}
+.tbl{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}
+.tbl th{font:600 11px/1.2 ui-monospace,monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);text-align:right;padding:7px 8px;border-bottom:1px solid var(--line)}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums;vertical-align:top} .tbl tr:last-child td{border-bottom:none}
+.tbl td.i{color:var(--c-integ);font-weight:640} .tbl td.pos{color:#1f7a4d;font-weight:600} .tbl td.neg{color:#a83a3a;font-weight:600}
+.tblwrap{overflow-x:auto}
+.pipe{display:grid;grid-template-columns:150px 1fr;gap:14px;padding:12px 0;border-top:1px dashed var(--line)}
+.pipe:first-of-type{border-top:none}
+.pipe .slab{align-self:start;font-family:ui-monospace,monospace;font-size:12px;color:var(--muted);background:var(--paper2);border:1px solid var(--line);border-radius:9px;padding:9px 11px}
+.pipe .slab b{display:block;color:var(--ink);font-size:12.5px;margin-bottom:3px} .pipe .slab .sh{display:block;color:var(--cyan);margin-top:4px;font-size:11.5px}
+.pipe .say p{margin:3px 0;font-size:14.5px;color:var(--muted)} .pipe .say h4{margin:0 0 3px;font-size:15px}
+.note{margin:14px 0;padding:12px 16px 12px 18px;border-left:3px solid var(--cyan);background:var(--paper);border-radius:0 10px 10px 0}
+.note.warn{border-left-color:var(--amber)} .note .lab{font:600 11px/1 ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);margin-bottom:6px} .note.warn .lab{color:var(--amber)} .note p{margin:4px 0;font-size:14.5px}
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--muted);margin:8px 0 2px}
+.legend span::before{content:"";display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:6px;vertical-align:-1px;background:var(--c)}
+button{font:600 12.5px/1 system-ui,sans-serif;color:var(--ink);background:var(--paper2);border:1px solid var(--line);border-radius:8px;padding:7px 11px;cursor:pointer} button.on{background:var(--cyan);color:#fff;border-color:var(--cyan)}
+.svgwrap svg{width:100%;height:auto;display:block}
+.foot{margin-top:44px;padding-top:18px;border-top:1px solid var(--line);color:var(--faint);font-size:13px}
+@media (max-width:600px){.pipe{grid-template-columns:1fr}}
+</style>
+<div class="wrap">
+<header>
+  <p class="eyebrow">CognitiveMaps++ · switchyard · image-only · 2026-08-19</p>
+  <h1>Two pictures in, one distance out: how the models work and how they score</h1>
+  <p class="lede">Every model here sees only two rendered images, the <b>start</b> and the <b>goal</b> state of a switchyard, and must predict the exact number of moves between them. This page explains the current best integrator end to end, the four baselines that consume the very same tokens, and the results across seven levels of environment complexity, on unseen maps and on rewired causal structure.</p>
+  <div style="margin:14px 0 4px;display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted)"><span>metric:</span><button id="btn_corr" class="on">test corr ↑</button><button id="btn_mae">test MAE ↓</button><span id="metric_note" style="margin-left:8px"></span></div>
+</header>
+<main>
+
+<section>
+  <h2><span class="k">1 · THE TASK</span>Distance in a coupled world, from pixels</h2>
+  <p>A 7×7 four-room yard. A worker pushes a crate; three gates sit in doorways and are open or closed; two levers toggle gates (one lever can flip several, XOR-wired); a pressure plate holds its gates open while the crate sits on it; a one-way chute admits the worker from one direction only. A <em>state</em> is (worker cell, crate cell, gate bits). The target is the true BFS shortest path length over the joint state graph. Train on 150 maps, test on 50 held-out maps (<code>map</code> split: new walls, positions, wiring) or on the same 200 layouts with the wiring resampled (<code>wire</code> split: rewired causality).</p>
+  <div class="card svgwrap"><svg viewBox="0 0 900 190" role="img" aria-label="Pipeline: two images, shared encoder, tokens, then either the recall-flow integrator or a pooled baseline head">
+    <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--faint)"/></marker></defs>
+    <g font-family="ui-monospace,monospace" font-size="12" fill="var(--ink)">
+      <rect x="10" y="30" width="120" height="56" rx="8" fill="var(--paper2)" stroke="var(--line)"/><text x="70" y="53" text-anchor="middle">start image</text><text x="70" y="70" text-anchor="middle" fill="var(--faint)">(12 ch, 7×7)</text>
+      <rect x="10" y="110" width="120" height="56" rx="8" fill="var(--paper2)" stroke="var(--line)"/><text x="70" y="133" text-anchor="middle">goal image</text><text x="70" y="150" text-anchor="middle" fill="var(--faint)">(12 ch, 7×7)</text>
+      <path d="M130,58 L200,58" stroke="var(--faint)" stroke-width="1.5" marker-end="url(#ar)"/><path d="M130,138 L200,138" stroke="var(--faint)" stroke-width="1.5" marker-end="url(#ar)"/>
+      <rect x="202" y="30" width="170" height="136" rx="8" fill="var(--cyan-soft)" stroke="var(--cyan)"/><text x="287" y="70" text-anchor="middle" font-weight="600">shared encoder</text><text x="287" y="90" text-anchor="middle" fill="var(--muted)">+x/y coords → 1×1 MLP</text><text x="287" y="108" text-anchor="middle" fill="var(--muted)">→ tokens at lit pixels</text><text x="287" y="130" text-anchor="middle" fill="var(--faint)">(same weights, both images)</text>
+      <path d="M372,70 L440,50" stroke="var(--faint)" stroke-width="1.5" marker-end="url(#ar)"/><path d="M372,126 L440,146" stroke="var(--faint)" stroke-width="1.5" marker-end="url(#ar)"/>
+      <rect x="442" y="18" width="200" height="66" rx="8" fill="var(--amber-soft)" stroke="var(--amber)"/><text x="542" y="44" text-anchor="middle" font-weight="600">integrator (ours)</text><text x="542" y="64" text-anchor="middle" fill="var(--muted)">walk start→goal, sum ‖Δz‖</text>
+      <rect x="442" y="112" width="200" height="66" rx="8" fill="var(--paper2)" stroke="var(--line)"/><text x="542" y="138" text-anchor="middle" font-weight="600">baseline heads</text><text x="542" y="158" text-anchor="middle" fill="var(--muted)">pool → IQE / MRN / L1 / MLP</text>
+      <path d="M642,51 L720,90" stroke="var(--faint)" stroke-width="1.5" marker-end="url(#ar)"/><path d="M642,145 L720,106" stroke="var(--faint)" stroke-width="1.5" marker-end="url(#ar)"/>
+      <rect x="722" y="70" width="160" height="56" rx="8" fill="var(--paper2)" stroke="var(--line)"/><text x="802" y="93" text-anchor="middle">predicted distance</text><text x="802" y="111" text-anchor="middle" fill="var(--faint)">smooth-L1 vs BFS</text>
+    </g></svg></div>
+</section>
+
+<section>
+  <h2><span class="k">2 · THE INTEGRATOR</span>Current best recipe, stage by stage</h2>
+  <pre><span class="c">python3 switchyard.py --train --enc pureimage --cnnk 1 --readout fgpix --coordconv 1 --T 4 --layers 4 --d 128 --heads 4 \
+   --cnnw 64 --cnndepth 2 --nmaps 200 --poolq 2000 --steps 80000 --lr 1e-3 --gradclip 1.0 --warmup 2000 --split map|wire</span></pre>
+  <div class="pipe"><div class="slab"><b>render</b>state → image<span class="sh">(B, 12, 7, 7)</span></div><div class="say"><h4>Everything is drawn, nothing is told</h4><p>Channels: walls · worker · crate · gate cells · gate-open bits · one channel per lever marking the lever <em>and</em> the gates it toggles (wiring as shared "colour") · plate + the gates it holds · four chute-direction channels. No coordinates, no ids, no adjacency, no wiring table.</p></div></div>
+  <div class="pipe"><div class="slab"><b>coordconv</b>append x, y<span class="sh">(B, 14, 7, 7)</span></div><div class="say"><h4>Two coordinate planes</h4><p>Constant channels holding each pixel's x and y in [−1, 1]. Cheap, and one of the two things that moved the needle: entity tokens then carry an explicit position, not just a learned positional code.</p></div></div>
+  <div class="pipe"><div class="slab"><b>1×1 encoder</b>per-pixel MLP<span class="sh">(B, 128, 7, 7)</span></div><div class="say"><h4>No spatial mixing</h4><p><code>Conv1×1(14→64) → ReLU → Conv1×1(64→128) → ReLU</code>. A 3×3 CNN was the original failure: it blurred which entity lit which cell (gate bits, lever identity) into neighbours, and no amount of slot machinery could recover it (even supervised binding on 3×3 features scored 0.71). Per-pixel features keep every cell's channels exact; the transformer does the spatial reasoning.</p></div></div>
+  <div class="pipe"><div class="slab"><b>fgpix tokens</b>lit cells → tokens<span class="sh">(B, 9, 128)</span></div><div class="say"><h4>Object tokens without labels</h4><p>Take the feature vector at every cell that is lit in any entity channel (worker, crate, 3 gates, 2 levers, plate, chute: 9 at full complexity), add the learned position embedding of that cell, pad unlit slots with a learned empty token, add a slot-id embedding. This is an object extractor with zero learning: foreground = non-empty pixel. Which entity a token is comes from its channels; where it is from coordinates + position embedding.</p></div></div>
+  <div class="pipe"><div class="slab"><b>assemble</b>3 copies<span class="sh">(B, 27, 128)</span></div><div class="say"><h4>Start · goal · anchor</h4><p><code>[enc(start)+role₀ ; enc(goal)+role₁ ; enc(start)+role₂]</code>. Only the first block will move; the goal and the start-anchor are re-injected unchanged at every pass ("recall"), so the network never loses its destination or origin.</p></div></div>
+  <div class="pipe"><div class="slab"><b>recall loop</b>T = 4 passes<span class="sh">shared 4-layer block</span></div><div class="say"><h4>Walk, and pay for the trip</h4><pre style="margin:6px 0">cost = 0
+<span class="k">for</span> t <span class="k">in</span> range(4):
+    z    = Block(tok)                                  <span class="c"># 4 pre-norm transformer layers, d=128, 4 heads, same weights every pass</span>
+    cost = cost <span class="a">+ (z[:, :9] − tok[:, :9]).norm(dim=-1).sum(-1)</span>   <span class="c"># L2 length of each state token's move, summed</span>
+    tok  = [ z[:, :9] ; goal ; anchor ]               <span class="c"># keep the evolved state, re-inject goal + anchor</span>
+D = softplus(scale) · cost                             <span class="c"># one learned positive scalar; that is the whole head</span></pre><p>Distance is the accumulated latent path length. The only way to output a large number is to actually move the state tokens far; the model cannot shortcut with a lookup.</p></div></div>
+  <div class="pipe"><div class="slab"><b>training</b><span class="sh">Adam 1e-3 · clip 1 · warm-up 2k · 80k</span></div><div class="say"><h4>The "safe recipe"</h4><p>Smooth-L1 to the BFS distance, batch 128, 150 training maps. Learning rate 1e-3 with gradient clipping and a 2k-step warm-up: at 2e-3 without clipping the slot/token read collapsed on some seeds (a token would never bind the worker and training plateaued at MAE ≈ 3). This recipe removed the bimodal seeds.</p></div></div>
+</section>
+
+<section>
+  <h2><span class="k">3 · THE BASELINES</span>Same tokens, different heads</h2>
+  <p>Every baseline reuses the <em>identical</em> encoder (render → coordconv → 1×1 → fgpix tokens, or the 12-slot cross-attention variant, whichever scores better for that head), then encodes each state <strong>separately</strong>:</p>
+  <pre>tokens (9×128) → own transformer (depth tuned: 2 / 4 / 6, not shared) → mean over tokens → Linear(128,128) → f(s), f(g)</pre>
+  <div class="tblwrap"><table class="tbl"><tr><th>head</th><th style="text-align:left">distance</th><th style="text-align:left">inductive bias</th></tr>
+    <tr><td>IQE</td><td style="text-align:left"><code>torchqmet.IQE(f(s), f(g))</code>, 16-dim components</td><td style="text-align:left">learned quasimetric (triangle inequality by construction, asymmetric)</td></tr>
+    <tr><td>MRN</td><td style="text-align:left"><code>torchqmet.MRNFixed(f(s), f(g))</code></td><td style="text-align:left">metric residual network; nan-guarded (fragile)</td></tr>
+    <tr><td>sym</td><td style="text-align:left"><code>‖f(s) − f(g)‖₁</code></td><td style="text-align:left">symmetric metric embedding</td></tr>
+    <tr><td>scalar</td><td style="text-align:left"><code>MLP([f(s); f(g)]) → 1</code></td><td style="text-align:left">none: the no-inductive-bias control</td></tr></table></div>
+  <p class="small muted">Each baseline's depth × learning rate is tuned on this bed (grid over {2,4,6} × {5e-4, 1e-3, 2e-3}); every bar below is a 3-seed mean at the head's best configuration. Same data, loss, steps, warm-up and clipping as the integrator. The one structural difference is the readout: they compress each state to a vector and compare; the integrator keeps both token sets side by side and lets a recurrent block move one toward the other.</p>
+</section>
+
+<section>
+  <h2><span class="k">4 · HEADLINE</span>Full switchyard (L5): the new recipe vs the previous best and vs baselines on the same tokens</h2>
+  <div class="card chart"><canvas id="c_over" width="1200" height="420"></canvas>
+  <div class="cap">3 seeds each. Previous best = 12 one-shot slots. Baselines here are fed the identical fgpix+coordconv tokens (their re-tuning on these tokens is running; see status). Symbolic reference (factored tokens, no perception): 0.904 corr / 1.92 MAE.</div></div>
+  <div class="tblwrap"><table class="tbl" id="t_over"></table></div>
+</section>
+
+<section>
+  <h2><span class="k">5 · ACROSS COMPLEXITY</span>Seven rungs, unseen maps and rewired causality</h2>
+  <div class="legend"><span style="--c:var(--c-integ)">integrator</span><span style="--c:var(--c-iqe)">IQE</span><span style="--c:var(--c-sym)">sym</span><span style="--c:var(--c-scalar)">scalar</span><span style="--c:var(--c-mrn)">MRN</span></div>
+  <h3>Unseen maps</h3>
+  <div class="card chart"><canvas id="c_map" width="1200" height="520"></canvas><div class="cap">Ladder run (12 one-shot slots at L3+, 8 at L0–L2; baselines tuned on-bed). L0 maze · L1 +push · L2 +gates · L3 +XOR wiring · L4 +plate · L5 +chute · L6 4 gates / 3 levers.</div></div>
+  <div class="tblwrap"><table class="tbl" id="t_map"></table></div>
+  <h3>Rewired causality</h3>
+  <div class="card chart"><canvas id="c_wire" width="1200" height="520"></canvas><div class="cap">Same layouts at train and test, lever→gate and plate→gate wiring resampled. Reading which lever now drives which gate is where the integrator separates most.</div></div>
+  <div class="tblwrap"><table class="tbl" id="t_wire"></table></div>
+  <h3>Margin over the best tuned baseline</h3>
+  <div class="card chart"><canvas id="c_margin" width="1200" height="380"></canvas><div class="cap">Image / map, image / wire, and the symbolic ladder as the perception-free reference. Symbolic: ≈0 at L0–L1 → +0.10/+0.11 at L3–L5. Image: same shape, damped by the perception cost that the fgpix+coordconv recipe now largely removes at L5.</div></div>
+</section>
+
+<section>
+  <h2><span class="k">6 · WHAT WE LEARNED</span></h2>
+  <div class="note"><div class="lab">what carried the gains</div><p><b>1×1 encoder</b> (identity per pixel; +0.13 at L2), the <b>safe optimizer</b> (no more bimodal seeds), <b>slots ≥ entities</b> (+0.06 at L3), and finally <b>exact entity tokens + coordinates</b> (fgpix+coordconv: +0.08 corr / −25% MAE at L5). Each was found by a probe that could have killed it.</p></div>
+  <div class="note warn"><div class="lab">what did not</div><p>3×3 convolution, competitive iterative slot attention (all variants), reconstruction auxiliaries, attention-entropy sharpening, hard attention, slot-overlap penalty, slot LayerNorm, wire-path rendering, more maps, longer training, cosine decay, deeper block, more heads, mixed conv. And the supervised Hungarian binding ceiling on the 1×1 encoder is <em>below</em> the unsupervised model (0.77 vs 0.80–0.88): binding is no longer where the gap is.</p></div>
+  <div class="note"><div class="lab">status</div><p>Baselines are being re-tuned on the fgpix+coordconv tokens (depth × lr, L2/L3/L5) and the full L0–L6 ladders will be regenerated with the new integrator recipe against each head's best representation and configuration, 3 seeds. Sections 4–5 will be replaced by that run; the tables above are the current best evidence, not the final one.</p></div>
+</section>
+<div class="foot">Code: <code>distance_model/switchyard.py</code>. Data: <code>pure_image_results.json</code>. Companions: Pure-Image Scoreboard (all diagnostics), Switchyard Ladder Playbook (playable rungs), Fair Benchmark Ledger (earlier hybrid-model results).</div>
+</main></div>
+<script>
+const DD = {"test_corr": {"map_ladder": {"L0": {"integ": [0.906, 0.912, 0.918], "integ_8slots": [0.906, 0.912, 0.918], "iqe": [0.829, 0.898, 0.844], "sym": [0.89, 0.908, 0.886], "scalar": [0.875, 0.894, 0.873]}, "L1": {"integ": [0.949, 0.948, 0.943], "integ_8slots": [0.949, 0.948, 0.943], "iqe": [0.909, 0.905, 0.917], "sym": [0.868, 0.852, 0.859], "scalar": [0.935, 0.942, 0.947]}, "L2": {"integ": [0.92, 0.901, 0.859], "integ_8slots": [0.92, 0.901, 0.859], "iqe": [0.845, 0.856, 0.858], "sym": [0.785, 0.809, 0.786], "scalar": [0.813, 0.802, 0.809]}, "L3": {"integ": [0.822, 0.828, 0.845], "integ_8slots": [0.748, 0.814, 0.793], "iqe": [0.768, 0.769, 0.759], "sym": [0.753, 0.746, 0.738], "scalar": [0.706, 0.698, 0.666]}, "L4": {"integ": [0.799, 0.796, 0.833], "integ_8slots": [0.773, 0.794, 0.821], "iqe": [0.75, 0.786, 0.787], "sym": [0.744, 0.76, 0.757], "scalar": [0.697, 0.794, 0.68]}, "L5": {"integ": [0.798, 0.813, 0.785], "integ_8slots": [0.803, 0.731, 0.778], "iqe": [0.761, 0.747, 0.754], "sym": [0.733, 0.726, 0.726], "scalar": [0.689, 0.719, 0.677]}, "L6": {"integ": [0.67, 0.725, 0.775], "integ_8slots": [0.717, 0.747, 0.748], "iqe": [0.743, 0.724, 0.708], "sym": [0.707, 0.721, 0.706], "scalar": [0.644, 0.66, 0.647]}}, "wire_ladder": {"L0": {"integ": [0.929, 0.939, 0.936], "iqe": [0.933, 0.9, 0.892], "sym": [0.93, 0.861, 0.915], "scalar": [0.917, 0.926, 0.905]}, "L1": {"integ": [0.952, 0.955, 0.953], "iqe": [0.904, 0.915, 0.905], "sym": [0.878, 0.878, 0.875], "scalar": [0.925, 0.936, 0.93]}, "L2": {"integ": [0.91, 0.911, 0.888], "iqe": [0.86, 0.859, 0.82], "sym": [0.806, 0.81, 0.803], "scalar": [0.777, 0.747, 0.787]}, "L3": {"integ": [0.797, 0.795, 0.854], "iqe": [0.764, 0.766, 0.769], "sym": [0.773, 0.768, 0.774], "scalar": [0.643, 0.693, 0.687]}, "L4": {"integ": [0.823, 0.831, 0.848], "iqe": [0.75, 0.759, 0.795], "sym": [0.767, 0.766, 0.773], "scalar": [0.693, 0.695, 0.708]}, "L5": {"integ": [0.812, 0.802, 0.81], "iqe": [0.749, 0.786, 0.773], "sym": [0.767, 0.745, 0.735], "scalar": [0.672, 0.708, 0.7]}, "L6": {"integ": [0.766, 0.796, 0.712], "iqe": [0.727, 0.742, 0.724], "sym": [0.732, 0.735, 0.735], "scalar": [0.681, 0.688, 0.653]}}, "sym_ladder": {"L0": {"integ": [0.919, 0.906, 0.894], "iqe": [0.902, 0.882, 0.884], "mrn": [0.882, 0.877, 0.869], "sym": [0.887, 0.892, 0.881], "scalar": [0.895, 0.888, 0.898]}, "L1": {"integ": [0.945, 0.943, 0.95], "iqe": [0.91, 0.9, 0.907], "mrn": [0.917, 0.904, 0.913], "sym": [0.887, 0.891, 0.886], "scalar": [0.942, 0.934, 0.944]}, "L2": {"integ": [0.92, 0.926, 0.917], "iqe": [0.841, 0.854, 0.848], "mrn": [0.832, 0.845, 0.845], "sym": [0.806, 0.798, 0.783], "scalar": [0.883, 0.883, 0.88]}, "L3": {"integ": [0.889, 0.891, 0.89], "iqe": [0.776, 0.787, 0.769], "mrn": [0.761, 0.749, 0.752], "sym": [0.737, 0.748, 0.739], "scalar": [0.799, 0.771, 0.796]}, "L4": {"integ": [0.894, 0.893, 0.908], "iqe": [0.804, 0.79, 0.806], "mrn": [0.779, 0.741, 0.766], "sym": [0.756, 0.759, 0.743], "scalar": [0.81, 0.791, 0.801]}, "L5": {"integ": [0.91, 0.895, 0.907], "iqe": [0.783, 0.773, 0.786], "mrn": [0.741, 0.736, 0.763], "sym": [0.741, 0.739, 0.745], "scalar": [0.791, 0.794, 0.803]}, "L6": {"integ": [0.729, 0.86, 0.805], "iqe": [0.735, 0.729, 0.726], "mrn": [0.705, 0.695, 0.699], "sym": [0.701, 0.705, 0.709], "scalar": [0.727, 0.73, 0.728]}}, "pinpoint": {"L1": {"slots_k3": [0.946, 0.95], "slots_k1": [0.933, 0.947], "factored_ref": [0.94], "scalar_k1": [0.94], "iqe_k1": [0.922]}, "L1h": {"slots_k3": [0.858, 0.84], "slots_k1": [0.937, 0.732], "factored_ref": [0.899], "scalar_k1": [0.901], "iqe_k1": [0.908]}, "L1q": {"slots_k3": [0.871, 0.908], "slots_k1": [0.93, 0.773], "factored_ref": [0.928], "scalar_k1": [0.905], "iqe_k1": [0.877]}, "L2": {"slots_k3": [0.753, 0.688], "slots_k1": [0.896, 0.741], "factored_ref": [0.923], "scalar_k1": [0.816], "iqe_k1": [0.85]}}, "bind": {"L5": {"ent05_s8": [0.111], "ent2_s8": [0.702], "plain_s12": [0.842], "plain_s16": [0.833], "recon_s12": [0.738], "recon_s8": [0.726]}, "L3": {"ent05_s8": [0.27], "ent2_s8": [0.57], "plain_s12": [0.845], "plain_s16": [0.797], "recon_s12": [0.728, 0.759], "recon_s8": [0.737], "reconent_s12": [-0.001]}}, "slotattn": {"L1h": {"xattn_T4": [0.93, 0.94, 0.95], "sa_T4": [-0.002, 0.769, 0.703], "sa_T1": [0.405, 0.732, 0.737], "sa_i1_T4": [0.702, 0.698, 0.701], "sa_T4_recon": [0.9, 0.917, 0.776], "sa_iqe": [0.907, 0.913, 0.891]}, "L2": {"xattn_T4": [0.92, 0.901, 0.859], "sa_T4": [0.625, 0.729, 0.598], "sa_T1": [0.74, 0.707, 0.708], "sa_i1_T4": [0.748, -0.003, 0.665], "sa_T4_recon": [0.764, 0.68, 0.739], "sa_iqe": [0.812, 0.8, 0.874]}, "L3": {"xattn_T4": [0.748, 0.814, 0.793], "sa_T4": [0.63, 0.666, 0.676], "sa_T1": [0.626, 0.756, 0.628], "sa_i1_T4": [0.68, 0.667, 0.686], "sa_T4_recon": [0.72, 0.783, 0.661], "sa_iqe": [0.764, 0.764, 0.758]}}, "overnight": {"map": {"prev_best": [0.798, 0.813, 0.785], "fgcc": [0.887, 0.837, 0.901], "fgcc_L3": [0.854, 0.83, 0.878], "fgcc_d256L3": [0.843, 0.886, 0.818], "sl_d256L3s16": [0.86, 0.84, 0.828], "scalar_fgcc": [0.813, 0.783, 0.813], "sym_fgcc": [0.749, 0.764, 0.773], "iqe_fgcc": [0.754, 0.745, 0.732]}, "wire": {"prev_best": [0.812, 0.802, 0.81], "fgcc": [0.854, 0.857, 0.84], "fgcc_L3": [0.861, 0.856, 0.9], "fgcc_d256L3": [0.88, 0.864, 0.861], "sl_d256L3s16": [0.832, 0.846, 0.877], "scalar_fgcc": [0.809, 0.828, 0.827], "sym_fgcc": [0.758, 0.759, 0.754], "iqe_fgcc": [0.753, 0.746, 0.757]}}}, "test_mae": {"map_ladder": {"L0": {"integ": [0.439, 0.464, 0.427], "integ_8slots": [0.439, 0.464, 0.427], "iqe": [0.95, 0.653, 0.866], "sym": [0.74, 0.7, 0.775], "scalar": [0.606, 0.534, 0.583]}, "L1": {"integ": [1.181, 1.218, 1.302], "integ_8slots": [1.181, 1.218, 1.302], "iqe": [2.066, 2.154, 2.044], "sym": [2.067, 2.262, 2.221], "scalar": [1.491, 1.356, 1.323]}, "L2": {"integ": [1.831, 2.056, 2.503], "integ_8slots": [1.831, 2.056, 2.503], "iqe": [2.793, 2.715, 2.793], "sym": [3.126, 2.935, 3.127], "scalar": [2.977, 3.044, 2.981]}, "L3": {"integ": [2.741, 2.638, 2.506], "integ_8slots": [3.297, 2.801, 2.952], "iqe": [3.253, 3.332, 3.255], "sym": [3.25, 3.352, 3.434], "scalar": [3.707, 3.856, 4.092]}, "L4": {"integ": [2.951, 2.972, 2.656], "integ_8slots": [3.16, 3.076, 2.73], "iqe": [3.322, 3.191, 3.313], "sym": [3.328, 3.261, 3.217], "scalar": [3.958, 3.129, 4.006]}, "L5": {"integ": [2.88, 2.854, 3.05], "integ_8slots": [2.874, 3.422, 3.114], "iqe": [3.215, 3.43, 3.575], "sym": [3.421, 3.493, 3.569], "scalar": [3.996, 3.669, 4.055]}, "L6": {"integ": [4.15, 3.549, 3.167], "integ_8slots": [3.603, 3.374, 3.373], "iqe": [3.466, 3.79, 3.707], "sym": [3.681, 3.587, 3.689], "scalar": [4.286, 4.105, 4.318]}}, "wire_ladder": {"L0": {"integ": [0.382, 0.351, 0.383], "iqe": [0.589, 0.677, 0.751], "sym": [0.612, 0.808, 0.669], "scalar": [0.47, 0.468, 0.546]}, "L1": {"integ": [1.135, 1.164, 1.178], "iqe": [2.134, 2.036, 2.251], "sym": [2.032, 2.017, 2.084], "scalar": [1.586, 1.485, 1.559]}, "L2": {"integ": [1.899, 1.95, 2.219], "iqe": [2.745, 2.753, 3.059], "sym": [2.983, 2.915, 2.96], "scalar": [3.231, 3.417, 3.124]}, "L3": {"integ": [2.939, 2.972, 2.453], "iqe": [3.31, 3.345, 3.369], "sym": [3.154, 3.198, 3.172], "scalar": [4.188, 3.89, 4.048]}, "L4": {"integ": [2.754, 2.692, 2.557], "iqe": [3.376, 3.308, 3.205], "sym": [3.196, 3.207, 3.16], "scalar": [3.941, 4.047, 3.745]}, "L5": {"integ": [2.787, 2.913, 2.873], "iqe": [3.361, 3.171, 3.248], "sym": [3.183, 3.37, 3.63], "scalar": [4.084, 3.72, 3.954]}, "L6": {"integ": [3.193, 2.945, 3.693], "iqe": [3.791, 3.543, 3.72], "sym": [3.499, 3.494, 3.473], "scalar": [4.057, 3.999, 4.188]}}, "sym_ladder": {"L0": {"integ": [0.377, 0.514, 0.495], "iqe": [0.669, 0.797, 0.739], "mrn": [0.795, 0.856, 0.828], "sym": [0.756, 0.729, 0.739], "scalar": [0.558, 0.647, 0.508]}, "L1": {"integ": [1.243, 1.24, 1.146], "iqe": [1.88, 2.044, 1.953], "mrn": [1.779, 1.923, 1.836], "sym": [2.141, 2.125, 2.18], "scalar": [1.4, 1.512, 1.385]}, "L2": {"integ": [1.756, 1.679, 1.795], "iqe": [2.824, 2.701, 2.709], "mrn": [2.852, 2.731, 2.743], "sym": [3.15, 3.166, 3.244], "scalar": [2.301, 2.301, 2.319]}, "L3": {"integ": [2.04, 2.051, 2.069], "iqe": [3.242, 3.153, 3.29], "mrn": [3.292, 3.373, 3.356], "sym": [3.479, 3.439, 3.515], "scalar": [2.932, 3.127, 2.984]}, "L4": {"integ": [2.013, 2.039, 1.851], "iqe": [3.054, 3.146, 3.027], "mrn": [3.2, 3.463, 3.283], "sym": [3.404, 3.429, 3.465], "scalar": [2.885, 2.983, 2.907]}, "L5": {"integ": [1.815, 2.057, 1.898], "iqe": [3.166, 3.277, 3.179], "mrn": [3.4, 3.467, 3.283], "sym": [3.465, 3.504, 3.484], "scalar": [2.974, 3.004, 2.916]}, "L6": {"integ": [3.492, 2.418, 2.88], "iqe": [3.601, 3.657, 3.699], "mrn": [3.76, 3.793, 3.79], "sym": [3.832, 3.781, 3.804], "scalar": [3.599, 3.527, 3.555]}}, "pinpoint": {"L1": {"slots_k3": [1.392, 1.368], "slots_k1": [1.506, 1.265], "factored_ref": [1.293], "scalar_k1": [1.414], "iqe_k1": [1.853]}, "L1h": {"slots_k3": [2.199, 2.283], "slots_k1": [1.361, 3.426], "factored_ref": [1.74], "scalar_k1": [1.808], "iqe_k1": [1.979]}, "L1q": {"slots_k3": [2.317, 1.978], "slots_k1": [1.708, 3.366], "factored_ref": [1.655], "scalar_k1": [1.965], "iqe_k1": [2.508]}, "L2": {"slots_k3": [3.456, 3.816], "slots_k1": [2.13, 3.583], "factored_ref": [1.759], "scalar_k1": [2.931], "iqe_k1": [2.658]}}, "bind": {"L5": {"ent05_s8": [5.762], "ent2_s8": [3.878], "plain_s12": [2.548], "plain_s16": [2.628], "recon_s12": [3.412], "recon_s8": [3.564]}, "L3": {"ent05_s8": [5.612], "ent2_s8": [4.558], "plain_s12": [2.52], "plain_s16": [2.933], "recon_s12": [3.631, 3.268], "recon_s8": [3.452], "reconent_s12": [5.808]}}, "slotattn": {"L1h": {"xattn_T4": [1.381, 1.23, 1.134], "sa_T4": [5.211, 2.867, 3.576], "sa_T1": [4.61, 3.424, 3.173], "sa_i1_T4": [3.584, 3.622, 3.589], "sa_T4_recon": [1.68, 1.532, 2.752], "sa_iqe": [1.86, 1.932, 1.97]}, "L2": {"xattn_T4": [1.831, 2.056, 2.503], "sa_T4": [4.297, 3.77, 4.395], "sa_T1": [3.629, 3.858, 3.744], "sa_i1_T4": [3.594, 5.901, 4.091], "sa_T4_recon": [3.244, 3.997, 3.52], "sa_iqe": [3.085, 3.125, 2.536]}, "L3": {"xattn_T4": [3.297, 2.801, 2.952], "sa_T4": [4.224, 4.11, 3.914], "sa_T1": [4.364, 3.338, 4.256], "sa_i1_T4": [3.964, 4.109, 3.934], "sa_T4_recon": [3.634, 3.083, 4.088], "sa_iqe": [3.415, 3.35, 3.355]}}, "overnight": {"map": {"prev_best": [2.88, 2.854, 3.05], "fgcc": [2.066, 2.586, 1.956], "fgcc_L3": [2.445, 2.641, 2.215], "fgcc_d256L3": [2.495, 2.125, 2.71], "sl_d256L3s16": [2.376, 2.558, 2.711], "scalar_fgcc": [2.843, 3.133, 2.898], "sym_fgcc": [3.425, 3.244, 3.329], "iqe_fgcc": [3.521, 3.634, 3.804]}, "wire": {"prev_best": [2.787, 2.913, 2.873], "fgcc": [2.435, 2.394, 2.577], "fgcc_L3": [2.386, 2.431, 1.981], "fgcc_d256L3": [2.182, 2.275, 2.358], "sl_d256L3s16": [2.649, 2.507, 2.273], "scalar_fgcc": [2.887, 2.746, 2.746], "sym_fgcc": [3.348, 3.426, 3.442], "iqe_fgcc": [3.655, 3.651, 3.566]}}}};
+let METRIC='test_corr'; let D=DD[METRIC];
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const COL={prev_best:'--c-ref',fgcc:'--c-integ',fgcc_L3:'--c-integ',fgcc_d256L3:'--c-integ',sl_d256L3s16:'--c-ref',scalar_fgcc:'--c-scalar',sym_fgcc:'--c-sym',iqe_fgcc:'--c-iqe',integ:'--c-integ',iqe:'--c-iqe',sym:'--c-sym',scalar:'--c-scalar',mrn:'--c-mrn'};
+const LAB={prev_best:'previous best (12 slots)',fgcc:'fgpix + coordconv',fgcc_L3:'fgpix + cc, 3 layers',fgcc_d256L3:'fgpix + cc, d256 / 3 layers',sl_d256L3s16:'slots16 d256 L3',scalar_fgcc:'scalar (same tokens)',sym_fgcc:'sym (same tokens)',iqe_fgcc:'IQE (same tokens)',integ:'integ',iqe:'IQE',sym:'sym',scalar:'scalar',mrn:'MRN'};
+const RL={map:'L5 · unseen maps',wire:'L5 · rewired causality',L0:'L0 maze',L1:'L1 +push',L2:'L2 +gates',L3:'L3 +XOR',L4:'L4 +plate',L5:'L5 +chute',L6:'L6 dense'};
+function mean(a){return a&&a.length?a.reduce((x,y)=>x+y,0)/a.length:null;}
+const LOWER=()=>METRIC==='test_mae'; function betterOf(a,b){return LOWER()?a<b:a>b;} function marginOf(im,best){return LOWER()?best-im:im-best;}
+function grouped(id, table, rungs, keys, ymin, opts={}){
+  const cv=document.getElementById(id); if(!cv) return; const ctx=cv.getContext('2d');
+  const dpr=Math.min(window.devicePixelRatio||1,2); const W=cv.clientWidth||900, H=Math.round(W*(opts.ratio||0.43));
+  cv.width=W*dpr; cv.height=H*dpr; cv.style.height=H+'px'; ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
+  const left=46,right=12,top=26,bottom=44; const pw=W-left-right, ph=H-top-bottom;
+  let ymax=1.0; if(LOWER()){ ymin=0; ymax=opts.maxmae||4.8; }
+  const Y=v=>top+ph*(1-(v-ymin)/(ymax-ymin));
+  ctx.strokeStyle=css('--grid'); ctx.lineWidth=1; ctx.font='11px ui-monospace,monospace'; ctx.fillStyle=css('--faint'); ctx.textAlign='right';
+  const stepv=LOWER()?0.5:0.1; for(let v=ymin; v<=ymax+1e-9; v+=stepv){ const y=Y(v); ctx.beginPath(); ctx.moveTo(left,y); ctx.lineTo(W-right,y); ctx.stroke(); ctx.fillText(v.toFixed(1), left-6, y+4); }
+  ctx.save(); ctx.translate(12,top+ph/2); ctx.rotate(-Math.PI/2); ctx.textAlign='center'; ctx.fillStyle=css('--faint'); ctx.fillText(LOWER()?'test MAE (lower better)':'test corr (higher better)',0,0); ctx.restore();
+  const ng=rungs.length, gw=pw/ng, nb=keys.length, bw=Math.min(30,(gw*0.78)/nb);
+  rungs.forEach((r,gi)=>{ const x0=left+gi*gw+(gw-bw*nb)/2;
+    keys.forEach((k,bi)=>{ const vals=(table[r]||{})[k]||[]; const m=mean(vals); const x=x0+bi*bw;
+      if(m!==null){ ctx.fillStyle=css(COL[k]||'--c-ref'); ctx.globalAlpha=(k==='integ'||k==='fgcc')?1:.85; const mm=Math.min(m,ymax); ctx.fillRect(x+1,Y(mm),bw-2,Y(ymin)-Y(mm)); ctx.globalAlpha=1;
+        ctx.fillStyle=css('--ink'); vals.forEach(v=>{ ctx.beginPath(); ctx.arc(x+bw/2, Y(Math.min(ymax,Math.max(ymin,v))), 2.2, 0, 7); ctx.fill(); });
+        ctx.font='10px ui-monospace,monospace'; ctx.fillStyle=css('--muted'); ctx.textAlign='center'; ctx.fillText(m.toFixed(2), x+bw/2, Y(mm)-4);
+      } else { ctx.fillStyle=css('--faint'); ctx.font='10px ui-monospace,monospace'; ctx.textAlign='center'; ctx.fillText('–', x+bw/2, Y(ymin)-6); } });
+    ctx.fillStyle=css('--ink'); ctx.font='600 12px system-ui,sans-serif'; ctx.textAlign='center'; ctx.fillText(RL[r]||r, left+gi*gw+gw/2, H-bottom+18); });
+  let lx=left; const ly=H-8; ctx.font='11px system-ui,sans-serif'; ctx.textAlign='left';
+  keys.forEach(k=>{ ctx.fillStyle=css(COL[k]||'--c-ref'); ctx.fillRect(lx,ly-9,10,10); ctx.fillStyle=css('--muted'); ctx.fillText(LAB[k]||k,lx+14,ly); lx+=ctx.measureText(LAB[k]||k).width+30; });
+}
+function marginChart(){
+  const cv=document.getElementById('c_margin'); const ctx=cv.getContext('2d');
+  const dpr=Math.min(window.devicePixelRatio||1,2); const W=cv.clientWidth||900, H=Math.round(W*0.32);
+  cv.width=W*dpr; cv.height=H*dpr; cv.style.height=H+'px'; ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
+  const rungs=['L0','L1','L2','L3','L4','L5','L6']; const left=46,right=12,top=20,bottom=40; const pw=W-left-right, ph=H-top-bottom;
+  const ymin=LOWER()?-0.4:-0.04, ymax=LOWER()?1.4:0.14; const Y=v=>top+ph*(1-(v-ymin)/(ymax-ymin)); const X=i=>left+pw*(i+0.5)/rungs.length;
+  ctx.strokeStyle=css('--grid'); ctx.font='11px ui-monospace,monospace'; ctx.fillStyle=css('--faint'); ctx.textAlign='right';
+  for(let v=ymin; v<=ymax+1e-9; v+=(LOWER()?0.2:0.02)){ const y=Y(v); ctx.lineWidth=Math.abs(v)<1e-9?1.5:1; ctx.beginPath(); ctx.moveTo(left,y); ctx.lineTo(W-right,y); ctx.stroke(); ctx.fillText((v>0?'+':'')+v.toFixed(2), left-6, y+4); }
+  function series(tab, keys, color, dash, label){
+    const pts=rungs.map((r,i)=>{ const row=tab[r]||{}; const im=mean(row.integ); let best=null; keys.forEach(k=>{ const m=mean(row[k]); if(m!==null&&(best===null||betterOf(m,best))) best=m; }); return (im!==null&&best!==null)?[X(i),Y(marginOf(im,best)),marginOf(im,best)]:null; });
+    ctx.setLineDash(dash); ctx.strokeStyle=css(color); ctx.lineWidth=2.5; ctx.beginPath(); let st=false; pts.forEach(p=>{ if(!p) return; if(!st){ctx.moveTo(p[0],p[1]);st=true;} else ctx.lineTo(p[0],p[1]); }); ctx.stroke(); ctx.setLineDash([]);
+    pts.forEach(p=>{ if(!p) return; ctx.fillStyle=css(color); ctx.beginPath(); ctx.arc(p[0],p[1],4,0,7); ctx.fill(); ctx.fillStyle=css('--muted'); ctx.font='10px ui-monospace,monospace'; ctx.textAlign='center'; ctx.fillText((p[2]>0?'+':'')+p[2].toFixed(2), p[0], p[1]-8); }); return label; }
+  const legs=[[series(D.map_ladder,['iqe','sym','scalar'],'--c-integ',[],'image · map'),'--c-integ',[]],[series(D.wire_ladder,['iqe','sym','scalar'],'--c-iqe',[6,4],'image · wire'),'--c-iqe',[6,4]],[series(D.sym_ladder,['iqe','mrn','sym','scalar'],'--c-mrn',[2,4],'symbolic · map'),'--c-mrn',[2,4]]];
+  ctx.fillStyle=css('--ink'); ctx.font='600 12px system-ui,sans-serif'; ctx.textAlign='center'; rungs.forEach((r,i)=>ctx.fillText(RL[r],X(i),H-bottom+18));
+  let lx=left; ctx.font='11px system-ui,sans-serif'; ctx.textAlign='left'; legs.forEach(([lab,col,dash])=>{ ctx.strokeStyle=css(col); ctx.setLineDash(dash); ctx.lineWidth=2.5; ctx.beginPath(); ctx.moveTo(lx,H-10); ctx.lineTo(lx+22,H-10); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle=css('--muted'); ctx.fillText(lab,lx+28,H-6); lx+=ctx.measureText(lab).width+60; });
+}
+function table(id, tab, rungs, keys, integKey){
+  const t=document.getElementById(id); if(!t) return; integKey=integKey||'integ';
+  let h='<tr><th>rung</th>'+keys.map(k=>'<th>'+(LAB[k]||k)+'</th>').join('')+'<th>'+(LOWER()?'MAE gain':'margin')+'</th></tr>';
+  rungs.forEach(r=>{ const row=tab[r]||{}; const im=mean(row[integKey]); let best=null; keys.forEach(k=>{ if(k===integKey||k==='prev_best'||k.startsWith('fgcc')||k.startsWith('sl_')) return; const m=mean(row[k]); if(m!==null&&(best===null||betterOf(m,best))) best=m; });
+    h+='<tr><td>'+(RL[r]||r)+'</td>'+keys.map(k=>{ const v=row[k]||[]; const m=mean(v); return '<td class="'+((k===integKey)?'i':'')+'">'+(m===null?'–':m.toFixed(3)+' <span style="color:var(--faint);font-size:11px">('+v.map(x=>x.toFixed(2)).join('/')+')</span>')+'</td>'; }).join('');
+    const mg=(im!==null&&best!==null)?marginOf(im,best):null; h+='<td class="'+(mg===null?'':(mg>=0?'pos':'neg'))+'">'+(mg===null?'':(mg>0?'+':'')+mg.toFixed(3))+'</td></tr>'; });
+  t.innerHTML=h;
+}
+function drawAll(){
+  const R=['L0','L1','L2','L3','L4','L5','L6'];
+  grouped('c_over', D.overnight, ['map','wire'], ['prev_best','fgcc','fgcc_L3','fgcc_d256L3','scalar_fgcc','sym_fgcc','iqe_fgcc'], 0.6, {ratio:0.36});
+  table('t_over', D.overnight, ['map','wire'], ['prev_best','fgcc','fgcc_L3','fgcc_d256L3','scalar_fgcc','sym_fgcc','iqe_fgcc'], 'fgcc');
+  grouped('c_map', D.map_ladder, R, ['integ','iqe','sym','scalar'], 0.6); table('t_map', D.map_ladder, R, ['integ','iqe','sym','scalar']);
+  grouped('c_wire', D.wire_ladder, R, ['integ','iqe','sym','scalar'], 0.6); table('t_wire', D.wire_ladder, R, ['integ','iqe','sym','scalar']);
+  marginChart();
+}
+function setMetric(mm){ METRIC=mm; D=DD[METRIC]; document.getElementById('btn_corr').classList.toggle('on',mm==='test_corr'); document.getElementById('btn_mae').classList.toggle('on',mm==='test_mae');
+  document.getElementById('metric_note').textContent = mm==='test_mae' ? 'mean |predicted − true distance| on held-out pairs; margin = best baseline − integ' : 'Pearson r on held-out pairs; margin = integ − best baseline'; drawAll(); }
+document.getElementById('btn_corr').onclick=()=>setMetric('test_corr'); document.getElementById('btn_mae').onclick=()=>setMetric('test_mae');
+setMetric('test_corr'); window.addEventListener('resize',drawAll);
+try{ new MutationObserver(drawAll).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']}); window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',drawAll);}catch(e){}
+</script>
