@@ -301,7 +301,7 @@ def train(a):
             if a.enc == "pureimage":                              # everything in pixels -> CNN -> K slots (or pixel tokens)
                 kk, pd_ = a.cnnk, a.cnnk // 2                          # --cnnk 1 = per-pixel MLP (no spatial mixing)
                 k2, p2 = (3, 1) if a.cnnmix else (kk, pd_)              # --cnnmix: 1x1 first (keep identity), 3x3 after (context)
-                convs = [nn.Conv2d(PIMGC + (2 if a.coordconv else 0), a.cnnw, kk, padding=pd_), nn.ReLU()]
+                convs = [nn.Conv2d(PIMGC + (2 if a.coordconv else 0) + (1 if a.objch else 0), a.cnnw, kk, padding=pd_), nn.ReLU()]
                 if a.readout == "fgpix": s.emptytok = nn.Parameter(torch.randn(d) * 0.02)   # pad token for unlit slots
                 for _ in range(max(0, a.cnndepth - 2)):
                     convs += [nn.Conv2d(a.cnnw, a.cnnw, k2, padding=p2), nn.ReLU()]
@@ -321,6 +321,7 @@ def train(a):
                 if a.readout == "xattn":                          # K generic learned slot queries (nothing named)
                     s.squery = nn.Parameter(torch.randn(a.slots, d) * 0.02)
                     s.sattn = nn.MultiheadAttention(d, a.markerheads, batch_first=True)
+                    if a.fgmask == 2: s.fgbias = nn.Parameter(torch.tensor(2.0))   # learned objectness bias on attention logits
                     if a.recon == "slot":                          # UNSUPERVISED: K slots explain ALL entity channels exclusively
                         s.prdec = nn.Linear(d, d)                  # slot -> spatial query over pimgpos
                         s.prch = nn.Linear(d, PIMGC - 1)           # slot -> which entity channel (walls excluded)
@@ -446,7 +447,9 @@ def train(a):
             cin = img
             if a.coordconv:                                        # explicit x/y coordinate channels
                 yy, xx = torch.meshgrid(torch.linspace(-1, 1, a.G, device=x.device), torch.linspace(-1, 1, a.G, device=x.device), indexing="ij")
-                cin = torch.cat([img, yy[None, None].expand(B, 1, -1, -1), xx[None, None].expand(B, 1, -1, -1)], 1)
+                cin = torch.cat([cin, yy[None, None].expand(B, 1, -1, -1), xx[None, None].expand(B, 1, -1, -1)], 1)
+            if a.objch:                                            # objectness FEATURE channel: 1 where any entity channel is lit
+                cin = torch.cat([cin, (img[:, 1:] > 0.75).any(1, keepdim=True).float()], 1)
             feat = s.pcnn(cin)                                     # (B,d,G,G)
             fmap = feat.flatten(2).transpose(1, 2) + s.pimgpos[None]   # (B,ncell,d)
             if a.readout == "fgpix":                               # FOREGROUND pixels as tokens: cells lit in any entity channel
@@ -482,7 +485,16 @@ def train(a):
                 return tok + s.fid(torch.arange(NTOK, device=x.device))[None]
             if a.readout == "xattn":                               # K slots
                 q = s.squery[None].expand(B, -1, -1)
-                tok, attw = s.sattn(q, fmap, fmap, need_weights=True, average_attn_weights=True)   # (B,K,d), (B,K,ncell)
+                if a.fgmask:                                       # objectness hint: which pixels are objects (lit in any entity channel)
+                    fgb = (img.flatten(2)[:, 1:] > 0.75).any(1)    # (B,ncell) bool
+                    if a.fgmask == 1:                              # hard: slots may only attend to object cells
+                        tok, attw = s.sattn(q, fmap, fmap, key_padding_mask=~fgb, need_weights=True, average_attn_weights=True)
+                    else:                                          # soft: learned additive bias on object cells' logits
+                        am = (fgb.float() * s.fgbias)[:, None, :].expand(-1, a.slots, -1)               # (B,K,ncell)
+                        am = am.repeat_interleave(a.markerheads, 0)                                       # (B*heads,K,ncell)
+                        tok, attw = s.sattn(q, fmap, fmap, attn_mask=am, need_weights=True, average_attn_weights=True)
+                else:
+                    tok, attw = s.sattn(q, fmap, fmap, need_weights=True, average_attn_weights=True)   # (B,K,d), (B,K,ncell)
                 s._lastattn = attw.detach(); s._lastimg = img.detach()
                 if a.attnent > 0 and s._aux is not None:           # sharpen: penalise attention entropy (soft 'crisp read')
                     s._aux = s._aux + a.attnent * (-(attw * (attw + 1e-9).log()).sum(-1)).mean()
@@ -777,7 +789,7 @@ def train(a):
                                       markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, cnndepth=a.cnndepth, steps=a.steps, seed=a.seed,
                                       d=a.d, layers=a.layers, baselayers=(a.baselayers if a.baselayers >= 0 else a.layers),
                                       heads=a.heads, T=a.T, lr=a.lr, latentnorm=a.latentnorm, gradclip=a.gradclip, seewalls=a.seewalls,
-                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath, supbind=a.supbind, coordconv=a.coordconv, cnnk=a.cnnk, slotiters=a.slotiters, slotnoise=a.slotnoise, warmup=a.warmup, attnent=a.attnent, attnovl=a.attnovl, slotln=a.slotln, cnnmix=a.cnnmix, cosine=a.cosine, bs=a.bs, curriculum=int(a.curriculum), basepool=a.basepool,
+                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath, supbind=a.supbind, coordconv=a.coordconv, cnnk=a.cnnk, slotiters=a.slotiters, slotnoise=a.slotnoise, warmup=a.warmup, attnent=a.attnent, attnovl=a.attnovl, slotln=a.slotln, cnnmix=a.cnnmix, cosine=a.cosine, bs=a.bs, curriculum=int(a.curriculum), basepool=a.basepool, fgmask=a.fgmask, objch=a.objch,
                                       gatesopen=int(a.gatesopen), nopush=int(a.nopush), wire1=int(a.wire1), noplate=int(a.noplate),
                                       tag=a.tag, **out)), flush=True)
 
@@ -800,6 +812,8 @@ def main():
     ap.add_argument("--wirepath", type=int, default=0, help="--enc pureimage: draw lever->gate wiring as an L-shaped 0.5 path in the lever channel")
     ap.add_argument("--cnnk", type=int, default=3, help="--enc pureimage: conv kernel size (1 = per-pixel MLP, no spatial mixing)")
     ap.add_argument("--coordconv", type=int, default=0, help="--enc pureimage: add x/y coordinate channels to the CNN input")
+    ap.add_argument("--objch", type=int, default=0, help="--enc pureimage: add an object-vs-background input channel (feature, not a mask)")
+    ap.add_argument("--fgmask", type=int, default=0, help="--enc pureimage xattn: objectness hint for slots. 1 = attend only to lit (object) cells; 2 = learned additive bias on object cells")
     ap.add_argument("--attnovl", type=float, default=0.0, help="--enc pureimage xattn: slot attention-overlap penalty (diversity)")
     ap.add_argument("--slotln", type=int, default=0, help="--enc pureimage xattn: LayerNorm on slot tokens")
     ap.add_argument("--cnnmix", type=int, default=0, help="--enc pureimage: 1x1 first conv, 3x3 afterwards")
