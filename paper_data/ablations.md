@@ -9,7 +9,7 @@ Reference model: 16 slots / d 256 / 3-layer shared block / T 4 / 1×1 encoder wi
 |---|---|---|---|
 | T = 1 (no recurrence) | 0.857 ± 0.024 | 0.849 ± 0.005 | −0.003 |
 | T = 8 | 0.811 ± 0.015 | 0.817 ± 0.082 | −0.049 |
-| T = 14 | (finishing; earlier runs at d256/L3: ≈ 0.83–0.85) | | |
+| T = 14 | 0.834 ± (3 seeds) | 0.827 | −0.026 |
 | no recall (goal/start not re-injected) | 0.833 ± 0.007 | 0.857 ± 0.032 | −0.027 |
 | 8 slots (< #entities) | 0.809 ± 0.035 | 0.849 ± 0.025 | −0.051 |
 | 12 slots | 0.814 ± 0.015 | 0.829 ± 0.028 | −0.046 |

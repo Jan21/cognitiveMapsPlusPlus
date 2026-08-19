@@ -129,3 +129,13 @@ only where there is no coupling (plain maze, push); the biggest baseline there i
 Files: tuning grids `leo_tuneA.sbatch`, `leo_tuneA2.sbatch`, `leo_tuneA3.sbatch`, `tuneA5.sbatch`; selection
 `phaseBp_config.json`; final run `leo_phaseBp.sbatch`; raw outputs Leonardo `$CINECA_SCRATCH/cmpp_out/tuneA*`,
 `phaseBp_*`, CIIRC `tuneA5_*`.
+
+
+## 6. External configuration check (colleague's `CONFIGS.md` scalar recipe)
+A configuration sheet found in `paper_data/CONFIGS.md` (external origin, method name "DELPI"; setup 512 training maps,
+`--seewalls 1`, scalar at 4 layers / lr 1e-3 / 60k) suggested a substantially stronger scalar baseline in the factored
+setting. Re-run under our protocol at L5, unseen maps: 200 maps 0.789 ± 0.016 (3 seeds); 560 maps (matching their
+diversity) 0.799 (2 seeds); 560 maps without seewalls 0.796. All within noise of our tuned scalar (0.796) and far from
+the integrator (0.904). Neither the extra map diversity, the doorway tokens, nor the 4-layer/lr-1e-3 setting changes
+the scalar baseline's level; the sheet's implied strength does not replicate, consistent with the earlier `--seewalls`
+finding.
