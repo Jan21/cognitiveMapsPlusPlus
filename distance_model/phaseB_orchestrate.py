@@ -12,12 +12,12 @@ def head(d):
         if h in d: return h,d[h]
 # ---- wait for phase A
 for it in range(60):
-    leo=ssh("leonardo",'grep -h "^RESULT" $CINECA_SCRATCH/cmpp_out/tuneA_*.out $CINECA_SCRATCH/cmpp_out/tuneA2_*.out 2>/dev/null; echo "===Q $(squeue --me -h | wc -l)"')
+    leo=ssh("leonardo",'grep -h "^RESULT" $CINECA_SCRATCH/cmpp_out/tuneA_*.out $CINECA_SCRATCH/cmpp_out/tuneA2_*.out $CINECA_SCRATCH/cmpp_out/tuneA3_*.out 2>/dev/null; echo "===Q $(squeue --me -h | wc -l)"')
     ci=ssh("ciirc-old-cluster",'cd ~/cognitiveMapsPlusPlus/distance_model; grep -h "^RESULT" tuneA5_*.out 2>/dev/null; echo "===Q $(squeue -h -u hulajan1 -n tuneA5 | wc -l)"')
     nl=leo.count("RESULT"); nc=ci.count("RESULT")
     ql=re.search(r"===Q (\d+)",leo); qc=re.search(r"===Q (\d+)",ci)
     print(f"[{time.strftime('%H:%M')}] A: leo {nl}/99 (q {ql.group(1) if ql else '?'}), ciirc {nc}/36 (q {qc.group(1) if qc else '?'})", flush=True)
-    if nl>=78 and nc>=34: break      # Leonardo: MRN-slots L5 (9) + A2 L5 (72); CIIRC: fgcc L5 grid (36)
+    if nl>=78+34 and nc>=34: break      # Leonardo: MRN-slots L5 (9) + A2 L5 (72); CIIRC: fgcc L5 grid (36)
     if ql and qc and ql.group(1)=="0" and qc.group(1)=="0" and it>2: break
     time.sleep(600)
 open(S+"tuneA.txt","w").write(leo+ci)
@@ -27,25 +27,31 @@ for fn in ("tuneA.txt","leo.txt"):
     for l in open(S+fn):
         if not l.startswith("RESULT"): continue
         d=json.loads(l[7:]); t=d.get("tag","")
-        if t.startswith("tA_") or t.startswith("tA2_") or t.startswith("ft_"): rows.append(d)
-best=defaultdict(dict)   # best[(group, head)] = (score, readout, L, lr)
+        if t.startswith("tA_") or t.startswith("tA2_") or t.startswith("tA3_") or t.startswith("ft_"): rows.append(d)
+INTEG_PARAMS=562497; CAP=int(1.25*INTEG_PARAMS)
+best=defaultdict(dict)   # (score, readout, L, lr, pool, d, params, cnndepth, cnnw)
+bestm=defaultdict(dict)  # same, restricted to params <= CAP (parameter-matched)
 for d in rows:
     t=d["tag"]; h,r=head(d); c=r["test_corr"]
     if c is None: continue
-    pool="mean"; dd=128
-    if t.startswith("tA2_"):
+    pool="mean"; dd=128; cdep=2; cw=64; params=r.get("params")
+    if t.startswith("tA3_"):
+        _,rung,en,hh,Ls,ds=t.split("_"); L=int(Ls[1:]); dd=int(ds[1:]); lr="1e-3"
+        m_=re.match(r"pixk3d(\d)w(\d+)([FM])",en); cdep=int(m_.group(1)); cw=int(m_.group(2)); pool="flat" if m_.group(3)=="F" else "mean"; ro="pixk3cc"
+    elif t.startswith("tA2_"):
         _,rung,en,hh,Ls,ds=t.split("_"); L=int(Ls[1:]); dd=int(ds[1:]); lr="1e-3"
         ro={"pixk3ccF":"pixk3cc","pixk1ccF":"pixk1cc","fgccF":"fgcc","slotsF":"slots","pixk1ccM":"pixk1cc"}[en]; pool="flat" if en.endswith("F") else "mean"
     elif t.startswith("tA_"):
         _,rung,ro,hh,Ls,lrs=t.split("_"); ro="fgcc" if ro=="fgcc" else "slots"; L=int(Ls[1:]); lr=lrs[2:]
     else:
         _,rung,hh,Ls,lrs=t.split("_"); ro="slots"; L=int(Ls[1:]); lr=lrs[2:]
-    key=(rung,hh)
-    if key not in best or c>best[key][0]: best[key]=(c,ro,L,lr,pool,dd)
+    key=(rung,hh); rec=(c,ro,L,lr,pool,dd,params,cdep,cw)
+    if key not in best or c>best[key][0]: best[key]=rec
+    if params is not None and params<=CAP and (key not in bestm or c>bestm[key][0]): bestm[key]=rec
 print("best per (rung, head):"); 
 for k in sorted(best): print("  ",k,best[k])
-def cfg(rung,hh):
-    return best.get(("L5",hh))        # ONE setting per model, tuned on the full switchyard, used at every rung
+def cfg(rung,hh,tab=None):
+    return (tab if tab is not None else best).get(("L5",hh))        # ONE setting per model, tuned on the full switchyard, used at every rung
 # ---- generate phase B
 base="--enc pureimage --heads 4 --cnnw 64 --cnndepth 2 --nmaps 200 --poolq 2000 --steps 80000 --gradclip 1.0 --warmup 2000"
 R=[("L0","--gatesopen --nopush"),("L1","--gatesopen"),("L2","--wire1 --noplate"),("L3","--noplate"),("L4","--nchute 0"),("L5",""),("L6","--ngate 4 --nlever 3")]
@@ -56,12 +62,14 @@ for rung,fl in R:
             A.append((f"B_{rung}{sp}_integ_s{sd}", f"{base} {fl} --split {sp} --seed {sd} --cnnk 1 --d 128 --readout fgpix --coordconv 1 --T 4 --layers 4 --lr 1e-3 --nobaseline"))
             A.append((f"B_{rung}{sp}_integL3_s{sd}", f"{base} {fl} --split {sp} --seed {sd} --cnnk 1 --d 128 --readout fgpix --coordconv 1 --T 4 --layers 3 --lr 1e-3 --nobaseline"))
             for hh in ("iqe","mrn","sym","scalar"):
-                c=cfg(rung,hh)
-                if not c: continue
-                _,ro,L,lr,pool,dd=c
-                rd = {"fgcc":"--readout fgpix --coordconv 1 --cnnk 1","slots":"--readout xattn --slots 12 --cnnk 1",
-                      "pixk3cc":"--readout pixels --cnnk 3 --coordconv 1","pixk1cc":"--readout pixels --cnnk 1 --coordconv 1"}[ro]
-                A.append((f"B_{rung}{sp}_{hh}_s{sd}", f"{base} {fl} --split {sp} --seed {sd} {rd} --{hh}only --baselayers {L} --lr {lr} --basepool {pool} --d {dd}"))
+                for suffix,tab in (("",best),("M",bestm)):
+                    c=cfg(rung,hh,tab)
+                    if not c: continue
+                    if suffix=="M" and best.get(("L5",hh))==bestm.get(("L5",hh)): continue   # identical config -> no duplicate
+                    _,ro,L,lr,pool,dd,params,cdep,cw=c
+                    rd = {"fgcc":"--readout fgpix --coordconv 1 --cnnk 1","slots":"--readout xattn --slots 12 --cnnk 1",
+                          "pixk3cc":f"--readout pixels --cnnk 3 --coordconv 1 --cnndepth {cdep} --cnnw {cw}","pixk1cc":"--readout pixels --cnnk 1 --coordconv 1"}[ro]
+                    A.append((f"B_{rung}{sp}_{hh}{suffix}_s{sd}", f"{base} {fl} --split {sp} --seed {sd} {rd} --{hh}only --baselayers {L} --lr {lr} --basepool {pool} --d {dd}"))
 lines=[f' "python3 switchyard.py --train {cmd} --tag {tag}"' for tag,cmd in A]
 sb=f'''#!/bin/bash
 #SBATCH -A EUHPC_B38_121
@@ -87,7 +95,7 @@ echo "TASK $SLURM_ARRAY_TASK_ID / ${{#A[@]}} : ${{A[$SLURM_ARRAY_TASK_ID]}}"
 srun ${{A[$SLURM_ARRAY_TASK_ID]}}
 '''
 open("/home/jan/projects/CIIRC/colabs/Alma/cognitiveMapsPlusPlus/distance_model/leo_phaseB.sbatch","w").write(sb)
-json.dump({f"{k[0]}|{k[1]}":v for k,v in best.items()}, open("/home/jan/projects/CIIRC/colabs/Alma/cognitiveMapsPlusPlus/distance_model/phaseA_best.json","w"), indent=1)
+json.dump({"unconstrained":{f"{k[0]}|{k[1]}":v for k,v in best.items()},"param_matched":{f"{k[0]}|{k[1]}":v for k,v in bestm.items()},"integ_params":INTEG_PARAMS,"cap":CAP}, open("/home/jan/projects/CIIRC/colabs/Alma/cognitiveMapsPlusPlus/distance_model/phaseA_best.json","w"), indent=1)
 print("phase B runs:",len(A))
 subprocess.run(["scp","-q","/home/jan/projects/CIIRC/colabs/Alma/cognitiveMapsPlusPlus/distance_model/leo_phaseB.sbatch","leonardo:~/cmpp/distance_model/"])
 print(ssh("leonardo","cd ~/cmpp/distance_model && sbatch leo_phaseB.sbatch"))
