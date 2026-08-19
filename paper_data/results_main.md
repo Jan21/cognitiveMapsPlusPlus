@@ -57,3 +57,6 @@ Splits: `map` = 50 held-out layouts with their own wiring; `wire` = same 200 lay
   the integrator without it still leads at every coupled rung.
 - Parameter counts: integ 1.9 M; unconstrained baselines 2.0–6.7 M; param-matched 0.64–0.76 M. The integrator beats
   both regimes at L2–L6; the small 12-slot / d128 integrator (0.56 M) is in the ablation file.
+- Data scaling (probe, see `ablations.md`): 683 training maps instead of 200 lift the L5 integrator to
+  0.953 / MAE 1.32 (map) and 0.943 / 1.41 (wire), 3 seeds; an IQE control on the same encoder reaches 0.836, so the
+  margin widens with map diversity. The 200-map tables above remain the headline (all baselines fully tuned there).

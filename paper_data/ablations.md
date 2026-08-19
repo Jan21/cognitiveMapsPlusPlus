@@ -9,7 +9,7 @@ Reference model: 16 slots / d 256 / 3-layer shared block / T 4 / 1×1 encoder wi
 |---|---|---|---|
 | T = 1 (no recurrence) | 0.857 ± 0.024 | 0.849 ± 0.005 | −0.003 |
 | T = 8 | 0.811 ± 0.015 | 0.817 ± 0.082 | −0.049 |
-| T = 14 | 0.834 ± (3 seeds) | 0.827 | −0.026 |
+| T = 14 | 0.834 ± 0.020 | 0.827 ± 0.051 | −0.026 |
 | no recall (goal/start not re-injected) | 0.833 ± 0.007 | 0.857 ± 0.032 | −0.027 |
 | 8 slots (< #entities) | 0.809 ± 0.035 | 0.849 ± 0.025 | −0.051 |
 | 12 slots | 0.814 ± 0.015 | 0.829 ± 0.028 | −0.046 |
@@ -48,7 +48,8 @@ final model. Attention-entropy sharpening: hurts (up to −0.5). Hard / straight
 attention bias on lit cells: small gain, excluded from the final model by design choice (input-feature hint only).
 Coordinate input channels with slots: no gain (they matter only for the hand-built fgpix tokenizer). Wire-path
 rendering (drawing lever→gate connections as paths): hurts. Slot-overlap penalty, slot LayerNorm: hurt. More maps
-(400/800), longer training, deeper/wider blocks, more heads, 1×1-then-3×3 mixing: flat or worse.
+(400/800) and longer training were flat *on the pre-final recipes* (3×3 encoder era); on the final recipe more maps is
+a large win, see "Training-map diversity" below. Deeper/wider blocks, more heads, 1×1-then-3×3 mixing: flat or worse.
 Supervised binding (Hungarian-matched slot→entity cell auxiliary): **ceiling below the unsupervised model on the 1×1
 encoder** (0.77 vs 0.84–0.86 at L5/L3) — binding is not the remaining bottleneck; on the 3×3 encoder the same ceiling
 is 0.71, confirming the encoder, not the binding, was the block.
@@ -73,7 +74,19 @@ best-on-held-out checkpoint selection shifts MAE by only 0.02-0.07. Single seed 
 
 **On the IMAGE setting the decode head fails to FIT at the shared recipe** (same joint recurrence, slots and recipe
 as the final integrator, 3 seeds, 80k): train MAE 4-6, test corr 0.39-0.69 / MAE 4.5-5.7 vs accumulation 0.860 / 0.852
-(MAE 2.2, train MAE ~0.5). This is an optimisation failure, not a generalisation gap; a decode-head-specific
-hyper-parameter screen (lr, warmup, T, schedule) is running to determine whether any recipe rescues it. Pending that,
-the safe statement is: under learned slot perception the accumulation readout trains robustly where the decode head
-does not, at the recipe that serves the accumulation readout.
+(MAE 2.2, train MAE ~0.5). A decode-head-specific hyper-parameter screen (seed 0, 80k each) did **not** rescue it:
+lr 3e-4 → 0.704 / 3.60 (train MAE 2.1), lr 5e-4 → 0.753 / 3.39 (train 3.1), lr 2e-3 → nan, warm-up 8k → 0.525,
+T 1 → 0.645, T 8 → 0.588, cosine decay → 0.710. Best screened decode head 0.753 vs accumulation 0.860 at matched
+budget, and every configuration remains underfit (train MAE ≥ 2 vs 0.5). Statement for the paper: in the factored
+setting the two readouts tie; under learned slot perception the accumulation readout trains robustly while the decode
+head cannot be made to fit by tuning lr, warm-up, recurrence depth or schedule. Raw numbers:
+`ablations_raw.json / decodehead_screen`.
+
+## Training-map diversity (probe, final recipe, 683 training-split maps vs 200)
+Scaling the map pool 200 → 683 (identical protocol, m%4 held-out split, 171 unseen test maps, 80k steps, 3 seeds)
+lifts the full-switchyard image model from 0.860 / MAE 2.20 to **0.953 ± 0.007 / MAE 1.32 (map)** and
+0.943 ± 0.020 / MAE 1.41 (wire); 120k steps adds nothing (0.957, seed 0). An IQE control at 683 maps on the same
+slot encoder (single seed) reaches 0.836 / 2.83, so the margin *widens* with data (+0.09 → +0.12); caveat: this
+control is not the phase-B′ best IQE variant (3×3 flatten encoder), which would need a rerun for a headline claim.
+Perception, not the metric head, is what the extra maps buy: train MAE drops 0.7 → 0.6-0.9 with far better transfer.
+Raw numbers: `ablations_raw.json / nmaps683_probe`.
