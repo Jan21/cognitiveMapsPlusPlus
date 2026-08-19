@@ -1,0 +1,29 @@
+{
+ "integ": "--cnnk 1 --readout xattn --slots 16 --d 256 --layers 3 --T 4 --lr 1e-3 --nobaseline",
+ "hint": "objch_fgm2",
+ "hint_scores": {
+  "objch": 0.8731666666666666,
+  "fgm2": 0.8756666666666667,
+  "objch_fgm2": 0.8843333333333334,
+  "objch_cc": 0.8506666666666667,
+  "objch_cc_fgm2": 0.8574999999999999
+ },
+ "baselines": {
+  "iqe": [
+   "--readout pixels --cnnk 3 --coordconv 1 --cnndepth 3 --cnnw 128 --basepool flat --baselayers 0 --d 128 --lr 1e-3",
+   "--readout xattn --slots 12 --cnnk 1 --basepool mean --baselayers 4 --d 128 --lr 1e-3"
+  ],
+  "mrn": [
+   "--readout xattn --slots 12 --cnnk 1 --basepool mean --baselayers 4 --d 128 --lr 2e-3",
+   null
+  ],
+  "sym": [
+   "--readout pixels --cnnk 1 --coordconv 1 --basepool flat --baselayers 0 --d 256 --lr 1e-3",
+   "--readout xattn --slots 12 --cnnk 1 --basepool mean --baselayers 4 --d 128 --lr 1e-3"
+  ],
+  "scalar": [
+   "--readout pixels --cnnk 3 --coordconv 1 --cnndepth 4 --cnnw 128 --basepool flat --baselayers 4 --d 128 --lr 1e-3",
+   "--readout xattn --slots 12 --cnnk 1 --basepool mean --baselayers 4 --d 128 --lr 1e-3"
+  ]
+ }
+}
