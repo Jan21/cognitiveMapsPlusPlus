@@ -623,7 +623,8 @@ def train(a):
         def forward(s, x, g, m):
             hs = s.pool(s.mix(s.enc(x, m))); hg = s.pool(s.mix(s.enc(g, m)))
             if s.ln is not None: hs, hg = s.ln(hs), s.ln(hg)
-            return s.head(torch.cat([hs, hg], 1)).squeeze(-1)
+            out = s.head(torch.cat([hs, hg], 1)).squeeze(-1)
+            return F.softplus(out) if a.scalarsp else out          # softplus matches reference concat_mlp
 
     def proxy_pairs(SA, SB, CM):
         out = np.zeros(len(SA), np.float32)
@@ -854,6 +855,7 @@ def main():
     ap.add_argument("--iqeonly", action="store_true", help="train ONLY the torchqmet IQE baseline")
     ap.add_argument("--mrnonly", action="store_true", help="train ONLY the torchqmet MRNFixed baseline")
     ap.add_argument("--scalaronly", action="store_true", help="train ONLY the scalar-head baseline")
+    ap.add_argument("--scalarsp", type=int, default=0, help="softplus on the scalar-head output (matches reference concat_mlp)")
     ap.add_argument("--lencurr", type=int, default=0, help="length curriculum: train range grows 8 -> 12 -> Rtrain")
     ap.add_argument("--heads", type=int, default=4, help="attention heads for every transformer block (d must be divisible)")
     ap.add_argument("--baselayers", type=int, default=-1, help="mix-block depth for sym/qmet/scalar baselines (-1 = use --layers; 0 = no transformer)")
