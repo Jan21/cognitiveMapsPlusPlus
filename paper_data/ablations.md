@@ -101,9 +101,14 @@ The first report conflated two levers. Disentangled (both at 80k steps, 3 seeds 
   0.857 ± 0.017 wire; baselines flat vs 200 maps (iqeO 0.772/0.776, sym 0.758/0.759, mrnO 0.742/0.737, scalar
   0.68-0.71). Margins ≈ +0.07/+0.08, same as the 200-map headline. More layouts alone change little for anyone.
 - **Maps AND pairs scaled together** (683 maps, 167k pairs = poolq 6800): integ jumps to **0.953 ± 0.007 / MAE 1.32
-  (map)**, 0.943 ± 0.020 / 1.41 (wire); 120k steps adds nothing. A same-encoder IQE control (1 seed) reaches 0.836.
-  A complete baseline tuning screen on this bed (240 configs, seed 0, then seeds for winners) is running; margin
-  claims at this scale wait for it.
+  (map)**, 0.943 ± 0.020 / 1.41 (wire); 120k steps adds nothing. Baselines were COMPLETELY RE-TUNED on this bed
+  (240-config screen, seed 0: slots and 1×1-pixel families at encoder width 32/64, 3×3 CNN at 64/128, pooling ×
+  depth × d × lr, all heads; winners then 3 seeds × both splits). Result: iqe 0.860 ± 0.018 map / 0.836 ± 0.044 wire
+  (slots w64, 6L, d128, lr 2e-3); scalar revives with data to 0.839 ± 0.063 / 0.839 ± 0.061 (slots w64, 2L, d128;
+  seed 0 hit 0.884 but the spread is ± 0.06, the monolithic-readout instability again); sym 0.791; mrn 0.784.
+  **Margins: +0.093 map / +0.104 wire — the integrator's edge grows with data** while its MAE nearly halves
+  (2.2 → 1.32 vs best baseline 2.51). Winner objch-off checks (seed 0): iqe/sym/mrn within ± 0.01, scalar needs the
+  objectness plane (0.755 vs 0.884).
 - Best-checkpoint (held-out eval curve, `--evalevery`): ≤ +0.01 corr over final for every model — checkpoint
   selection is not a factor on this bench.
 - Bookkeeping: poolq was not logged in RESULT json, which hid the mismatch (now logged). A 4-cell bisect confirmed

@@ -514,5 +514,226 @@
   "scalarMO_map": 0.7,
   "scalarO_wire": 0.71,
   "code_bisect": "chk683: old file = current file = evalevery on/off, all 0.866/2.373 at seed 0"
+ },
+ "tuned683_winners": {
+  "note": "683 maps / poolq 6800 (167k pairs), 240-config screen winners, 3 seeds; integ 0.953+-0.007 map / 0.943+-0.020 wire",
+  "iqe": {
+   "cfg": "slots12 cnnw64 bl6 d128 lr2e-3 objch",
+   "map_c": [
+    0.861,
+    0.881,
+    0.837
+   ],
+   "map_m": [
+    2.5,
+    2.334,
+    2.701
+   ],
+   "wire_c": [
+    0.829,
+    0.787,
+    0.893
+   ],
+   "wire_m": [
+    2.796,
+    3.026,
+    2.221
+   ],
+   "noobj_map_s0": [
+    0.869,
+    2.525
+   ]
+  },
+  "mrn": {
+   "cfg": "slots12 cnnw64 bl2 d128 lr2e-3 objch",
+   "map_c": [
+    0.78,
+    0.786,
+    0.787
+   ],
+   "map_m": [
+    3.098,
+    3.034,
+    3.063
+   ],
+   "wire_c": [
+    0.772,
+    0.771,
+    0.781
+   ],
+   "wire_m": [
+    3.135,
+    3.131,
+    3.075
+   ],
+   "noobj_map_s0": [
+    0.779,
+    3.102
+   ]
+  },
+  "sym": {
+   "cfg": "pixels cnnw32 mean bl0 d256 lr1e-3 objch",
+   "map_c": [
+    0.794,
+    0.792,
+    0.788
+   ],
+   "map_m": [
+    2.995,
+    2.985,
+    3.02
+   ],
+   "wire_c": [
+    0.79,
+    0.79,
+    0.793
+   ],
+   "wire_m": [
+    3.018,
+    3.013,
+    2.983
+   ],
+   "noobj_map_s0": [
+    0.789,
+    3.015
+   ]
+  },
+  "scalar": {
+   "cfg": "slots12 cnnw64 bl2 d128 lr1e-3 objch",
+   "map_c": [
+    0.75,
+    0.884,
+    0.884
+   ],
+   "map_m": [
+    3.585,
+    2.264,
+    2.235
+   ],
+   "wire_c": [
+    0.752,
+    0.888,
+    0.876
+   ],
+   "wire_m": [
+    3.565,
+    2.185,
+    2.323
+   ],
+   "noobj_map_s0": [
+    0.755,
+    3.538
+   ]
+  }
+ },
+ "tuned683_screen_top5": {
+  "iqe": [
+   [
+    "tq_iqe_sl64_bl6_d128_lr2e-3",
+    0.861,
+    2.5
+   ],
+   [
+    "tq_iqe_sl64_bl4_d128_lr2e-3",
+    0.856,
+    2.586
+   ],
+   [
+    "tq_iqe_sl32_bl4_d128_lr2e-3",
+    0.852,
+    2.64
+   ],
+   [
+    "tq_iqe_sl64_bl2_d128_lr1e-3",
+    0.85,
+    2.667
+   ],
+   [
+    "tq_iqe_sl32_bl6_d128_lr2e-3",
+    0.849,
+    2.691
+   ]
+  ],
+  "mrn": [
+   [
+    "tq_mrn_sl64_bl2_d128_lr2e-3",
+    0.78,
+    3.098
+   ],
+   [
+    "tq_mrn_sl64_bl4_d128_lr2e-3",
+    0.775,
+    3.114
+   ],
+   [
+    "tq_mrn_sl32_bl4_d128_lr2e-3",
+    0.769,
+    3.151
+   ],
+   [
+    "tq_mrn_sl64_bl2_d256_lr1e-3",
+    0.769,
+    3.173
+   ],
+   [
+    "tq_mrn_sl32_bl4_d256_lr2e-3",
+    0.768,
+    3.178
+   ]
+  ],
+  "sym": [
+   [
+    "tq_sym_px32_mean0_d256_lr1e-3",
+    0.788,
+    3.02
+   ],
+   [
+    "tq_sym_sl64_bl2_d256_lr2e-3",
+    0.788,
+    3.034
+   ],
+   [
+    "tq_sym_px64_mean0_d256_lr1e-3",
+    0.788,
+    3.024
+   ],
+   [
+    "tq_sym_sl32_bl2_d256_lr1e-3",
+    0.785,
+    3.046
+   ],
+   [
+    "tq_sym_px32_mean0_d128_lr1e-3",
+    0.785,
+    3.041
+   ]
+  ],
+  "scalar": [
+   [
+    "tq_scalar_sl64_bl2_d128_lr1e-3",
+    0.884,
+    2.235
+   ],
+   [
+    "tq_scalar_sl64_bl6_d256_lr1e-3",
+    0.88,
+    2.258
+   ],
+   [
+    "tq_scalar_sl64_bl4_d128_lr1e-3",
+    0.878,
+    2.331
+   ],
+   [
+    "tq_scalar_px32_mean0_d128_lr1e-3",
+    0.87,
+    2.385
+   ],
+   [
+    "tq_scalar_px64_mean0_d128_lr1e-3",
+    0.869,
+    2.417
+   ]
+  ]
  }
 }
