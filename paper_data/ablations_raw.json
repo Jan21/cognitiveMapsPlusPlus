@@ -420,5 +420,99 @@
     2.58
    ]
   }
+ },
+ "decodehead_softplus": {
+  "note": "image L5, softplus added to match reference; lr 1e-3 = dead softplus (constant output)",
+  "img_lr1e3": {
+   "corr": [
+    null,
+    null
+   ],
+   "mae": [
+    11.166,
+    11.439
+   ],
+   "train_mae": [
+    11.197,
+    11.103
+   ]
+  },
+  "img_lr5e4": {
+   "corr": [
+    0.699,
+    0.728
+   ],
+   "mae": [
+    3.806,
+    3.731
+   ],
+   "train_mae": [
+    3.74,
+    3.565
+   ]
+  }
+ },
+ "decodehead_symbolic": {
+  "note": "our implementation, factored 200-map bed; accumulation ref 0.904+-0.007; lr 2e-3 collapses (dead softplus)",
+  "lr2e3": {
+   "corr": [
+    -0.032,
+    null
+   ],
+   "train_mae": [
+    11.197,
+    11.103
+   ]
+  },
+  "lr1e3": {
+   "corr": [
+    0.854,
+    0.84
+   ],
+   "mae": [
+    2.442,
+    2.525
+   ],
+   "train_mae": [
+    0.262,
+    0.184
+   ]
+  },
+  "lr5e4": {
+   "corr": [
+    0.853,
+    0.818
+   ],
+   "mae": [
+    2.415,
+    2.729
+   ],
+   "train_mae": [
+    0.232,
+    0.264
+   ]
+  }
+ },
+ "div683_fixedpairs": {
+  "note": "683 maps at poolq 2000 (49k pairs), 3 seeds, corr map/wire",
+  "integ": [
+   0.844,
+   0.857
+  ],
+  "iqeO": [
+   0.772,
+   0.776
+  ],
+  "sym": [
+   0.758,
+   0.759
+  ],
+  "mrnO": [
+   0.742,
+   0.737
+  ],
+  "scalarMO_map": 0.7,
+  "scalarO_wire": 0.71,
+  "code_bisect": "chk683: old file = current file = evalevery on/off, all 0.866/2.373 at seed 0"
  }
 }

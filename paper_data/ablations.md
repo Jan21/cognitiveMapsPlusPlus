@@ -80,18 +80,32 @@ T 1 → 0.645, T 8 → 0.588, cosine decay → 0.710. Best screened decode head 
 budget, and every configuration remains underfit (train MAE ≥ 2 vs 0.5). Raw numbers:
 `ablations_raw.json / decodehead_screen`.
 
-**CAVEAT (open, 2026-08-19): implementation mismatch found.** The reference `scalar_mlp` applies a softplus to the
-decoded output; our `--decodehead` did not (unconstrained linear output). All image decode-head numbers above were run
-without the softplus. Fixed to match the reference; a probe (image L5, lr 1e-3 / 5e-4, 2 seeds each, plus a
-never-before-run SYMBOLIC control of our implementation at the symbolic recipe) is running (`leo_dhfix.sbatch`).
-Until it lands, do not claim the decode head cannot fit on images; the safe statement is only the factored-setting
-tie from the verbatim reference code.
+**RESOLVED (2026-08-20).** Found and fixed an implementation mismatch (the reference `scalar_mlp` applies softplus to
+the decoded output; ours did not), then validated our implementation with symbolic controls. Full picture:
+- Softplus does not rescue the image decode head: lr 1e-3 collapses to a dead softplus (constant output, corr nan),
+  lr 5e-4 gives 0.699 / 0.728 (2 seeds, train MAE ≥ 3.6), same plateau as the no-softplus screen (best 0.753).
+- The decode head is lr-fragile by nature: the reference tie itself ran per-readout lr (integrate 2e-3, scalar_mlp
+  1e-3). Our symbolic control at lr 2e-3 collapses; at lr 1e-3 / 5e-4 it FITS (train MAE 0.18-0.26), proving the
+  implementation correct.
+- Symbolic, our 200-map bed: decode head 0.841 ± 0.015 (4 runs, lr 1e-3/5e-4) vs accumulation 0.904 ± 0.007 → −0.06.
+- Symbolic, reference 512-map / 501k-pair bed: tie (0.957 vs 0.961) — the decode head catches up given ~10× data.
+- Image bed: decode head ≤ 0.753 vs accumulation 0.860 → −0.11, with persistent underfit at every screened recipe.
+Claim for the paper: the accumulation readout is more optimization-robust (trains at the shared recipe and across a
+wider lr range) and more sample-efficient than a decode head on the same joint recurrence; the gap grows from 0
+(data-rich symbolic) to −0.06 (lean symbolic) to −0.11 (learned perception). Raw: `ablations_raw.json /
+decodehead_screen, decodehead_softplus, decodehead_symbolic`.
 
-## Training-map diversity (probe, final recipe, 683 training-split maps vs 200)
-Scaling the map pool 200 → 683 (identical protocol, m%4 held-out split, 171 unseen test maps, 80k steps, 3 seeds)
-lifts the full-switchyard image model from 0.860 / MAE 2.20 to **0.953 ± 0.007 / MAE 1.32 (map)** and
-0.943 ± 0.020 / MAE 1.41 (wire); 120k steps adds nothing (0.957, seed 0). An IQE control at 683 maps on the same
-slot encoder (single seed) reaches 0.836 / 2.83, so the margin *widens* with data (+0.09 → +0.12); caveat: this
-control is not the phase-B′ best IQE variant (3×3 flatten encoder), which would need a rerun for a headline claim.
-Perception, not the metric head, is what the extra maps buy: train MAE drops 0.7 → 0.6-0.9 with far better transfer.
-Raw numbers: `ablations_raw.json / nmaps683_probe`.
+## Training-data scaling (683 maps; two separate levers, 2026-08-20 correction)
+The first report conflated two levers. Disentangled (both at 80k steps, 3 seeds unless noted):
+- **Map diversity alone** (683 maps, training-pair budget held at 49k pairs = poolq 2000): integ 0.844 ± 0.016 map /
+  0.857 ± 0.017 wire; baselines flat vs 200 maps (iqeO 0.772/0.776, sym 0.758/0.759, mrnO 0.742/0.737, scalar
+  0.68-0.71). Margins ≈ +0.07/+0.08, same as the 200-map headline. More layouts alone change little for anyone.
+- **Maps AND pairs scaled together** (683 maps, 167k pairs = poolq 6800): integ jumps to **0.953 ± 0.007 / MAE 1.32
+  (map)**, 0.943 ± 0.020 / 1.41 (wire); 120k steps adds nothing. A same-encoder IQE control (1 seed) reaches 0.836.
+  A complete baseline tuning screen on this bed (240 configs, seed 0, then seeds for winners) is running; margin
+  claims at this scale wait for it.
+- Best-checkpoint (held-out eval curve, `--evalevery`): ≤ +0.01 corr over final for every model — checkpoint
+  selection is not a factor on this bench.
+- Bookkeeping: poolq was not logged in RESULT json, which hid the mismatch (now logged). A 4-cell bisect confirmed
+  the code paths are bit-identical (old file = current file = eval-on = eval-off at fixed seed).
+Raw numbers: `ablations_raw.json / nmaps683_probe, div683_fixedpairs`.
