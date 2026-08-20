@@ -888,5 +888,26 @@
    ],
    "mae_mean": 1.14
   }
+ },
+ "integ700_200k": {
+  "note": "700 maps / 201k pairs (poolq 8150), final recipe, 4 seeds; == 700/150k within noise",
+  "map": {
+   "corr": [
+    0.91,
+    0.917,
+    0.956,
+    0.962
+   ],
+   "mae_mean": 1.49
+  },
+  "wire": {
+   "corr": [
+    0.908,
+    0.93,
+    0.958,
+    0.963
+   ],
+   "mae_mean": 1.45
+  }
  }
 }
