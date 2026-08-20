@@ -90,14 +90,17 @@ the decoded output; ours did not), then validated our implementation with symbol
 - Symbolic, our 200-map bed: decode head 0.841 ± 0.015 (4 runs, lr 1e-3/5e-4) vs accumulation 0.904 ± 0.007 → −0.06.
 - Symbolic, reference 512-map / 501k-pair bed: tie (0.957 vs 0.961) — the decode head catches up given ~10× data.
 - Image bed: decode head ≤ 0.753 vs accumulation 0.860 → −0.11, with persistent underfit at every screened recipe.
-- Image, LARGE bed (683 maps / 167k pairs): decode head 0.810 / 0.815 (lr 5e-4, 2 seeds, train MAE 2.9, still
-  underfit; lr 1e-3 again collapses to dead softplus) vs accumulation 0.953 ± 0.007 → −0.14. Data does NOT close
-  the image gap; both readouts improve, the accumulation faster.
-Claim for the paper: the accumulation readout is more optimization-robust (trains at the shared recipe and across a
-wider lr range) and more sample-efficient than a decode head on the same joint recurrence; the gap runs 0 (data-rich
-symbolic) → −0.06 (lean symbolic) → −0.11 (image, lean) → −0.14 (image, data-rich), so under learned perception the
-deficit is not data hunger and widens with scale. Raw: `ablations_raw.json / decodehead_screen, decodehead_softplus,
-decodehead_symbolic, decodehead_683`.
+- Image, LARGE bed (683 maps / 167k pairs), decode head given its own full tuning (12-config recipe screen + lr
+  curve at its winning T): best = T 1, lr 5e-4, 0.864 ± 0.025 (3 seeds). Its T-response is monotone destructive:
+  T1 0.864 → T4 0.813 → T8 0.661 (and lr 1e-3/2e-3 collapse to a dead softplus at every T). The accumulation
+  readout on the same bed: T1 0.931 (2 seeds) → T4 0.953 ± 0.007, i.e. it GAINS +0.02 from recurrence where the
+  decode head loses 0.05–0.20. Matched at T1 the gap is −0.067; tuned-vs-tuned it is −0.089.
+Claim for the paper: on the same joint recurrence the accumulation readout is more optimization-robust (wide lr
+window vs a narrow one with collapse above it) and more sample-efficient; the tuned gap runs ≈ 0 (data-rich
+symbolic) → −0.06 (lean symbolic) → −0.11 (lean image) → −0.09 (data-rich image), so data narrows but does not
+close it, and the two readouts respond to recurrence depth in opposite directions: iteration is an asset for
+accumulation and a liability for decoding the final state. Raw: `ablations_raw.json / decodehead_screen,
+decodehead_softplus, decodehead_symbolic, decodehead_683, decodehead_683_screen, integ683_T1`.
 
 ## Training-data scaling (683 maps; two separate levers, 2026-08-20 correction)
 The first report conflated two levers. Disentangled (both at 80k steps, 3 seeds unless noted):

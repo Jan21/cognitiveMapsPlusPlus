@@ -136,16 +136,17 @@ implementation validated by symbolic controls, a clean pattern:</p>
 <tr><td>symbolic, 512 maps &middot; 501k pairs (reference code)</td><td>0.961</td><td>0.957</td><td>&asymp; 0 (tie)</td></tr>
 <tr><td>symbolic, 200 maps &middot; 49k pairs (our bed)</td><td>0.904 &plusmn; 0.007</td><td>0.841 &plusmn; 0.015</td><td>&minus;0.06</td></tr>
 <tr><td>image, 200 maps &middot; 49k pairs</td><td>0.860 &plusmn; 0.017</td><td>&le; 0.753 (best of 11 recipes)</td><td>&minus;0.11</td></tr>
-<tr><td>image, 683 maps &middot; 167k pairs</td><td>0.953 &plusmn; 0.007</td><td>0.813 (lr 5e-4, 2 seeds, underfit)</td><td>&minus;0.14</td></tr>
+<tr><td>image, 683 maps &middot; 167k pairs (decode head fully tuned: 12-config screen + lr curve)</td><td>0.953 &plusmn; 0.007</td><td>0.864 &plusmn; 0.025 (T 1, lr 5e-4)</td><td>&minus;0.089</td></tr>
 </table></div>
 
-<p>The decode head is also optimization-fragile: at lr 2e-3 it collapses to a dead softplus (constant output) on
-both beds, and lr 1e-3 collapses the same way even on the large image bed; the reference tie itself ran per-readout
-learning rates (accumulation at 2e-3, decode at 1e-3). On the lean image bed no screened recipe (lr 3e-4 to 2e-3,
-warm-up, T 1/4/8, cosine, &plusmn;softplus) lifts it past 0.753, and every one underfits. Scaling data helps the decode
-head (0.753 &rarr; 0.813) but helps the accumulation more, so the gap widens rather than closes: under learned
-perception the deficit is not data hunger. A dedicated decode-head recipe screen on the large bed (8 further
-configurations) is running; the ladder above is the standing result.</p>
+<p>The tuned large-bed comparison exposes the mechanism. The decode head's own optimum is <em>no recurrence</em>:
+its T-response is monotone destructive (T1 0.864 &rarr; T4 0.813 &rarr; T8 0.661), while the accumulation readout
+gains from iteration on the same bed (T1 0.931 &rarr; T4 0.953). Matched at the decode head's chosen depth (T1)
+the gap is still &minus;0.067. The head is also optimization-fragile everywhere: a narrow viable learning-rate
+window (5e-4) with dead-softplus collapse above it, on both symbolic and image beds; the reference tie itself ran
+per-readout learning rates. Claim: data narrows the readout gap (&minus;0.11 lean &rarr; &minus;0.09 data-rich) but
+does not close it, and the two readouts respond to recurrence in opposite directions: iteration is an asset for
+per-pass accumulation and a liability for decoding the final state.</p>
 
 <p class="eyebrow">Audit trail</p>
 <h2>Fairness checks that ran before these numbers</h2>
@@ -208,10 +209,10 @@ function draw(){
   ],0.70,1.0,W);
   // gap ladder: horizontal
   const el=document.getElementById('c-gap'), H=190, pad={l:300,r:70,t:12,b:26};
-  const rows=[["symbolic, 512 maps / 501k pairs",0.004],["symbolic, 200 maps / 49k pairs",0.063],["image, 200 maps / 49k pairs",0.107],["image, 683 maps / 167k pairs",0.140]];
-  const maxg=0.15, bw=26, x=v=>pad.l+(W-pad.l-pad.r)*v/maxg;
+  const rows=[["symbolic, 512 maps / 501k pairs",0.004],["symbolic, 200 maps / 49k pairs",0.063],["image, 200 maps / 49k pairs",0.107],["image, 683 maps / 167k pairs (tuned)",0.089]];
+  const maxg=0.12, bw=26, x=v=>pad.l+(W-pad.l-pad.r)*v/maxg;
   let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img">`;
-  [0,0.05,0.10,0.15].forEach(v=>{s+=`<line x1="${x(v)}" x2="${x(v)}" y1="${pad.t}" y2="${H-pad.b}" stroke="${css('--line')}"/>`+
+  [0,0.04,0.08,0.12].forEach(v=>{s+=`<line x1="${x(v)}" x2="${x(v)}" y1="${pad.t}" y2="${H-pad.b}" stroke="${css('--line')}"/>`+
     `<text x="${x(v)}" y="${H-8}" text-anchor="middle" class="mut">&minus;${v.toFixed(2)}</text>`;});
   rows.forEach((r,i)=>{const yy=pad.t+i*(bw+14);
     s+=`<text x="${pad.l-10}" y="${yy+bw/2+4}" text-anchor="end">${r[0]}</text>`;

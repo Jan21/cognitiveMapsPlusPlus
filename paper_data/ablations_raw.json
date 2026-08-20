@@ -816,5 +816,16 @@
   "T1_lr1e3": 0.62,
   "T1_lr2e3": null,
   "winner": "T1 lr5e-4: 0.864+-0.025, MAE 2.42"
+ },
+ "integ683_T1": {
+  "note": "accumulation at T1, 683/167k, map split; T4 ref 0.953+-0.007",
+  "corr": [
+   0.928,
+   0.933
+  ],
+  "mae": [
+   1.741,
+   1.675
+  ]
  }
 }
