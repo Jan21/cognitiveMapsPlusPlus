@@ -90,10 +90,14 @@ the decoded output; ours did not), then validated our implementation with symbol
 - Symbolic, our 200-map bed: decode head 0.841 ± 0.015 (4 runs, lr 1e-3/5e-4) vs accumulation 0.904 ± 0.007 → −0.06.
 - Symbolic, reference 512-map / 501k-pair bed: tie (0.957 vs 0.961) — the decode head catches up given ~10× data.
 - Image bed: decode head ≤ 0.753 vs accumulation 0.860 → −0.11, with persistent underfit at every screened recipe.
+- Image, LARGE bed (683 maps / 167k pairs): decode head 0.810 / 0.815 (lr 5e-4, 2 seeds, train MAE 2.9, still
+  underfit; lr 1e-3 again collapses to dead softplus) vs accumulation 0.953 ± 0.007 → −0.14. Data does NOT close
+  the image gap; both readouts improve, the accumulation faster.
 Claim for the paper: the accumulation readout is more optimization-robust (trains at the shared recipe and across a
-wider lr range) and more sample-efficient than a decode head on the same joint recurrence; the gap grows from 0
-(data-rich symbolic) to −0.06 (lean symbolic) to −0.11 (learned perception). Raw: `ablations_raw.json /
-decodehead_screen, decodehead_softplus, decodehead_symbolic`.
+wider lr range) and more sample-efficient than a decode head on the same joint recurrence; the gap runs 0 (data-rich
+symbolic) → −0.06 (lean symbolic) → −0.11 (image, lean) → −0.14 (image, data-rich), so under learned perception the
+deficit is not data hunger and widens with scale. Raw: `ablations_raw.json / decodehead_screen, decodehead_softplus,
+decodehead_symbolic, decodehead_683`.
 
 ## Training-data scaling (683 maps; two separate levers, 2026-08-20 correction)
 The first report conflated two levers. Disentangled (both at 80k steps, 3 seeds unless noted):

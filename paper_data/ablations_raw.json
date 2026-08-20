@@ -735,5 +735,36 @@
     2.417
    ]
   ]
+ },
+ "decodehead_683": {
+  "note": "image, 683 maps / 167k pairs, final integ recipe + decodehead; accumulation ref 0.953+-0.007",
+  "lr5e4": {
+   "corr": [
+    0.81,
+    0.815
+   ],
+   "mae": [
+    2.994,
+    2.939
+   ],
+   "train_mae": [
+    2.917,
+    2.899
+   ]
+  },
+  "lr1e3": {
+   "corr": [
+    null,
+    0.015
+   ],
+   "best_corr": [
+    0.671,
+    0.635
+   ],
+   "train_mae": [
+    11.316,
+    11.44
+   ]
+  }
  }
 }
