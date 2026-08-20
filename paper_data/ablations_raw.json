@@ -789,5 +789,32 @@
     1.828
    ]
   }
+ },
+ "decodehead_683_screen": {
+  "note": "decode-head recipe screen + T1 follow-up at 683 maps/167k pairs; accumulation T4 ref 0.953+-0.007",
+  "T4_lr3e4": 0.74,
+  "T4_lr5e4": [
+   0.81,
+   0.815
+  ],
+  "T4_lr7e4": null,
+  "T4_lr1e3": [
+   null,
+   0.015
+  ],
+  "T4_wu8k": 0.703,
+  "T4_cos": 0.75,
+  "T4_120k": 0.858,
+  "T4_bs256": 0.787,
+  "T8_lr5e4": 0.661,
+  "T1_lr3e4": 0.851,
+  "T1_lr5e4": [
+   0.893,
+   0.865,
+   0.833
+  ],
+  "T1_lr1e3": 0.62,
+  "T1_lr2e3": null,
+  "winner": "T1 lr5e-4: 0.864+-0.025, MAE 2.42"
  }
 }
