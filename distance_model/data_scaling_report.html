@@ -1,0 +1,224 @@
+<title>Scaling the Switchyard</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#FAFAF7; --panel:#F1F1EC; --ink:#1B1E22; --muted:#5B6068; --line:#DDDDD4;
+  --acc:#0E7C86; --acc-soft:#0E7C8622; --base:#7A828C; --base-soft:#7A828C33;
+  --amber:#A9721C; --amber-soft:#A9721C18; --good:#3D7A46; --bad:#A2453B;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15181B; --panel:#1D2125; --ink:#E7E9EB; --muted:#9AA1A9; --line:#31363C;
+    --acc:#45B8C2; --acc-soft:#45B8C226; --base:#8B939D; --base-soft:#8B939D33;
+    --amber:#D19A45; --amber-soft:#D19A4520; --good:#7FBE8A; --bad:#D08379;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15181B; --panel:#1D2125; --ink:#E7E9EB; --muted:#9AA1A9; --line:#31363C;
+  --acc:#45B8C2; --acc-soft:#45B8C226; --base:#8B939D; --base-soft:#8B939D33;
+  --amber:#D19A45; --amber-soft:#D19A4520; --good:#7FBE8A; --bad:#D08379;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.6 'Source Sans 3',system-ui,sans-serif;padding:0 20px 90px}
+main{max-width:880px;margin:0 auto}
+header{padding:56px 0 8px}
+h1{font:700 40px/1.15 Spectral,Georgia,serif;text-wrap:balance}
+.sub{color:var(--muted);max-width:64ch;margin-top:10px}
+h2{font:600 26px/1.25 Spectral,Georgia,serif;margin:64px 0 6px;text-wrap:balance}
+h3{font:600 18px/1.3 Spectral,Georgia,serif;margin:28px 0 6px}
+p{max-width:70ch;margin:10px 0}
+.eyebrow{font:600 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--acc);margin-top:56px}
+.eyebrow+h2{margin-top:6px}
+.verdict{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:34px 0 8px}
+.verdict>div{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px 18px}
+.verdict .num{font:600 30px/1.1 var(--mono);color:var(--acc)}
+.verdict .lbl{font-size:13px;color:var(--muted);margin-top:6px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+.tablewrap{overflow-x:auto;margin:18px 0;border:1px solid var(--line);border-radius:6px}
+th,td{padding:9px 12px;text-align:right;font:14px/1.4 var(--mono);border-top:1px solid var(--line);white-space:nowrap}
+th{font-family:'Source Sans 3',sans-serif;font-size:12.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border-top:none}
+td:first-child,th:first-child{text-align:left}
+tr.hero td{color:var(--acc);font-weight:600;background:var(--acc-soft)}
+.cfg{color:var(--muted);font-size:12px}
+.chart{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:18px 18px 10px;margin:18px 0;overflow-x:auto}
+.chart h4{font:600 13px/1 'Source Sans 3',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+svg text{font:12px var(--mono);fill:var(--ink)}
+svg .mut{fill:var(--muted)}
+.legend{display:flex;gap:18px;font-size:13px;color:var(--muted);margin:6px 2px 0}
+.legend b{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.note{background:var(--amber-soft);border-left:3px solid var(--amber);padding:12px 16px;border-radius:0 6px 6px 0;margin:18px 0;max-width:74ch}
+.note b:first-child{color:var(--amber)}
+.loglist{list-style:none;margin:14px 0;display:grid;gap:10px}
+.loglist li{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 16px;max-width:none}
+.loglist .tagg{font:600 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;padding:3px 7px;border-radius:3px;margin-right:9px}
+.t-fix{background:var(--amber-soft);color:var(--amber)}
+.t-clean{background:var(--acc-soft);color:var(--acc)}
+.small{font-size:13.5px;color:var(--muted)}
+code{font:13px var(--mono);background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:1px 5px}
+@media(max-width:640px){.verdict{grid-template-columns:1fr}h1{font-size:32px}}
+@media(prefers-reduced-motion:no-preference){.verdict>div{transition:border-color .15s}.verdict>div:hover{border-color:var(--acc)}}
+</style>
+
+<main>
+<header>
+  <h1>Scaling the Switchyard</h1>
+  <p class="sub">What happens to the image-only distance integrator and its four re-tuned baselines when the
+  training bed grows from 200 maps / 49k pairs to 683 maps / 167k pairs, plus the resolution of the decode-head
+  question. Full switchyard (L5), pure image input, 80k steps, 3 seeds. 2026-08-20.</p>
+</header>
+
+<div class="verdict">
+  <div><div class="num">0.953</div><div class="lbl">integrator corr on unseen maps at the large bed (was 0.860); MAE halves to 1.32</div></div>
+  <div><div class="num">+0.09 / +0.10</div><div class="lbl">margin over the best re-tuned baseline (map / rewired causality); it grew, 200-map bed gave +0.087 / +0.077</div></div>
+  <div><div class="num">240</div><div class="lbl">baseline configs re-screened on the large bed before claiming any margin; winners got 3 seeds</div></div>
+</div>
+
+<p class="eyebrow">Headline</p>
+<h2>The large bed, everyone re-tuned</h2>
+<p>683 training-split maps with the pair budget scaled to match (167k pairs). Baselines were re-tuned from scratch
+on this bed: 240 configurations per the original phase-A search space (slot, per-pixel and 3&times;3 CNN encoders,
+two encoder widths, pooling, transformer depth, model width, learning rate), seed 0, then 3 seeds &times; both
+splits for each head's winner. Same data, loss, steps and objectness plane for every model.</p>
+
+<div class="tablewrap"><table>
+<tr><th>model</th><th>corr, unseen maps</th><th>corr, rewired</th><th>MAE maps</th><th>MAE rewired</th><th>winning config</th></tr>
+<tr class="hero"><td>integrator</td><td>0.953 &plusmn; 0.007</td><td>0.943 &plusmn; 0.020</td><td>1.32</td><td>1.41</td><td class="cfg">16 slots &middot; d256 &middot; 3L &middot; T4</td></tr>
+<tr><td>IQE</td><td>0.860 &plusmn; 0.018</td><td>0.836 &plusmn; 0.044</td><td>2.51</td><td>2.68</td><td class="cfg">slots w64 &middot; 6L &middot; d128 &middot; lr 2e-3</td></tr>
+<tr><td>scalar MLP</td><td>0.839 &plusmn; 0.063</td><td>0.839 &plusmn; 0.061</td><td>2.70</td><td>2.69</td><td class="cfg">slots w64 &middot; 2L &middot; d128 &middot; lr 1e-3</td></tr>
+<tr><td>sym (L1 embed)</td><td>0.791 &plusmn; 0.002</td><td>0.791 &plusmn; 0.001</td><td>3.00</td><td>3.01</td><td class="cfg">1&times;1 pixels w32 &middot; mean &middot; d256</td></tr>
+<tr><td>MRN</td><td>0.784 &plusmn; 0.003</td><td>0.775 &plusmn; 0.004</td><td>3.07</td><td>3.11</td><td class="cfg">slots w64 &middot; 2L &middot; d128 &middot; lr 2e-3</td></tr>
+</table></div>
+
+<div class="chart"><h4>Correlation on held-out evaluations, large bed (mean of 3 seeds)</h4><div id="c-head"></div>
+<div class="legend"><span><b style="background:var(--acc)"></b>integrator</span><span><b style="background:var(--base)"></b>baselines</span></div></div>
+
+<p>Two readings. First, the margin does not shrink when baselines get more data and a fresh tuning pass; it grows
+slightly. Second, the scalar head, which collapsed to 0.73 on the lean bed, revives to 0.839 here, but with a
+&plusmn;0.06 seed spread (one seed reached 0.884, another landed near 0.77). The monolithic readout is data-hungry
+and unstable; the quasimetric and embedding heads are stable but plateau lower.</p>
+
+<p class="eyebrow">Two levers</p>
+<h2>Map diversity alone does nothing; diversity plus pairs does everything</h2>
+<p>The jump to 0.953 initially looked like a map-diversity effect. It is not. Splitting the levers:</p>
+
+<div class="tablewrap"><table>
+<tr><th>bed</th><th>integrator</th><th>best baseline</th><th>margin</th></tr>
+<tr><td>200 maps &middot; 49k pairs (headline bed)</td><td>0.860 &plusmn; 0.017</td><td>0.773 (IQE)</td><td>+0.087</td></tr>
+<tr><td>683 maps &middot; 49k pairs (pairs held fixed)</td><td>0.844 &plusmn; 0.016</td><td>0.772 (IQE)</td><td>+0.072</td></tr>
+<tr><td>683 maps &middot; 167k pairs (pairs scaled)</td><td>0.953 &plusmn; 0.007</td><td>0.860 (IQE, re-tuned)</td><td>+0.093</td></tr>
+</table></div>
+
+<div class="chart"><h4>Corr across the three beds (unseen maps)</h4><div id="c-beds"></div>
+<div class="legend"><span><b style="background:var(--acc)"></b>integrator</span><span><b style="background:var(--base)"></b>best baseline</span></div></div>
+
+<p>With the pair budget frozen, spreading it over 3.4&times; more layouts moves nobody: every model within noise,
+margins unchanged. The gain appears only when supervision pairs scale with the layouts, and it accrues mostly to
+the integrator: its train error stays low while transfer improves sharply, so the extra data is buying perception,
+not metric capacity. Longer training on the large bed (120k steps) adds nothing.</p>
+
+<div class="note"><b>Best checkpoint:</b> every run on the large bed logged a held-out evaluation curve
+(<code>--evalevery</code>). Best-on-curve exceeds the final score by at most +0.01 corr for every model, so
+checkpoint selection plays no role in any number here.</div>
+
+<p class="eyebrow">Readout</p>
+<h2>The decode head, resolved</h2>
+<p>Same joint recurrence, two ways to read a distance out of it: the integrator's accumulation
+(<span style="font-family:var(--mono);font-size:14px">D = softplus(s)&middot;&Sigma;&lVert;&Delta;z&rVert;</span>)
+versus an MLP decode of the final tokens. The decode head looked broken on images; the investigation found one real
+implementation gap on our side (a missing output softplus, now fixed to match the reference code) and then, with the
+implementation validated by symbolic controls, a clean pattern:</p>
+
+<div class="chart"><h4>Accumulation minus decode head, same recurrence, same budget</h4><div id="c-gap"></div></div>
+
+<div class="tablewrap"><table>
+<tr><th>bed</th><th>accumulation</th><th>decode head</th><th>gap</th></tr>
+<tr><td>symbolic, 512 maps &middot; 501k pairs (reference code)</td><td>0.961</td><td>0.957</td><td>&asymp; 0 (tie)</td></tr>
+<tr><td>symbolic, 200 maps &middot; 49k pairs (our bed)</td><td>0.904 &plusmn; 0.007</td><td>0.841 &plusmn; 0.015</td><td>&minus;0.06</td></tr>
+<tr><td>image, 200 maps &middot; 49k pairs</td><td>0.860 &plusmn; 0.017</td><td>&le; 0.753 (best of 11 recipes)</td><td>&minus;0.11</td></tr>
+</table></div>
+
+<p>The decode head is also optimization-fragile: at lr 2e-3 it collapses to a dead softplus (constant output) on
+both beds, and the reference tie itself ran per-readout learning rates (accumulation at 2e-3, decode at 1e-3). On
+images no screened recipe (lr 3e-4 to 2e-3, warm-up, T 1/4/8, cosine, &plusmn;softplus) lifts it past 0.753, and every
+one underfits. Claim: the accumulation readout is more optimization-robust and more sample-efficient than a decode
+head on the same recurrence, and the gap widens as data gets leaner and perception gets learned.</p>
+
+<p class="eyebrow">Audit trail</p>
+<h2>Fairness checks that ran before these numbers</h2>
+<ul class="loglist">
+  <li><span class="tagg t-fix">fixed</span>Decode head lacked the reference's output softplus. Added; softplus does not rescue it on images (lr 1e-3 nan, lr 5e-4 &rarr; 0.70&ndash;0.73), and symbolic controls at the right lr validate the implementation (0.841 where accumulation gets 0.904).</li>
+  <li><span class="tagg t-clean">no effect</span>Scalar baseline given the same softplus parity (reference <code>concat_mlp</code> has it): flat on its flatten variant (0.719 vs 0.721), worse and underfitting on its slot variant (0.682 vs 0.730). Off in all tables. IQE, MRN and sym are nonnegative by construction.</li>
+  <li><span class="tagg t-fix">fixed</span>The first 683-map comparison ran baselines at 49k pairs against an integrator trained on 167k: the pair-budget flag was not logged in results, which hid the mismatch. Now logged; every screen rerun at the matched bed.</li>
+  <li><span class="tagg t-clean">clean</span>Code bisect after the discrepancy: old file, current file, eval-curve on, eval-curve off are bit-identical in training (0.866 / 2.373 at fixed seed). The instrumentation added for best-checkpoint tracking has zero training effect.</li>
+  <li><span class="tagg t-clean">checked</span>Winner configs rerun without the objectness plane: IQE, sym and MRN within &plusmn;0.01; scalar needs it (0.755 vs 0.884, seed 0).</li>
+</ul>
+
+<h2>Method in one paragraph</h2>
+<p class="small">Full switchyard (7&times;7, crate, 3 gates, 2 levers with hidden wiring, pressure plate, one-way
+chute), pure image observations: 12 binary stencils plus an objectness plane, no symbols, no hand-built detector.
+Distance supervision from BFS. Splits: unseen maps (held-out layouts with their own wiring) and rewired causality
+(same layouts, wiring resampled). All models share encoder family options, training data, loss and step budget;
+baselines additionally searched over encoder, pooling, depth, width and lr on each bed they are reported on. Beds:
+200 maps / 49k pairs, 683 / 49k, 683 / 167k. 3 seeds everywhere unless noted. Raw per-seed numbers and screen
+top-5s: <code>paper_data/ablations_raw.json</code>; prose: <code>paper_data/ablations.md</code>.</p>
+</main>
+
+<script>
+(function(){
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+function bars(el, groups, ymin, ymax, W){
+  // groups: [{label, vals:[{v,acc,err}]}]
+  const H=210, pad={l:46,r:10,t:10,b:34};
+  const n=groups.length, per=groups[0].vals.length;
+  const gw=(W-pad.l-pad.r)/n, bw=Math.min(34,(gw-14)/per);
+  const y=v=>pad.t+(H-pad.t-pad.b)*(1-(v-ymin)/(ymax-ymin));
+  let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img">`;
+  for(let g=0; g<=4; g++){
+    const v=ymin+(ymax-ymin)*g/4, yy=y(v);
+    s+=`<line x1="${pad.l}" x2="${W-pad.r}" y1="${yy}" y2="${yy}" stroke="${css('--line')}" stroke-width="1"/>`;
+    s+=`<text x="${pad.l-6}" y="${yy+4}" text-anchor="end" class="mut">${v.toFixed(2)}</text>`;
+  }
+  groups.forEach((gr,i)=>{
+    const x0=pad.l+i*gw+(gw-per*bw-(per-1)*4)/2;
+    gr.vals.forEach((b,j)=>{
+      const x=x0+j*(bw+4), yy=y(b.v);
+      s+=`<rect x="${x}" y="${yy}" width="${bw}" height="${H-pad.b-yy}" rx="2" fill="${b.acc?css('--acc'):css('--base')}" ${b.acc?'':'opacity="0.75"'}/>`;
+      if(b.err){const e1=y(b.v+b.err),e2=y(b.v-b.err),cx=x+bw/2;
+        s+=`<line x1="${cx}" x2="${cx}" y1="${e1}" y2="${e2}" stroke="${css('--ink')}" stroke-width="1.2" opacity="0.55"/>`;}
+      if(b.top) s+=`<text x="${x+bw/2}" y="${yy-5}" text-anchor="middle">${b.v.toFixed(3)}</text>`;
+    });
+    s+=`<text x="${pad.l+i*gw+gw/2}" y="${H-10}" text-anchor="middle" class="mut">${gr.label}</text>`;
+  });
+  el.innerHTML=s+'</svg>';
+}
+function draw(){
+  const W=Math.max(560,Math.min(820,document.querySelector('main').clientWidth-40));
+  bars(document.getElementById('c-head'),[
+   {label:'unseen maps',vals:[{v:0.953,acc:1,err:0.007,top:1},{v:0.860,err:0.018},{v:0.839,err:0.063},{v:0.791,err:0.002},{v:0.784,err:0.003}]},
+   {label:'rewired causality',vals:[{v:0.943,acc:1,err:0.020,top:1},{v:0.836,err:0.044},{v:0.839,err:0.061},{v:0.791,err:0.001},{v:0.775,err:0.004}]}
+  ],0.70,1.0,W);
+  bars(document.getElementById('c-beds'),[
+   {label:'200 maps / 49k',vals:[{v:0.860,acc:1,err:0.017,top:1},{v:0.773,err:0.010}]},
+   {label:'683 maps / 49k',vals:[{v:0.844,acc:1,err:0.016,top:1},{v:0.772,err:0.008}]},
+   {label:'683 maps / 167k',vals:[{v:0.953,acc:1,err:0.007,top:1},{v:0.860,err:0.018}]}
+  ],0.70,1.0,W);
+  // gap ladder: horizontal
+  const el=document.getElementById('c-gap'), H=150, pad={l:300,r:70,t:12,b:26};
+  const rows=[["symbolic, 512 maps / 501k pairs",0.004],["symbolic, 200 maps / 49k pairs",0.063],["image, 200 maps / 49k pairs",0.107]];
+  const maxg=0.12, bw=26, x=v=>pad.l+(W-pad.l-pad.r)*v/maxg;
+  let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img">`;
+  [0,0.04,0.08,0.12].forEach(v=>{s+=`<line x1="${x(v)}" x2="${x(v)}" y1="${pad.t}" y2="${H-pad.b}" stroke="${css('--line')}"/>`+
+    `<text x="${x(v)}" y="${H-8}" text-anchor="middle" class="mut">&minus;${v.toFixed(2)}</text>`;});
+  rows.forEach((r,i)=>{const yy=pad.t+i*(bw+14);
+    s+=`<text x="${pad.l-10}" y="${yy+bw/2+4}" text-anchor="end">${r[0]}</text>`;
+    s+=`<rect x="${x(0)}" y="${yy}" width="${Math.max(2,x(r[1])-x(0))}" height="${bw}" rx="2" fill="${css('--acc')}"/>`;
+    s+=`<text x="${x(r[1])+7}" y="${yy+bw/2+4}">&minus;${r[1].toFixed(3)}</text>`;});
+  el.innerHTML=s+'</svg>';
+}
+draw();
+let t;addEventListener('resize',()=>{clearTimeout(t);t=setTimeout(draw,150)});
+const mq=matchMedia('(prefers-color-scheme: dark)');mq.addEventListener?.('change',draw);
+new MutationObserver(draw).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+})();
+</script>
