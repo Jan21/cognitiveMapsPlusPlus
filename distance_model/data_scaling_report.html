@@ -88,7 +88,7 @@ splits for each head's winner. Same data, loss, steps and objectness plane for e
 <tr><td>scalar MLP</td><td>0.839 &plusmn; 0.063</td><td>0.839 &plusmn; 0.061</td><td>2.70</td><td>2.69</td><td class="cfg">slots w64 &middot; 2L &middot; d128 &middot; lr 1e-3</td></tr>
 <tr><td>sym (L1 embed)</td><td>0.791 &plusmn; 0.002</td><td>0.791 &plusmn; 0.001</td><td>3.00</td><td>3.01</td><td class="cfg">1&times;1 pixels w32 &middot; mean &middot; d256</td></tr>
 <tr><td>MRN</td><td>0.784 &plusmn; 0.003</td><td>0.775 &plusmn; 0.004</td><td>3.07</td><td>3.11</td><td class="cfg">slots w64 &middot; 2L &middot; d128 &middot; lr 2e-3</td></tr>
-<tr><td>decode-head ablation</td><td>0.864 &plusmn; 0.025</td><td>running (3 seeds)</td><td>2.42</td><td>&mdash;</td><td class="cfg">same recurrence, MLP readout &middot; T1 &middot; lr 5e-4</td></tr>
+<tr><td>decode-head ablation</td><td>0.864 &plusmn; 0.025</td><td>0.834 &plusmn; 0.063</td><td>2.42</td><td>2.73</td><td class="cfg">same recurrence, MLP readout &middot; T1 &middot; lr 5e-4</td></tr>
 </table></div>
 
 <div class="chart"><h4>Correlation on held-out evaluations, large bed (mean of 3 seeds)</h4><div id="c-head"></div>
@@ -201,7 +201,7 @@ function draw(){
   const W=Math.max(560,Math.min(820,document.querySelector('main').clientWidth-40));
   bars(document.getElementById('c-head'),[
    {label:'unseen maps',vals:[{v:0.953,acc:1,err:0.007,top:1},{v:0.864,acc:2,err:0.025},{v:0.860,err:0.018},{v:0.839,err:0.063},{v:0.791,err:0.002},{v:0.784,err:0.003}]},
-   {label:'rewired causality',vals:[{v:0.943,acc:1,err:0.020,top:1},{v:0.836,err:0.044},{v:0.839,err:0.061},{v:0.791,err:0.001},{v:0.775,err:0.004}]}
+   {label:'rewired causality',vals:[{v:0.943,acc:1,err:0.020,top:1},{v:0.834,acc:2,err:0.063},{v:0.836,err:0.044},{v:0.839,err:0.061},{v:0.791,err:0.001},{v:0.775,err:0.004}]}
   ],0.70,1.0,W);
   bars(document.getElementById('c-beds'),[
    {label:'200 maps / 49k',vals:[{v:0.860,acc:1,err:0.017,top:1},{v:0.773,err:0.010}]},

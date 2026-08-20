@@ -99,7 +99,7 @@ Claim for the paper: on the same joint recurrence the accumulation readout is mo
 window vs a narrow one with collapse above it) and more sample-efficient; the tuned gap runs ≈ 0 (data-rich
 symbolic) → −0.06 (lean symbolic) → −0.11 (lean image) → −0.09 (data-rich image), so data narrows but does not
 close it, and the two readouts respond to recurrence depth in opposite directions: iteration is an asset for
-accumulation and a liability for decoding the final state. Raw: `ablations_raw.json / decodehead_screen,
+accumulation and a liability for decoding the final state. On rewired causality the tuned decode head lands at 0.834 ± 0.063 (3 seeds) vs accumulation 0.943 ± 0.020, a −0.11 gap with the same seed instability as the scalar baseline: the monolithic readout is hit hardest exactly where causal structure changes. Raw: `ablations_raw.json / decodehead_screen,
 decodehead_softplus, decodehead_symbolic, decodehead_683, decodehead_683_screen, integ683_T1`.
 
 ## Training-data scaling (683 maps; two separate levers, 2026-08-20 correction)
@@ -123,3 +123,8 @@ The first report conflated two levers. Disentangled (both at 80k steps, 3 seeds 
 - Bookkeeping: poolq was not logged in RESULT json, which hid the mismatch (now logged). A 4-cell bisect confirmed
   the code paths are bit-identical (old file = current file = eval-on = eval-off at fixed seed).
 Raw numbers: `ablations_raw.json / nmaps683_probe, div683_fixedpairs`.
+
+## Bed-size robustness (650 maps / 150k pairs, user-requested)
+An independent nearby bed (650 maps, poolq 6100 = 149.9k pairs, final recipe, 3 seeds): 0.947 ± 0.010 map /
+0.931 ± 0.018 wire, MAE 1.41 / 1.57. Statistically identical to the 683 / 167k bed (0.953 / 0.943): the large-bed
+result is robust to the exact map and pair counts. Raw: `ablations_raw.json / integ650`.

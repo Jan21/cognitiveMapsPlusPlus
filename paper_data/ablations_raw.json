@@ -827,5 +827,45 @@
    1.741,
    1.675
   ]
+ },
+ "integ650": {
+  "note": "user-requested bed: 650 maps / 149.9k pairs (poolq 6100), final recipe, 3 seeds",
+  "map": {
+   "corr": [
+    0.935,
+    0.958,
+    0.949
+   ],
+   "mae": [
+    1.593,
+    1.25,
+    1.379
+   ]
+  },
+  "wire": {
+   "corr": [
+    0.911,
+    0.954,
+    0.929
+   ],
+   "mae": [
+    1.777,
+    1.278,
+    1.664
+   ]
+  }
+ },
+ "decodehead_683_wire": {
+  "note": "tuned T1 lr5e-4, wire split, 683/167k; accumulation wire ref 0.943+-0.020",
+  "corr": [
+   0.755,
+   0.91,
+   0.836
+  ],
+  "mae": [
+   3.541,
+   1.933,
+   2.724
+  ]
  }
 }
