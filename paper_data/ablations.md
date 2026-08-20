@@ -112,7 +112,9 @@ The first report conflated two levers. Disentangled (both at 80k steps, 3 seeds 
   seed 0 hit 0.884 but the spread is ± 0.06, the monolithic-readout instability again); sym 0.791; mrn 0.784.
   **Margins: +0.093 map / +0.104 wire — the integrator's edge grows with data** while its MAE nearly halves
   (2.2 → 1.32 vs best baseline 2.51). Winner objch-off checks (seed 0): iqe/sym/mrn within ± 0.01, scalar needs the
-  objectness plane (0.755 vs 0.884).
+  objectness plane (0.755 vs 0.884). Integ without the objectness plane on this bed: 0.906 map / 0.928 wire
+  (2 seeds) — the plane is worth +0.047 map at scale (vs +0.017 at 200 maps), i.e. NOT made redundant by data;
+  but the plain-pixels integrator still leads every re-tuned baseline by +0.05 / +0.09.
 - Best-checkpoint (held-out eval curve, `--evalevery`): ≤ +0.01 corr over final for every model — checkpoint
   selection is not a factor on this bench.
 - Bookkeeping: poolq was not logged in RESULT json, which hid the mismatch (now logged). A 4-cell bisect confirmed

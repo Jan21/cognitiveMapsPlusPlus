@@ -766,5 +766,28 @@
     11.44
    ]
   }
+ },
+ "integ683_noobj": {
+  "note": "integ without objectness plane, 683 maps / 167k pairs, 2 seeds; with objch: 0.953+-0.007 map / 0.943+-0.020 wire",
+  "map": {
+   "corr": [
+    0.909,
+    0.903
+   ],
+   "mae": [
+    1.692,
+    1.879
+   ]
+  },
+  "wire": {
+   "corr": [
+    0.94,
+    0.916
+   ],
+   "mae": [
+    1.517,
+    1.828
+   ]
+  }
  }
 }
