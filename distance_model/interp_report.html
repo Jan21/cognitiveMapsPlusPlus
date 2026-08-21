@@ -242,13 +242,22 @@ extrapolated passes march in a fixed direction (direction cosine → 0.98), matc
 <b>Calibration:</b> one worker move costs 0.081–0.085 latent units in all three integrators; a
 crate push ≈ 0.45; a lever pull 0.79–1.43. The coupling-carrying moves are charged 5–17×.</p>
 
-<h3 style="font-family:var(--display);font-size:19px;margin:28px 0 4px">Wire-split divergence (single seed, preliminary)</h3>
-<p>A fresh rewired-causality checkpoint (0.909) keeps walk = distance (0.907) but <b>loses the
-decomposition</b> (lever residual corr 0.135 vs ≈0.5) and lever visitation <b>reverses</b>
-(pull-free pairs get more lever mass in every matched bin). Working hypothesis: wiring is invisible
-in pixels and resampled at test, so the wire model cannot know which lever matters and stops
-routing; the map-split models apply generic route-through-levers behavior on novel layouts.
-Cross-eval (each checkpoint on the other split's pool) is running.</p>
+<h3 style="font-family:var(--display);font-size:19px;margin:28px 0 4px">Double dissociation, then the stale-wiring reveal</h3>
+<p>A fresh rewired-causality checkpoint (0.909) keeps walk = distance (0.907) but loses the
+decomposition (lever residual 0.135) and its lever visitation looks reversed. Cross-evaluating
+each checkpoint on the other split's pool dissociates the two mechanisms cleanly, with accuracy
+transferring both ways (0.916 / 0.910): <b>decomposition is a model property</b> (map-trained keeps
+lever residual ≈0.5 on any pool, wire-trained lacks it on any pool), while <b>lever visitation is a
+split property</b> (both models show it on unseen layouts, both lose it on rewired-familiar
+layouts).</p>
+<p>The stale-wiring probe explains why. On rewired pools, restricted to pairs where the training
+wiring and the current wiring demand <em>disjoint</em> levers, the decoded transient puts
+<b>19–41× more mass on the stale levers</b> (correct under the training wiring: 0.037 / 0.059)
+than on the currently correct ones (0.002 / 0.001). The walk re-enacts the remembered plan for
+that layout while the distance output stays accurate: <b>routing is a memory, and the distance
+readout does not depend on visiting the right levers.</b> Caveats: n=45 strict pairs per model,
+win fraction 0.42–0.47 (means driven by strong cases), wire-model decoder acc 0.26, one seed
+per model.</p>
 </section>
 
 <footer>Raw numbers: <code>paper_data/interpretability_switchyard.md</code> ·

@@ -40,8 +40,9 @@ def main():
     with torch.no_grad():
         P = torch.softmax(dec(torch.tensor(Zw.reshape(-1, dim))), 1).reshape(B, T1, 49).numpy()
 
-    picks = []
+    picks = []; used_maps = set()
     for i in np.where(te)[0]:
+        if int(MID[i]) in used_maps: continue                      # one example per map
         if not (8 <= dt[i] <= 16): continue
         yard = yards[int(MID[i])]
         s = tuple(int(x) for x in S1[i]); g = tuple(int(x) for x in S2[i])
@@ -62,6 +63,7 @@ def main():
             true_wpath=[int(c) for c in wcells], pulled=[int(c) for c in sorted(pulled)],
             decoded_top=[int(P[i, t].argmax()) for t in range(T1)],
             decoded_dist=[[round(float(x), 4) for x in P[i, t]] for t in range(T1)]))
+        used_maps.add(int(MID[i]))
         if len(picks) >= args.n: break
     with open(args.out, "w") as f:
         json.dump(dict(tag=a.tag, T=int(T1 - 1), examples=picks), f)

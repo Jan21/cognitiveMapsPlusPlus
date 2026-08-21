@@ -90,3 +90,22 @@ home scores 0.909 / 0.904). Mechanisms dissociate:
   the TRAINING wiring (stale memory) rather than the resampled ground truth. Stale-wiring probe
   (batch 5) tests decoded mass on stale-only vs current-only lever cells directly.
 - Also running: decoded-walk visualization extraction (batch 6, paper figure data).
+
+### 01:10 batch 5: STALE-WIRING PROBE CONFIRMS MEMORY-DRIVEN ROUTING
+
+On the rewired pool, restricted to pairs where training-wiring and current-wiring optimal paths
+pull DISJOINT levers (n=45 strict pairs per model):
+
+| model | mass on stale-only levers | mass on currently-correct levers | ratio |
+|---|---|---|---|
+| map ckpt (idv_map_s1) on rewired pool | 0.0368 | 0.0020 | 19x |
+| wire ckpt (nw_wire_s1) home pool | 0.0588 | 0.0014 | 41x |
+
+The walk visits the levers that were correct under the TRAINING wiring of that layout, not the
+resampled ground truth, while the distance OUTPUT stays accurate (0.91). So the routing is a
+memory re-enactment, and the visitation reversal on rewired pools is explained: the metric was
+keyed to current-truth pulls. Distance prediction evidently does not depend on visiting the
+right levers.
+
+Caveats: n=45 (strict disjointness filter); win fraction 0.42/0.47 (means driven by strong
+cases, many pairs put ~0 on both); wire-model decoder acc only 0.264; single seed per model.

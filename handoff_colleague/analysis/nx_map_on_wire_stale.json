@@ -1,0 +1,9 @@
+{
+ "tag": "nx_map_on_wire",
+ "B": 4096,
+ "dec_acc_t0": 0.52,
+ "n_pairs": 45,
+ "mass_stale_only": 0.03677,
+ "mass_current_only": 0.00196,
+ "stale_winfrac": 0.422
+}
