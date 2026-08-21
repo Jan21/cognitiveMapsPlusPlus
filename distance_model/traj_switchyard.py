@@ -161,7 +161,7 @@ def main():
     lm = np.zeros((B, T1))
     for i in range(B):
         for lc in lever_cells[i]: lm[i] += P[i, :, lc]
-    need = sel & te & np.isfinite(dnp) & (dnp > dt)                # pulls strictly required
+    need = sel & te & (dnp > dt)                                   # pulls strictly required (inf = unreachable without pulls)
     free = sel & te & (dnp == dt)                                  # pull-free optimal exists
     trans = lm[:, 1:T1 - 1].mean(1) if T1 > 2 else lm[:, 1]
     bins = np.clip((dt / 4).astype(int), 0, 5)                     # distance-matched comparison
@@ -175,6 +175,19 @@ def main():
     res["P3_levermass_free"] = round(float(trans[free].mean()), 4) if free.any() else None
     res["P3_matched_bins"] = [[round(x, 4) if isinstance(x, float) else x for x in t] for t in diffs]
     res["P3_levermass_chance"] = round(float(np.mean([len(l) / 49 for l in lever_cells])), 4)
+    # within-pair control: on pairs whose optimal path pulls a strict subset of levers, compare
+    # per-cell transient mass on the PULLED lever cells vs the map's other (non-pulled) lever cells
+    mp, mo = [], []
+    for i in np.where(sel & te & (nl > 0))[0]:
+        oth = [c for c in lever_cells[i] if c not in pulled[i]]
+        if not pulled[i] or not oth: continue
+        tr_mass = P[i, 1:T1 - 1] if T1 > 2 else P[i, 1:2]
+        mp.append(float(np.mean([tr_mass[:, c].mean() for c in pulled[i]])))
+        mo.append(float(np.mean([tr_mass[:, c].mean() for c in oth])))
+    res["P3_within_n"] = len(mp)
+    res["P3_within_pulled"] = round(float(np.mean(mp)), 5) if mp else None
+    res["P3_within_other"] = round(float(np.mean(mo)), 5) if mo else None
+    res["P3_within_winfrac"] = round(float(np.mean(np.array(mp) > np.array(mo))), 3) if mp else None
 
     print("ANALYSIS " + json.dumps(res), flush=True)
     if args.json:
