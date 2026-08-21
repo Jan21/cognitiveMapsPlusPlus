@@ -796,6 +796,12 @@ def train(a):
                 r["mae_beyond"] = round((pr[far] - EDt[far]).abs().mean().item(), 3)
                 r["corr_beyond"] = round(float(np.corrcoef(pr[far].cpu(), EDt[far].cpu())[0, 1]), 3) if far.sum() > 2 else None
         out[name] = r
+        if a.save:      # weights + full args: reload via the same class after rebuilding with these args
+            torch.save(dict(state_dict=model.state_dict(), args=vars(a), model_name=name, result=r),
+                       f"{a.save}_{name}.pt")
+        if a.dumppred:  # held-out pool: true BFS distance + prediction per pair (calibration plots)
+            np.savez(f"{a.dumppred}_{name}.npz", d_true=ED.astype(np.float32),
+                     d_pred=pr.cpu().numpy().astype(np.float32))
     print("RESULT " + json.dumps(dict(G=a.G, ngate=a.ngate, nlever=a.nlever, nmaps=a.nmaps, split=a.split,
                                       Rtrain=a.Rtrain, globalbase=a.globalbase, enc=a.enc, markeraux=a.markeraux,
                                       markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, cnndepth=a.cnndepth, steps=a.steps, seed=a.seed,
@@ -881,6 +887,8 @@ def main():
     ap.add_argument("--hardattn", type=int, default=0, help="image xattn: straight-through hard (top-1 cell) attention read")
     ap.add_argument("--seewalls", type=int, default=0, help="encode open NON-gate cross doorways as tokens (else only via the pooled wall token)")
     ap.add_argument("--tag", default="")
+    ap.add_argument("--save", default="", help="prefix: save final weights+args to <prefix>_<model>.pt")
+    ap.add_argument("--dumppred", default="", help="prefix: save held-out (d_true, d_pred) to <prefix>_<model>.npz")
     a = ap.parse_args()
     if a.probe: probe(a)
     if a.train: train(a)
