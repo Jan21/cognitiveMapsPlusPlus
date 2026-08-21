@@ -1,0 +1,228 @@
+<title>Latent Walks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700&family=Public+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#faf9f6; --ink:#1c2128; --muted:#5d6470; --line:#e4e1d8;
+  --amber:#d97706; --amber-soft:#fdf3e3; --green:#2f7d4f; --green-soft:#e9f3ec;
+  --null:#5b6b8c; --null-soft:#eef0f5; --card:#ffffff; --code:#f3f1ea;
+  --display:'Bricolage Grotesque',Georgia,serif; --body:'Public Sans',system-ui,sans-serif;
+  --mono:'Spline Sans Mono',ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#12151a; --ink:#e8e6e1; --muted:#9aa1ac; --line:#2a2f37;
+  --amber:#f0a03c; --amber-soft:#2a2115; --green:#5cb884; --green-soft:#16251c;
+  --null:#8fa0c2; --null-soft:#1c2129; --card:#181c22; --code:#1d222a;
+}}
+:root[data-theme="dark"]{
+  --paper:#12151a; --ink:#e8e6e1; --muted:#9aa1ac; --line:#2a2f37;
+  --amber:#f0a03c; --amber-soft:#2a2115; --green:#5cb884; --green-soft:#16251c;
+  --null:#8fa0c2; --null-soft:#1c2129; --card:#181c22; --code:#1d222a;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);margin:0;line-height:1.55;font-size:16px}
+.wrap{max-width:880px;margin:0 auto;padding:0 24px 96px}
+header{padding:56px 0 8px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber);font-weight:600}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(38px,6vw,58px);margin:.15em 0 .1em;text-wrap:balance;letter-spacing:-.015em}
+.sub{color:var(--muted);max-width:60ch;margin:0 0 8px}
+.railviz{margin:28px 0 8px;overflow-x:auto}
+.verdicts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:28px 0 8px}
+.verdict{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--green);border-radius:6px;padding:14px 16px}
+.verdict .k{font-family:var(--mono);font-size:26px;font-weight:600;color:var(--green)}
+.verdict .k small{font-size:15px;color:var(--muted);font-weight:400}
+.verdict .t{font-size:13.5px;color:var(--muted);margin-top:2px}
+h2{font-family:var(--display);font-weight:600;font-size:27px;margin:56px 0 4px;text-wrap:balance}
+h2 .n{color:var(--amber);font-family:var(--mono);font-size:19px;vertical-align:.12em;margin-right:8px}
+.lede{color:var(--muted);max-width:64ch;margin:.2em 0 18px}
+table{border-collapse:collapse;width:100%;font-size:14.5px;font-variant-numeric:tabular-nums}
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--card);margin:14px 0}
+th{font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);font-weight:500;white-space:nowrap}
+td{padding:9px 14px;border-bottom:1px solid var(--line)}
+tr:last-child td{border-bottom:none}
+td.num,th.num{text-align:right;font-family:var(--mono);font-size:13.5px}
+.hi{color:var(--green);font-weight:600}
+.lo{color:var(--null)}
+.warn{color:var(--amber);font-weight:600}
+.tag{font-family:var(--mono);font-size:12.5px;background:var(--code);border-radius:4px;padding:2px 7px;white-space:nowrap}
+.bars{display:flex;flex-direction:column;gap:10px;margin:18px 0}
+.binrow{display:grid;grid-template-columns:110px 1fr;gap:12px;align-items:center}
+.binlab{font-family:var(--mono);font-size:12.5px;color:var(--muted);text-align:right}
+.binbars{display:flex;flex-direction:column;gap:3px}
+.bar{height:15px;border-radius:2px;display:flex;align-items:center;min-width:2px}
+.bar span{font-family:var(--mono);font-size:11px;padding-left:6px;color:var(--paper);font-weight:600;white-space:nowrap}
+.bar.need{background:var(--amber)}
+.bar.free{background:var(--null)}
+.bar.free span{color:var(--paper)}
+.legend{display:flex;gap:18px;font-family:var(--mono);font-size:12px;color:var(--muted);margin:6px 0 0}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.chanceline{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.note{background:var(--amber-soft);border:1px solid var(--line);border-left:4px solid var(--amber);border-radius:6px;padding:14px 18px;margin:20px 0;font-size:14.5px}
+.note b{color:var(--amber)}
+.method{background:var(--null-soft);border:1px solid var(--line);border-radius:6px;padding:14px 18px;margin:16px 0;font-size:14px;color:var(--muted)}
+code{font-family:var(--mono);font-size:.88em;background:var(--code);padding:1px 6px;border-radius:4px}
+.passgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:16px 0}
+.pass{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+.pass .nm{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:8px}
+.pass .row{display:flex;gap:3px;height:34px;align-items:flex-end}
+.pass .p{flex:1;border-radius:2px 2px 0 0;background:var(--green);opacity:.85}
+.pass.dh .p{background:var(--null)}
+.pass .cap{font-family:var(--mono);font-size:10.5px;color:var(--muted);display:flex;gap:3px;margin-top:3px}
+.pass .cap i{flex:1;text-align:center;font-style:normal}
+footer{margin-top:72px;border-top:1px solid var(--line);padding-top:16px;color:var(--muted);font-size:13px}
+.night h2{margin-top:64px}
+.pending{font-family:var(--mono);font-size:13px;color:var(--muted);border:1px dashed var(--line);border-radius:6px;padding:14px 18px}
+</style>
+
+<div class="wrap">
+<header>
+<div class="eyebrow">CognitiveMaps++ · Switchyard · 2026-08-21</div>
+<h1>Latent Walks</h1>
+<p class="sub">Does the recall-flow integrator's latent walk mean anything? Three probes on freshly
+retrained image checkpoints (683 maps / 167k pairs and 600 / 201k, L5 unseen-maps split): the walk
+length is the distance, the walk decomposes by entity, and it detours through the states that
+enable the task.</p>
+<div class="railviz">
+<svg width="820" height="96" viewBox="0 0 820 96" role="img" aria-label="A four-pass latent walk from start to goal, detouring through a lever cell">
+  <line x1="30" y1="62" x2="790" y2="62" stroke="var(--line)" stroke-width="2"/>
+  <circle cx="40" cy="62" r="7" fill="var(--ink)"/>
+  <text x="40" y="88" font-family="var(--mono)" font-size="11" fill="var(--muted)" text-anchor="middle">start</text>
+  <path d="M 47 60 C 130 18, 200 18, 262 40" fill="none" stroke="var(--amber)" stroke-width="2.5"/>
+  <circle cx="268" cy="42" r="6" fill="none" stroke="var(--amber)" stroke-width="2.5"/>
+  <text x="268" y="24" font-family="var(--mono)" font-size="11" fill="var(--amber)" text-anchor="middle">lever</text>
+  <path d="M 274 44 C 350 68, 420 74, 490 66" fill="none" stroke="var(--amber)" stroke-width="2.5"/>
+  <path d="M 490 66 C 570 58, 640 60, 700 61" fill="none" stroke="var(--amber)" stroke-width="2.5" stroke-dasharray="1 7" stroke-linecap="round"/>
+  <circle cx="770" cy="62" r="7" fill="none" stroke="var(--green)" stroke-width="3"/>
+  <text x="770" y="88" font-family="var(--mono)" font-size="11" fill="var(--muted)" text-anchor="middle">goal</text>
+  <text x="410" y="14" font-family="var(--mono)" font-size="11" fill="var(--muted)" text-anchor="middle">D = softplus(s) · Σ_t Σ_i ‖Δz_i(t)‖</text>
+</svg>
+</div>
+</header>
+
+<div class="verdicts">
+  <div class="verdict"><div class="k">0.90–0.95 <small>vs 0.60–0.67</small></div>
+  <div class="t">walk-length ~ true distance: integrator vs decode-head trunk (same trunk, unsupervised walk)</div></div>
+  <div class="verdict"><div class="k">≈ 0.5 <small>vs ≈ 0</small></div>
+  <div class="t">lever-slot cost ~ number of pulls, total distance regressed out</div></div>
+  <div class="verdict"><div class="k">2–4×</div>
+  <div class="t">decoded lever-cell mass on pull-requiring pairs vs distance-matched controls, every bin</div></div>
+</div>
+
+<h2><span class="n">01</span>The walk length is the distance</h2>
+<p class="lede">Both models share the recurrence; only the readout differs. The integrator is
+supervised <em>through</em> Σ‖Δz‖, the decode head reads distance off the final tokens and leaves
+its walk unsupervised. If the walk were an epiphenomenon, both walks would look the same.</p>
+<div class="tblwrap"><table>
+<tr><th>model</th><th>checkpoint</th><th class="num">corr(walk, d*)</th><th class="num">corr(pred, d*)</th><th class="num">ckpt corr</th></tr>
+<tr><td>integrator</td><td><span class="tag">idv_map_s1</span></td><td class="num hi">0.90</td><td class="num">0.90</td><td class="num">0.904</td></tr>
+<tr><td>integrator</td><td><span class="tag">int600_map_s2</span></td><td class="num hi">0.92</td><td class="num">0.92</td><td class="num">0.917</td></tr>
+<tr><td>integrator</td><td><span class="tag">int600_map_s3</span></td><td class="num hi">0.95</td><td class="num">0.95</td><td class="num">0.956</td></tr>
+<tr><td>decode head</td><td><span class="tag">dh683_lr5e4_s0</span></td><td class="num lo">0.60</td><td class="num">0.71</td><td class="num">0.684</td></tr>
+<tr><td>decode head</td><td><span class="tag">dh683_lr5e4_s1</span></td><td class="num lo">0.67</td><td class="num">0.82</td><td class="num">0.817</td></tr>
+</table></div>
+<p>Image analogue of the symbolic result (0.95 vs 0.40, same trunk). The decode-head walk still
+carries some distance signal, more than on symbolic tokens, but the accumulation readout is what
+makes walk = distance rather than walk ≈ distance.</p>
+<p class="lede" style="margin-top:20px">Where the cost lands also differs: the integrator spends
+its walk across all four passes; the decode-head trunk front-loads half of it into pass one.</p>
+<div class="passgrid">
+  <div class="pass"><div class="nm">integ idv_map_s1</div>
+    <div class="row"><div class="p" style="height:45%"></div><div class="p" style="height:76%"></div><div class="p" style="height:100%"></div><div class="p" style="height:82%"></div></div>
+    <div class="cap"><i>.15</i><i>.25</i><i>.33</i><i>.27</i></div></div>
+  <div class="pass"><div class="nm">integ int600_map_s3</div>
+    <div class="row"><div class="p" style="height:53%"></div><div class="p" style="height:88%"></div><div class="p" style="height:100%"></div><div class="p" style="height:81%"></div></div>
+    <div class="cap"><i>.16</i><i>.27</i><i>.31</i><i>.25</i></div></div>
+  <div class="pass dh"><div class="nm">decode head s0</div>
+    <div class="row"><div class="p" style="height:100%"></div><div class="p" style="height:37%"></div><div class="p" style="height:34%"></div><div class="p" style="height:33%"></div></div>
+    <div class="cap"><i>.49</i><i>.18</i><i>.17</i><i>.16</i></div></div>
+  <div class="pass dh"><div class="nm">decode head s1</div>
+    <div class="row"><div class="p" style="height:100%"></div><div class="p" style="height:59%"></div><div class="p" style="height:50%"></div><div class="p" style="height:47%"></div></div>
+    <div class="cap"><i>.39</i><i>.23</i><i>.20</i><i>.18</i></div></div>
+</div>
+
+<h2><span class="n">02</span>The walk decomposes by entity</h2>
+<p class="lede">Each held-out pair gets a BFS-optimal path decomposed into worker moves, crate
+pushes, and lever pulls; each entity gets the slot that attends to its cell. The honest statistic
+is the <b>residual correlation</b>: per-slot cost against per-entity moves after regressing total
+distance out of both sides, which kills the null where every slot just tracks the total.</p>
+<div class="tblwrap"><table>
+<tr><th>model</th><th class="num">worker</th><th class="num">crate</th><th class="num">lever</th><th class="num">lever (raw)</th></tr>
+<tr><td>integ <span class="tag">idv_map_s1</span></td><td class="num">0.16</td><td class="num">0.40</td><td class="num hi">0.52</td><td class="num">0.71</td></tr>
+<tr><td>integ <span class="tag">int600_map_s2</span></td><td class="num">−0.04</td><td class="num">0.26</td><td class="num hi">0.47</td><td class="num">0.66</td></tr>
+<tr><td>integ <span class="tag">int600_map_s3</span></td><td class="num">0.31</td><td class="num">0.19</td><td class="num hi">0.50</td><td class="num">0.70</td></tr>
+<tr><td>decode head <span class="tag">s0</span></td><td class="num lo">−0.26</td><td class="num lo">0.08</td><td class="num lo">−0.02</td><td class="num lo">0.01</td></tr>
+<tr><td>decode head <span class="tag">s1</span></td><td class="num lo">−0.43</td><td class="num">0.39</td><td class="num lo">0.02</td><td class="num lo">0.16</td></tr>
+</table></div>
+<p>The lever slots, the carriers of the environment's interdependence, decompose cleanly in every
+integrator and in no decode-head trunk. This is stronger than expected: the earlier factored-env
+study put the image clean-index at 0.24, and here the coupling-critical entity separates anyway.</p>
+
+<h2><span class="n">03</span>The walk visits the enabling states</h2>
+<p class="lede">A linear decoder (worker-slot token at t=0 → grid cell, trained on held-in maps)
+reads a worker position out of every intermediate pass. Pairs are split by ground truth: pulls
+<b>required</b> (the no-pull graph cannot reach the goal, or only slower) vs a pull-free optimal
+path exists. Question: does the decoded transient put mass on lever cells exactly when the task
+needs a lever?</p>
+<div class="tblwrap"><table>
+<tr><th>model</th><th class="num">decoder acc</th><th class="num">need</th><th class="num">free</th><th class="num">chance</th><th>matched bins</th></tr>
+<tr><td>integ <span class="tag">idv_map_s1</span></td><td class="num">0.55</td><td class="num hi">0.066</td><td class="num">0.036</td><td class="num">0.041</td><td>need &gt; free in 5/5</td></tr>
+<tr><td>integ <span class="tag">int600_map_s2</span></td><td class="num warn">0.19</td><td class="num hi">0.034</td><td class="num">0.011</td><td class="num">0.041</td><td>need &gt; free in 5/5</td></tr>
+<tr><td>integ <span class="tag">int600_map_s3</span></td><td class="num">0.72</td><td class="num hi">0.079</td><td class="num">0.037</td><td class="num">0.041</td><td>need &gt; free in 5/5</td></tr>
+<tr><td>decode head <span class="tag">s0</span></td><td class="num warn">0.13</td><td class="num">0.086</td><td class="num">0.049</td><td class="num">0.041</td><td>weak decoder, cautious</td></tr>
+<tr><td>decode head <span class="tag">s1</span></td><td class="num warn">0.34</td><td class="num">0.038</td><td class="num">0.033</td><td class="num">0.041</td><td>need &gt; free in 5/5</td></tr>
+</table></div>
+<p class="lede" style="margin-top:22px">Best-decodable model (<span class="tag">int600_map_s3</span>,
+decoder accuracy 0.72), transient lever-cell mass per distance bin:</p>
+<div class="bars">
+  <div class="binrow"><div class="binlab">d* 1–3</div><div class="binbars">
+    <div class="bar need" style="width:100%"><span>0.128</span></div>
+    <div class="bar free" style="width:25%"><span>0.032</span></div></div></div>
+  <div class="binrow"><div class="binlab">d* 4–7</div><div class="binbars">
+    <div class="bar need" style="width:66%"><span>0.084</span></div>
+    <div class="bar free" style="width:40%"><span>0.052</span></div></div></div>
+  <div class="binrow"><div class="binlab">d* 8–11</div><div class="binbars">
+    <div class="bar need" style="width:59%"><span>0.076</span></div>
+    <div class="bar free" style="width:39%"><span>0.049</span></div></div></div>
+  <div class="binrow"><div class="binlab">d* 12–15</div><div class="binbars">
+    <div class="bar need" style="width:48%"><span>0.061</span></div>
+    <div class="bar free" style="width:35%"><span>0.044</span></div></div></div>
+  <div class="binrow"><div class="binlab">d* 16+</div><div class="binbars">
+    <div class="bar need" style="width:57%"><span>0.072</span></div>
+    <div class="bar free" style="width:12%"><span>0.016</span></div></div></div>
+</div>
+<div class="legend"><span><i style="background:var(--amber)"></i>pulls required</span>
+<span><i style="background:var(--null)"></i>pull-free control</span>
+<span class="chanceline">chance = 0.041</span></div>
+<p style="margin-top:18px">The within-pair control is the sobering half: on pairs pulling a strict
+subset of the map's levers, mass on the <em>pulled</em> lever beats the other levers only 42–60%
+of the time. Same verdict as the factored-env study: the routing is <b>spatial, not a step-by-step
+re-enactment</b>. The transient reliably visits the enabling region; at T=4 it only weakly commits
+to which lever.</p>
+
+<div class="note"><b>Provenance.</b> The original campaign never saved weights, so all checkpoints
+are same-seed retrainings on A40s. Same-arch determinism is exact (a control run reproduced the
+recorded 0.952 corr / 1.321 MAE to the last digit, and the sym baseline replicated 0.789 exactly);
+cross-arch retraining drifts by the run-to-run noise floor, which is why
+<span class="tag">idv_map_s1</span> reads 0.904 here vs 0.963 recorded and decode-head s0 swung to
+0.684, its documented instability.</div>
+
+<div class="method"><b>Method notes.</b> 4096 held-out pairs per model, per-pass slot tokens dumped
+via <code>--loadckpt --dumptraj</code>; analysis in <code>traj_switchyard.py</code> (DELPI,
+branch <code>image-based-experiments</code>). BFS path decomposition validated against the distance
+labels on 100% of pairs. Pull-required includes goals unreachable without pulls (most of them:
+goal gate-bits differ from start). Decoder is a 49-way linear probe, trained t=0 on 70% of maps,
+evaluated on the rest; it is trained unseeded, so accuracy wobbles a little between analysis runs.
+T=4 gives four latent steps: temporal-ordering claims are out of reach by design.</div>
+
+<section class="night">
+<h2><span class="n">04</span>Night shift</h2>
+<p class="lede">Running probes continue overnight; findings land here as they are verified.</p>
+<div class="pending">queued: recall ablation at inference · T-extrapolation (walk parking at T=8/16)
+· wire-split checkpoint + same three probes · crate/plate/gate visitation · walk geometry
+(straightness, per-slot net vs gross displacement) · decoded-trajectory visualizations</div>
+</section>
+
+<footer>Raw numbers: <code>paper_data/interpretability_switchyard.md</code> ·
+analysis jsons in DELPI <code>results/interpretability/</code> ·
+checkpoints + predictions: <code>handoff_colleague.tar.gz</code></footer>
+</div>
