@@ -692,6 +692,10 @@ def train(a):
     for name, model in models:
         NPARAM = sum(p.numel() for p in model.parameters() if p.requires_grad)
         print(f"{name} params {NPARAM}", flush=True)
+        if a.loadckpt:  # analysis mode: restore saved weights, skip training (steps=0 leaves loop bodies empty)
+            ck = torch.load(a.loadckpt, map_location=dev)
+            model.load_state_dict(ck["state_dict"]); a.steps = 0
+            print(f"{name} loaded {a.loadckpt}", flush=True)
         opt = torch.optim.Adam(model.parameters(), a.lr)
         parking = name == "integ" and (a.arrive > 0 or a.Tmin >= 0)
         shadow = None
@@ -802,6 +806,30 @@ def train(a):
         if a.dumppred:  # held-out pool: true BFS distance + prediction per pair (calibration plots)
             np.savez(f"{a.dumppred}_{name}.npz", d_true=ED.astype(np.float32),
                      d_pred=pr.cpu().numpy().astype(np.float32))
+        if a.dumptraj > 0 and name == "integ" and a.readout in ("xattn", "slotattn"):
+            # per-pass slot trajectories on the first N held-out pairs (interpretability: latent-walk analysis)
+            Nd = min(a.dumptraj, len(E1t)); Zs, As, Ag, Im = [], [], [], []
+            with torch.no_grad():
+                for i in range(0, Nd, 1024):
+                    j = min(i + 1024, Nd)
+                    x, g, m = E1t[i:j], E2t[i:j], ECt[i:j]
+                    zs = model.enc(x, m) + model.role.weight[0]
+                    att_s = model.enc._lastattn.clone(); img_s = model.enc._lastimg.flatten(2).clone()
+                    zg = model.enc(g, m) + model.role.weight[1]
+                    att_g = model.enc._lastattn.clone()
+                    base = torch.cat([zg, model.enc(x, m) + model.role.weight[2]], 1)
+                    tok = torch.cat([zs, base], 1); zsteps = [tok[:, :NTOK].clone()]
+                    for _ in range(model.T):
+                        z = model.block(tok); zsteps.append(z[:, :NTOK].clone())
+                        tok = z if a.norecall else torch.cat([z[:, :NTOK], base], 1)
+                    Zs.append(torch.stack(zsteps, 1).half().cpu())
+                    As.append(att_s.half().cpu()); Ag.append(att_g.half().cpu()); Im.append(img_s.half().cpu())
+            np.savez(f"{a.save or 'traj'}_{name}_traj.npz",
+                     Z=torch.cat(Zs).numpy(), att_s=torch.cat(As).numpy(), att_g=torch.cat(Ag).numpy(),
+                     img_s=torch.cat(Im).numpy(), s1=E1[:Nd], s2=E2[:Nd], mapid=EC[:Nd],
+                     d_true=ED[:Nd].astype(np.float32), d_pred=pr[:Nd].cpu().numpy().astype(np.float32),
+                     scale=float(F.softplus(model.scale).item()), T=model.T, decodehead=int(a.decodehead))
+            print(f"traj dump {Nd} pairs -> {a.save or 'traj'}_{name}_traj.npz", flush=True)
     print("RESULT " + json.dumps(dict(G=a.G, ngate=a.ngate, nlever=a.nlever, nmaps=a.nmaps, split=a.split,
                                       Rtrain=a.Rtrain, globalbase=a.globalbase, enc=a.enc, markeraux=a.markeraux,
                                       markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, cnndepth=a.cnndepth, steps=a.steps, seed=a.seed,
@@ -889,6 +917,8 @@ def main():
     ap.add_argument("--tag", default="")
     ap.add_argument("--save", default="", help="prefix: save final weights+args to <prefix>_<model>.pt")
     ap.add_argument("--dumppred", default="", help="prefix: save held-out (d_true, d_pred) to <prefix>_<model>.npz")
+    ap.add_argument("--loadckpt", default="", help="load weights from a --save checkpoint and skip training (analysis)")
+    ap.add_argument("--dumptraj", type=int, default=0, help="dump per-pass slot trajectories for the first N held-out pairs")
     a = ap.parse_args()
     if a.probe: probe(a)
     if a.train: train(a)
