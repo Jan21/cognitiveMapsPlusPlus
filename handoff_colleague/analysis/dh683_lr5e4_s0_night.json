@@ -1,0 +1,60 @@
+{
+ "tag": "dh683_lr5e4_s0",
+ "decodehead": 1,
+ "B": 4096,
+ "T": 4,
+ "ok_frac": 1.0,
+ "decw_acc_t0": 0.085,
+ "decc_acc_t0": 0.225,
+ "M_worker_startmass": [
+  0.099,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "M_worker_goalmass": [
+  0.021,
+  0.013,
+  0.013,
+  0.013,
+  0.013
+ ],
+ "M_crate_startmass": [
+  0.341,
+  0.08,
+  0.08,
+  0.071,
+  0.071
+ ],
+ "M_crate_goalmass": [
+  0.009,
+  0.036,
+  0.036,
+  0.036,
+  0.036
+ ],
+ "M_n_worker": 760,
+ "M_n_crate": 338,
+ "V1_platemass_press": 0.0,
+ "V1_platemass_nopress": 0.0,
+ "V1_n": [
+  20,
+  316
+ ],
+ "V2_n": 665,
+ "V2_onpath": 0.02212,
+ "V2_offpath": 0.00959,
+ "V2_winfrac": 0.202,
+ "G_straight_worker": 0.874,
+ "G_straight_crate": 0.86,
+ "G_straight_all": 0.894,
+ "G_dircos_worker": [
+  0.442,
+  0.973,
+  0.984
+ ],
+ "C_cost_per_worker_move": 508.189,
+ "C_cost_per_crate_move": 2383.668,
+ "C_cost_per_lever_move": 2395.802
+}

@@ -1,0 +1,60 @@
+{
+ "tag": "idv_map_s1",
+ "decodehead": 0,
+ "B": 4096,
+ "T": 4,
+ "ok_frac": 1.0,
+ "decw_acc_t0": 0.511,
+ "decc_acc_t0": 0.874,
+ "M_worker_startmass": [
+  0.548,
+  0.525,
+  0.357,
+  0.241,
+  0.174
+ ],
+ "M_worker_goalmass": [
+  0.018,
+  0.019,
+  0.02,
+  0.021,
+  0.025
+ ],
+ "M_crate_startmass": [
+  0.945,
+  0.733,
+  0.29,
+  0.129,
+  0.065
+ ],
+ "M_crate_goalmass": [
+  0.003,
+  0.011,
+  0.023,
+  0.024,
+  0.019
+ ],
+ "M_n_worker": 1150,
+ "M_n_crate": 486,
+ "V1_platemass_press": 0.0001,
+ "V1_platemass_nopress": 0.0037,
+ "V1_n": [
+  22,
+  422
+ ],
+ "V2_n": 1031,
+ "V2_onpath": 0.02736,
+ "V2_offpath": 0.01411,
+ "V2_winfrac": 0.656,
+ "G_straight_worker": 0.775,
+ "G_straight_crate": 0.79,
+ "G_straight_all": 0.79,
+ "G_dircos_worker": [
+  0.495,
+  0.645,
+  0.747
+ ],
+ "C_cost_per_worker_move": 0.081,
+ "C_cost_per_crate_move": 0.499,
+ "C_cost_per_lever_move": 0.792
+}

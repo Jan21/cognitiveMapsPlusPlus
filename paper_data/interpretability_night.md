@@ -39,3 +39,33 @@ Ttest sweep at inference (trained T=4; corr / MAE):
   Goal re-injection is load-bearing but not catastrophic to remove.
 
 Correction: deadline is ~05:00 (6h from the 23:00 request), not 01:20.
+
+### 00:10 batch 2+3: migration, route-following, plate negative, geometry, calibration, wire divergence
+
+Wire checkpoint: nw_wire_s1 corr 0.909 / MAE 1.89 (recorded wire seeds ~0.94, cross-arch drift).
+
+- **Migration** (decoded worker position per pass, held-out maps, linear probe trained at t=0):
+  startmass decays monotonically (int600_s3: 0.74 -> 0.57 -> 0.33 -> 0.20 -> 0.14; idv: 0.55 -> 0.17),
+  goalmass rises weakly (s3: 0.007 -> 0.033, chance ~0.02). The walk demonstrably LEAVES the start;
+  arrival at the goal is weak in decoded space. Decode heads: start info collapses after one pass
+  (s0: 0.10 -> 0.00). Caveat: decoder is trained on t=0 tokens, later passes are OOD for it.
+- **Route-following (V2)**: integ decoded transient mass on true worker-path cells vs matched
+  random free cells: 0.027-0.049 vs 0.011-0.017, winfrac 0.61-0.73. Decode head s0: winfrac 0.20
+  (anti), s1 0.63. The integ walk follows the actual route, not just the endpoints.
+- **Plate visitation (V1): NEGATIVE.** Crate-slot transient mass on the plate cell is ~0 on
+  press-requiring pairs (0.000-0.002) vs 0.004-0.038 on no-press pairs; n_press only 11-26.
+  Enabling-state visitation is a worker/lever phenomenon, not crate/plate (or undetectable at
+  these sample sizes and crate-decoder quality).
+- **Geometry**: integ walks CURVE (net/gross 0.75-0.79); decode-head walks are straighter jumps
+  (0.86-0.89). Direction cosine rises across passes (0.4 -> 0.75): turning early, straight later.
+  At Ttest=16 straightness drops to 0.66-0.69 and dircos saturates ~0.98: the extrapolated passes
+  keep marching in a fixed direction, matching the runaway MAE.
+- **Calibration (cost per true move)**: worker 0.081-0.085 latent units per move, consistent
+  across all three integ models; crate ~0.45; lever pull 0.79-1.43. Coupling-carrying moves are
+  charged 5-17x the worker move. Image analogue of "internal factors charged extra unlock moves".
+- **Wire-split divergence (single seed, preliminary)**: nw_wire_s1 keeps walk=distance
+  (P1 0.907) but LOSES the decomposition (P2 residual lever 0.135 vs ~0.5 map-split) and lever
+  visitation REVERSES (free > need in all matched bins; within-pair 0.50). Hypothesis: wiring is
+  pixel-invisible and resampled at test, so the wire model cannot know which lever matters and
+  stops routing; map-split models on novel layouts use generic route-through-levers behavior.
+  Cross-eval (batch 4, running): wire ckpt on unseen-maps pool, map ckpt on rewired pool.

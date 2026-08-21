@@ -216,10 +216,39 @@ T=4 gives four latent steps: temporal-ordering claims are out of reach by design
 
 <section class="night">
 <h2><span class="n">04</span>Night shift</h2>
-<p class="lede">Running probes continue overnight; findings land here as they are verified.</p>
-<div class="pending">queued: recall ablation at inference · T-extrapolation (walk parking at T=8/16)
-· wire-split checkpoint + same three probes · crate/plate/gate visitation · walk geometry
-(straightness, per-slot net vs gross displacement) · decoded-trajectory visualizations</div>
+<p class="lede">Overnight probes on the same checkpoints plus a fresh wire-split one; verified
+findings only, negatives included.</p>
+
+<h3 style="font-family:var(--display);font-size:19px;margin:28px 0 4px">The walk accumulates, it does not park</h3>
+<p>Running a T=4 checkpoint for more passes keeps adding cost roughly linearly: corr degrades
+gently (idv 0.78 / 0.86 / <b>0.90</b> / 0.89 / 0.85 at T = 1 / 2 / 4 / 8 / 16) while MAE explodes
+(9.7 / 6.9 / <b>1.9</b> / 9.8 / 28.0). Ranking survives extrapolation, calibration lives at the
+trained T. This is the opposite of the factored recall-flow, which parked at the goal and
+extrapolated budget-free. Removing goal re-injection at inference costs 0.09–0.20 corr:
+recall is load-bearing but not catastrophic.</p>
+
+<h3 style="font-family:var(--display);font-size:19px;margin:28px 0 4px">The decoded walk leaves the start and follows the route</h3>
+<p>Decoded worker position per pass: start-cell mass decays monotonically
+(int600_s3: 0.74 → 0.57 → 0.33 → 0.20 → 0.14) while goal-cell mass rises weakly (0.007 → 0.033,
+chance ≈ 0.02). Transient mass sits on the true worker-path cells at 2–3× a matched random-cell
+control (win fraction 0.61–0.73); decode-head s0 is at 0.20, anti-route. Caveat: the decoder is
+trained on t=0 tokens, later passes are out-of-distribution for it.</p>
+
+<h3 style="font-family:var(--display);font-size:19px;margin:28px 0 4px">Negatives and structure</h3>
+<p><b>Plate visitation: negative.</b> Crate-slot mass on the plate cell is ≈0 on press-requiring
+pairs (n only 11–26). Visitation is a worker/lever phenomenon here. <b>Geometry:</b> integrator
+walks curve (net/gross 0.75–0.79), decode-head walks are straighter jumps (0.86–0.89); at T=16 the
+extrapolated passes march in a fixed direction (direction cosine → 0.98), matching the runaway MAE.
+<b>Calibration:</b> one worker move costs 0.081–0.085 latent units in all three integrators; a
+crate push ≈ 0.45; a lever pull 0.79–1.43. The coupling-carrying moves are charged 5–17×.</p>
+
+<h3 style="font-family:var(--display);font-size:19px;margin:28px 0 4px">Wire-split divergence (single seed, preliminary)</h3>
+<p>A fresh rewired-causality checkpoint (0.909) keeps walk = distance (0.907) but <b>loses the
+decomposition</b> (lever residual corr 0.135 vs ≈0.5) and lever visitation <b>reverses</b>
+(pull-free pairs get more lever mass in every matched bin). Working hypothesis: wiring is invisible
+in pixels and resampled at test, so the wire model cannot know which lever matters and stops
+routing; the map-split models apply generic route-through-levers behavior on novel layouts.
+Cross-eval (each checkpoint on the other split's pool) is running.</p>
 </section>
 
 <footer>Raw numbers: <code>paper_data/interpretability_switchyard.md</code> ·

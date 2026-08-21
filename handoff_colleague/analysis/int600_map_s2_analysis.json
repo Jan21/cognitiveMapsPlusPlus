@@ -1,0 +1,68 @@
+{
+ "tag": "int600_map_s2",
+ "decodehead": 0,
+ "B": 4096,
+ "T": 4,
+ "test_corr_ckpt": 0.917,
+ "P1_corr_walk_dtrue": 0.921,
+ "P1_corr_pred_dtrue": 0.921,
+ "P1_pass_cost_frac": [
+  0.139,
+  0.269,
+  0.313,
+  0.279
+ ],
+ "bfs_ok_frac": 1.0,
+ "slot_ambig_frac": 0.341,
+ "P2_corr_worker": 0.734,
+ "P2_rescorr_worker": -0.038,
+ "P2_null_corr_worker_dtrue": 0.769,
+ "P2_corr_crate": 0.614,
+ "P2_rescorr_crate": 0.26,
+ "P2_null_corr_crate_dtrue": 0.844,
+ "P2_corr_lever": 0.656,
+ "P2_rescorr_lever": 0.468,
+ "P2_null_corr_lever_dtrue": 0.672,
+ "P3_decoder_acc_t0": 0.187,
+ "P3_n_need": 306,
+ "P3_n_free": 328,
+ "P3_levermass_need": 0.0341,
+ "P3_levermass_free": 0.0112,
+ "P3_matched_bins": [
+  [
+   0.0388,
+   0.008,
+   45,
+   84
+  ],
+  [
+   0.0574,
+   0.001,
+   44,
+   67
+  ],
+  [
+   0.0449,
+   0.0079,
+   61,
+   40
+  ],
+  [
+   0.0235,
+   0.015,
+   65,
+   21
+  ],
+  [
+   0.0214,
+   0.0028,
+   89,
+   13
+  ]
+ ],
+ "P3_levermass_chance": 0.0408,
+ "P3_within_n": 265,
+ "P3_within_pulled": 0.01199,
+ "P3_within_other": 0.01913,
+ "P3_within_winfrac": 0.574
+}
