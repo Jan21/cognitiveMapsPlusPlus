@@ -69,3 +69,24 @@ Wire checkpoint: nw_wire_s1 corr 0.909 / MAE 1.89 (recorded wire seeds ~0.94, cr
   pixel-invisible and resampled at test, so the wire model cannot know which lever matters and
   stops routing; map-split models on novel layouts use generic route-through-levers behavior.
   Cross-eval (batch 4, running): wire ckpt on unseen-maps pool, map ckpt on rewired pool.
+
+### 00:45 batch 4: cross-eval = clean DOUBLE DISSOCIATION
+
+Accuracy transfers both ways (wire ckpt on unseen maps 0.916, map ckpt on rewired pool 0.910;
+home scores 0.909 / 0.904). Mechanisms dissociate:
+
+|  | map ckpt | wire ckpt |
+|---|---|---|
+| P2 lever residual, unseen-maps pool | 0.52 (home) | 0.20 |
+| P2 lever residual, rewired pool | **0.54** | 0.135 (home) |
+| P3 lever visitation, unseen-maps pool | 0.066 vs 0.036, 5/5 bins (home) | **0.073 vs 0.057, 5/5 bins** |
+| P3 lever visitation, rewired pool | **gone** (0.020 vs 0.017, mixed bins) | reversed (home) |
+
+- **Decomposition is a MODEL property**: the map-trained model keeps lever residual ~0.5 on any
+  pool; the wire-trained model lacks it on any pool.
+- **Lever visitation is a SPLIT property**: BOTH models route through levers on unseen layouts,
+  BOTH lose it on rewired-familiar layouts.
+- Hypothesis update: on familiar layouts the walk may visit the levers that were correct under
+  the TRAINING wiring (stale memory) rather than the resampled ground truth. Stale-wiring probe
+  (batch 5) tests decoded mass on stale-only vs current-only lever cells directly.
+- Also running: decoded-walk visualization extraction (batch 6, paper figure data).

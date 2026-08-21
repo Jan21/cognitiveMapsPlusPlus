@@ -1,0 +1,60 @@
+{
+ "tag": "nx_map_on_wire",
+ "decodehead": 0,
+ "B": 4096,
+ "T": 4,
+ "ok_frac": 1.0,
+ "decw_acc_t0": 0.52,
+ "decc_acc_t0": 0.877,
+ "M_worker_startmass": [
+  0.498,
+  0.472,
+  0.342,
+  0.257,
+  0.216
+ ],
+ "M_worker_goalmass": [
+  0.012,
+  0.012,
+  0.016,
+  0.02,
+  0.022
+ ],
+ "M_crate_startmass": [
+  0.805,
+  0.694,
+  0.296,
+  0.136,
+  0.094
+ ],
+ "M_crate_goalmass": [
+  0.041,
+  0.034,
+  0.044,
+  0.052,
+  0.038
+ ],
+ "M_n_worker": 1272,
+ "M_n_crate": 558,
+ "V1_platemass_press": 0.0,
+ "V1_platemass_nopress": 0.0012,
+ "V1_n": [
+  6,
+  512
+ ],
+ "V2_n": 1149,
+ "V2_onpath": 0.02659,
+ "V2_offpath": 0.01416,
+ "V2_winfrac": 0.628,
+ "G_straight_worker": 0.777,
+ "G_straight_crate": 0.785,
+ "G_straight_all": 0.79,
+ "G_dircos_worker": [
+  0.489,
+  0.654,
+  0.746
+ ],
+ "C_cost_per_worker_move": 0.08,
+ "C_cost_per_crate_move": 0.649,
+ "C_cost_per_lever_move": 0.79
+}
