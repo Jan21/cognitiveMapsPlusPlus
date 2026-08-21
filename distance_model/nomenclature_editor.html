@@ -1,0 +1,160 @@
+<title>Switchyard Nomenclature</title>
+<style>
+:root{
+  --bg:#FAFAF8; --ink:#22262B; --muted:#69707A; --line:#DBDBD3; --panel:#F1F1EC;
+  --acc:#0E7C86; --acc-soft:#0E7C861A; --amber:#A9721C; --amber-soft:#A9721C1A;
+  --mono:ui-monospace,'SF Mono',Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#16191C; --ink:#E7E9EB; --muted:#9AA1A9; --line:#34393F; --panel:#1E2226;
+    --acc:#45B8C2; --acc-soft:#45B8C226; --amber:#D19A45; --amber-soft:#D19A4526;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#16191C; --ink:#E7E9EB; --muted:#9AA1A9; --line:#34393F; --panel:#1E2226;
+  --acc:#45B8C2; --acc-soft:#45B8C226; --amber:#D19A45; --amber-soft:#D19A4526;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,sans-serif;padding:28px 18px 90px}
+main{max-width:1150px;margin:0 auto}
+h1{font-size:24px}
+.sub{color:var(--muted);font-size:13.5px;max-width:90ch;margin:6px 0 18px}
+.sub b{color:var(--amber)}
+h2{font-size:17px;margin:26px 0 8px}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;min-width:900px}
+th,td{padding:8px 10px;text-align:left;border-top:1px solid var(--line);vertical-align:top;font-size:13.5px}
+th{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-top:none}
+td[contenteditable]{outline:none;min-width:60px}
+td[contenteditable]:focus{background:var(--acc-soft);border-radius:3px}
+td.term{font-weight:600}
+td.sym,td.ali{font-family:var(--mono);font-size:12.5px}
+td.ali{color:var(--muted)}
+.st{cursor:pointer;font:600 11px/1 var(--mono);letter-spacing:.08em;padding:4px 8px;border-radius:10px;border:none;text-transform:uppercase}
+.st.proposed{background:var(--amber-soft);color:var(--amber)}
+.st.fixed{background:var(--acc-soft);color:var(--acc)}
+.del{cursor:pointer;background:none;border:none;color:var(--muted);font-size:15px;padding:2px 6px}
+.del:hover{color:#C0504A}
+.addrow{margin:8px 0 0;background:none;border:1px dashed var(--line);border-radius:6px;color:var(--muted);padding:6px 14px;cursor:pointer;font-size:13px}
+.addrow:hover{border-color:var(--acc);color:var(--acc)}
+.bar{position:sticky;top:0;background:var(--bg);padding:10px 0;display:flex;gap:12px;align-items:center;border-bottom:1px solid var(--line);z-index:5}
+.btn{background:var(--acc);color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:14px;cursor:pointer}
+.btn.ghost{background:none;color:var(--acc);border:1px solid var(--acc)}
+#exportbox{display:none;margin:14px 0}
+#exportbox textarea{width:100%;height:260px;font:12px/1.45 var(--mono);background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:10px}
+.note{font-size:12.5px;color:var(--muted);margin-top:6px}
+#saved{font-size:12px;color:var(--muted)}
+</style>
+<main>
+<h1>Switchyard Nomenclature</h1>
+<p class="sub">Click any cell to edit; click a status chip to toggle <b>proposed</b> ↔ fixed; ✕ deletes a row;
+"+ term" adds one. Edits autosave in this browser only. <b>The file <code>nomenclature.md</code> in the repo is
+canonical</b>: press <b>Export</b>, copy the markdown, and paste it back to Claude (or just tell Claude the
+changes) to make them permanent.</p>
+<div class="bar">
+  <button class="btn" onclick="doExport()">Export markdown</button>
+  <button class="btn ghost" onclick="resetDraft()">Discard local draft</button>
+  <span id="saved"></span>
+</div>
+<div id="exportbox"><textarea id="exporttext" readonly></textarea>
+<p class="note">Select-all + copy (the sandbox blocks downloads), then paste to Claude to save and republish.</p></div>
+<div id="root"></div>
+</main>
+<script>
+const DATA = {
+ "Environment":[
+  ["Switchyard","—","The 7×7 four-room benchmark with worker, pushable crate, gates, levers, pressure plate and one-way chute (capitalised proper name).","switchyard bed, the yard","proposed"],
+  ["interdependence ladder","L0–L6","The seven environment rungs, one mechanic added per rung.","complexity ladder, coupling ladder","proposed"],
+  ["rung","Lk","One step of the ladder; L5 is the full Switchyard.","level, tier","proposed"],
+  ["coupled rung","—","A rung (L2 and above) whose mechanics gate one another.","interdependent rung","proposed"],
+  ["layout","—","Walls and doorway gaps of a map, without wiring.","maze, grid","proposed"],
+  ["wiring","—","The hidden lever-to-gate XOR masks plus the plate mask of a map.","causality, coupling structure, coupling configuration","proposed"],
+  ["map","—","One sampled instance: layout + gate positions + wiring + chute direction.","configuration, world, yard","proposed"],
+  ["observation plane","—","One binary 7×7 input channel of the rendered state (12 planes + objectness).","stencil, channel, canvas","proposed"],
+  ["objectness plane","—","Extra input plane lit at every entity cell; an input feature given to every model.","objectness channel, objectness hint, 13th plane","proposed"],
+  ["BFS distance","d*","Exact shortest-path move count on the joint state graph; the training label.","true distance, oracle distance, ground truth","proposed"]],
+ "Model":[
+  ["recall-flow integrator","—","Our model; “the integrator” after first mention.","integ, image integrator, flow","proposed"],
+  ["slot","—","One of the K=16 learned queries that cross-attend the 49 cell vectors to form a state's tokens.","object token, state token, query token","proposed"],
+  ["per-cell encoder","—","The 1×1-convolution encoder; each cell's feature depends on that cell only.","1×1 CNN, per-pixel encoder, pointwise encoder","proposed"],
+  ["recall","—","Re-injection of the goal and start-anchor token blocks before every pass.","re-injection, goal conditioning","proposed"],
+  ["recall loop","T","The T weight-shared passes of the shared transformer block.","recurrence, iterations, flow steps","proposed"],
+  ["accumulation readout","D","D = softplus(s) · Σ_t Σ_i ‖z_i(t) − z_i(t−1)‖ over the K start slots.","integrated-path readout, displacement sum, norm readout, Σ‖Δz‖ readout","proposed"],
+  ["decode head","—","Readout ablation: the same joint recurrence with an MLP decoding distance from the final tokens.","scalar_mlp (reference-code name, cite once), decode-head ablation, MLP head","proposed"]],
+ "Baselines":[
+  ["IQE","—","Interval Quasimetric Embedding head (long form once at first use).","iqe head, quasimetric baseline","proposed"],
+  ["MRN","—","Metric Residual Network head (long form once at first use).","mrn head","proposed"],
+  ["sym","—","Symmetric metric-embedding head; L1 distance between the two state encodings.","symmetric baseline, L1 embedding","proposed"],
+  ["scalar","—","MLP on the concatenated state encodings; the no-inductive-bias control.","concat_mlp, scalar MLP, monolithic head","proposed"],
+  ["unconstrained best","—","A head's best variant over the full encoder/hyperparameter search.","big baseline","proposed"],
+  ["parameter-matched","M","A head's best variant capped near the small integrator's parameter count.","param-matched, matched","proposed"],
+  ["variant suffixes","O, M, MO","O = with objectness plane, M = parameter-matched, MO = both (defined once in the main table caption).","objch variant","proposed"],
+  ["fgpix tokenizer","—","The hand-built foreground-pixel tokenizer; excluded from comparisons, reported only as an ablation.","foreground tokens, entity tokens, hand-built detector","proposed"]],
+ "Data, settings and splits":[
+  ["image-only setting","—","Input is the observation planes only; no symbolic tokens, coordinates or detectors.","pure-image, pixels-only, pureimage","proposed"],
+  ["symbolic setting","—","The perception-free reference: exact factored tokens instead of images.","factored setting","proposed"],
+  ["unseen-maps split","map","Test on held-out layouts with their own wiring.","map split, held-out maps, unseen layouts","proposed"],
+  ["rewired-causality split","wire","Same layouts in train and test; test wiring resampled.","wire split, rewired split, wiring-resampled","proposed"],
+  ["training-pair pool","—","Distance-stratified BFS pairs from --poolq anchor queries (≈24.5 pairs per query).","pool, pair budget","proposed"],
+  ["standard bed","—","200 maps / ≈49k training pairs; the ladder campaign scale.","200-map bed, lean bed","proposed"],
+  ["large bed","—","683 maps / ≈167k training pairs; baselines fully re-tuned on it; the headline scale.","headline bed, 683-map bed, data-rich bed, scaled bed","proposed"],
+  ["seed","—","One draw changing maps, training pairs and initialisation together.","run seed","proposed"]],
+ "Metrics":[
+  ["correlation","r","Pearson correlation between predicted and BFS distance on the held-out pool.","corr (tables only), test_corr, accuracy","proposed"],
+  ["MAE","—","Mean absolute error of the predicted distance, in moves, on the held-out pool.","test_mae, error","proposed"],
+  ["margin","—","Integrator minus best baseline variant in correlation (baseline minus integrator for MAE); positive = integrator better.","edge, gap, delta","proposed"],
+  ["best-checkpoint score","—","Best point of the held-out evaluation curve (every 8k steps); reported as an audit column only.","best_corr, best-ckpt","proposed"],
+  ["noise floor","—","Run-to-run correlation spread at a fixed seed (≈0.02–0.03); smaller differences are not results.","GPU noise, seed noise","proposed"]]
+};
+const LS = "switchyard-nomenclature-draft-v1";
+let state;
+try { state = JSON.parse(localStorage.getItem(LS)) || DATA; } catch(e){ state = DATA; }
+function save(){ try{ localStorage.setItem(LS, JSON.stringify(state));
+  document.getElementById('saved').textContent = "draft saved locally " + new Date().toLocaleTimeString(); }catch(e){} }
+function render(){
+  const root = document.getElementById('root'); root.innerHTML = "";
+  for (const [sec, rows] of Object.entries(state)){
+    const h = document.createElement('h2'); h.textContent = sec; root.appendChild(h);
+    const wrap = document.createElement('div'); wrap.className = 'tablewrap';
+    const tb = document.createElement('table');
+    tb.innerHTML = "<tr><th style='width:15%'>Term</th><th style='width:7%'>Symbol</th><th style='width:38%'>Definition</th><th style='width:26%'>Aliases (do not use)</th><th>Status</th><th></th></tr>";
+    rows.forEach((row, ri) => {
+      const tr = document.createElement('tr');
+      ["term","sym","def","ali"].forEach((cls, ci) => {
+        const td = document.createElement('td');
+        td.className = cls === "def" ? "" : (cls === "term" ? "term" : cls);
+        td.contentEditable = "true"; td.textContent = row[ci];
+        td.addEventListener('input', () => { row[ci] = td.textContent; save(); });
+        tr.appendChild(td);
+      });
+      const tdS = document.createElement('td');
+      const b = document.createElement('button');
+      b.className = 'st ' + row[4]; b.textContent = row[4];
+      b.onclick = () => { row[4] = row[4] === 'proposed' ? 'fixed' : 'proposed'; save(); render(); };
+      tdS.appendChild(b); tr.appendChild(tdS);
+      const tdD = document.createElement('td');
+      const d = document.createElement('button'); d.className = 'del'; d.textContent = '✕';
+      d.title = 'delete row';
+      d.onclick = () => { rows.splice(ri,1); save(); render(); };
+      tdD.appendChild(d); tr.appendChild(tdD);
+      tb.appendChild(tr);
+    });
+    wrap.appendChild(tb); root.appendChild(wrap);
+    const add = document.createElement('button'); add.className = 'addrow'; add.textContent = '+ term';
+    add.onclick = () => { rows.push(["new term","—","definition","",'proposed']); save(); render(); };
+    root.appendChild(add);
+  }
+}
+function doExport(){
+  let md = "# Nomenclature\n\nCanonical terminology for the CognitiveMaps++ / Switchyard paper. This file is the source of\ntruth; the editor page is a view of it. `Status`: `proposed` until confirmed, then `fixed`.\n";
+  for (const [sec, rows] of Object.entries(state)){
+    md += `\n## ${sec}\n| Term | Symbol | Definition | Aliases (do not use) | Status |\n|---|---|---|---|---|\n`;
+    rows.forEach(r => { md += `| ${r[0]} | ${r[1]} | ${r[2]} | ${r[3]} | ${r[4]} |\n`; });
+  }
+  const box = document.getElementById('exportbox'); box.style.display = 'block';
+  const ta = document.getElementById('exporttext'); ta.value = md; ta.focus(); ta.select();
+}
+function resetDraft(){ try{ localStorage.removeItem(LS); }catch(e){} state = JSON.parse(JSON.stringify(DATA)); render(); }
+render();
+</script>
