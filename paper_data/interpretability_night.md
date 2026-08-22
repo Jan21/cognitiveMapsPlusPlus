@@ -109,3 +109,16 @@ right levers.
 
 Caveats: n=45 (strict disjointness filter); win fraction 0.42/0.47 (means driven by strong
 cases, many pairs put ~0 on both); wire-model decoder acc only 0.264; single seed per model.
+Second wire seed (nw_wire_s2) launched 02:15 to confirm.
+
+### 02:10 batch 7: gate visitation strong, lever timing not temporal
+
+- **Gate visitation (within-pair, crossed vs uncrossed gates)**: int600_s3 (decoder 0.755):
+  0.056 vs 0.002 per cell, 27x, winfrac 0.618, n=636. idv (decoder 0.51): 1.9x, winfrac 0.54.
+  T16 dumps weaker/mixed (decoders degrade). Gates get the within-pair discrimination that
+  levers lack: gates lie ON the route, so route-following buys gate identity for free; lever
+  identity would need plan knowledge.
+- **Lever-visit timing: no consistent temporal signature.** s3 need-curve rises to a mid/late
+  peak (0.006 -> 0.088 at t=3), idv starts high and decays, T16 flat-smeared (need>free across
+  all 16 passes). Real plans pull levers EARLY; the decoded visit is not temporally ordered.
+  Confirms the spatial-not-temporal reading at a finer grain.
