@@ -122,3 +122,24 @@ Second wire seed (nw_wire_s2) launched 02:15 to confirm.
   peak (0.006 -> 0.088 at t=3), idv starts high and decays, T16 flat-smeared (need>free across
   all 16 passes). Real plans pull levers EARLY; the decoded visit is not temporally ordered.
   Confirms the spatial-not-temporal reading at a finer grain.
+
+### 03:30 batch 8: wire seed 2 (0.957) BREAKS the overgeneralized claims
+
+nw_wire_s2: corr 0.957 / MAE 1.25 (vs seed 1 0.909). On this stronger wire model:
+
+- P2 lever residual **0.577**: the decomposition IS there. "Wire-trained models lack the
+  decomposition" was a seed-1 artifact; decomposition is seed/quality-dependent, not
+  split-determined (present in 4 of 5 integ ckpts, absent only in the weakest, wire s1).
+- P3 on its home rewired pool: need 0.0255 vs free 0.0119 (2.1x), within-pair 0.589: it routes
+  by the CURRENT wiring even on rewired-familiar layouts.
+- Stale probe: mass ~0 on BOTH stale-only and current-only levers (n=28 strict pairs): the
+  19-41x stale re-enactment does NOT replicate. Memory-driven routing is a trait of the weaker
+  models (idv 0.904 on rewired pool; wire s1 0.909), not a universal mechanism.
+
+Revised honest picture: what is robust across ALL five integrators = walk=distance (0.90-0.96
+vs decode-head 0.60-0.67), non-parking accumulation, route-following, gate discrimination,
+lever visitation on unseen layouts, plate negative, non-temporal timing, per-move calibration.
+What is seed-dependent = behavior under rewired causality: strong models route by current
+truth; weaker ones either lose the decomposition or re-enact the stale plan. The cross-eval
+"double dissociation" held for the seed-1 pair only. More seeds would be needed to make any
+split-level claim; the quality-dependence itself is the finding.

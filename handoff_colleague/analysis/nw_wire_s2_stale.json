@@ -1,0 +1,9 @@
+{
+ "tag": "nw_wire_s2",
+ "B": 4096,
+ "dec_acc_t0": 0.519,
+ "n_pairs": 28,
+ "mass_stale_only": 0.0,
+ "mass_current_only": 5e-05,
+ "stale_winfrac": 0.357
+}
