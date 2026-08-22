@@ -1,0 +1,177 @@
+<title>The Imagined Journey</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#fbf7f0; --ink:#26241f; --muted:#6d675c; --line:#e7dfd2; --card:#ffffff;
+  --teal:#0f766e; --teal-soft:#e4f1ef; --coral:#c65a45; --coral-soft:#f9e9e4;
+  --gold:#b98a1e; --display:'Fraunces',Georgia,serif; --body:'Atkinson Hyperlegible',system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#191712; --ink:#ece7dd; --muted:#a49c8d; --line:#333028; --card:#211e18;
+  --teal:#3aa79b; --teal-soft:#1a2c29; --coral:#e07a63; --coral-soft:#33221d; --gold:#d4a63c;
+}}
+:root[data-theme="dark"]{
+  --paper:#191712; --ink:#ece7dd; --muted:#a49c8d; --line:#333028; --card:#211e18;
+  --teal:#3aa79b; --teal-soft:#1a2c29; --coral:#e07a63; --coral-soft:#33221d; --gold:#d4a63c;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);margin:0;font-size:17px;line-height:1.65}
+.wrap{max-width:720px;margin:0 auto;padding:0 24px 96px}
+header{padding:64px 0 12px;text-align:center}
+h1{font-family:var(--display);font-weight:650;font-size:clamp(36px,7vw,54px);margin:.1em 0;letter-spacing:-.01em;text-wrap:balance}
+.sub{color:var(--muted);max-width:52ch;margin:10px auto 0;font-size:18px}
+h2{font-family:var(--display);font-weight:650;font-size:26px;margin:64px 0 6px;text-wrap:balance}
+h2 .n{display:inline-block;width:34px;height:34px;line-height:34px;text-align:center;border-radius:50%;background:var(--teal);color:var(--paper);font-size:17px;margin-right:10px;vertical-align:.05em}
+p{max-width:62ch}
+.muted{color:var(--muted)}
+.setup{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:22px 26px;margin:36px 0}
+.analogy{border-left:4px solid var(--gold);background:var(--card);border-radius:0 8px 8px 0;padding:12px 18px;margin:18px 0;font-style:italic;color:var(--muted)}
+.measure{background:var(--teal-soft);border-radius:8px;padding:12px 18px;margin:18px 0;font-size:15.5px}
+.measure b{color:var(--teal)}
+.fig{margin:26px 0;text-align:center;overflow-x:auto}
+.fig figcaption{font-size:14px;color:var(--muted);margin-top:8px;max-width:56ch;margin-left:auto;margin-right:auto}
+.honest{background:var(--coral-soft);border:1px solid var(--line);border-left:4px solid var(--coral);border-radius:0 8px 8px 0;padding:16px 20px;margin:56px 0 0}
+.honest b{color:var(--coral)}
+.honest ul{margin:8px 0 0;padding-left:20px}
+.honest li{margin:4px 0;font-size:15.5px}
+footer{margin-top:64px;border-top:1px solid var(--line);padding-top:14px;color:var(--muted);font-size:13.5px;text-align:center}
+svg text{font-family:var(--body)}
+</style>
+
+<div class="wrap">
+<header>
+<h1>The Imagined Journey</h1>
+<p class="sub">We trained a neural network to estimate travel distances in a little puzzle world.
+Then we looked inside its head. Three things we found, explained for everyone.</p>
+</header>
+
+<div class="setup">
+<p style="margin-top:0"><b>The setup, in one paragraph.</b> The puzzle world is a tiny building of
+four rooms seen from above. There is a worker, a box the worker can push, doors that can be locked,
+and wall switches that lock or unlock the doors. The network is shown two photos, "now" and
+"goal", and must answer one question: <i>how many moves would it take to get from here to there?</i>
+It answers well, even in buildings it has never seen.</p>
+<div class="fig">
+<svg width="360" height="150" viewBox="0 0 360 150">
+  <rect x="20" y="15" width="120" height="120" fill="none" stroke="var(--line)" stroke-width="2"/>
+  <line x1="80" y1="15" x2="80" y2="55" stroke="var(--ink)" stroke-width="3"/>
+  <line x1="80" y1="95" x2="80" y2="135" stroke="var(--ink)" stroke-width="3"/>
+  <line x1="20" y1="75" x2="50" y2="75" stroke="var(--ink)" stroke-width="3"/>
+  <line x1="110" y1="75" x2="140" y2="75" stroke="var(--ink)" stroke-width="3"/>
+  <rect x="73" y="63" width="14" height="24" fill="none" stroke="var(--coral)" stroke-width="2.5"/>
+  <circle cx="45" cy="40" r="8" fill="var(--teal)"/>
+  <rect x="100" y="100" width="16" height="16" fill="none" stroke="var(--gold)" stroke-width="3"/>
+  <circle cx="120" cy="40" r="6" fill="none" stroke="var(--coral)" stroke-width="2.5"/>
+  <text x="185" y="42" font-size="13" fill="var(--muted)">● worker</text>
+  <text x="185" y="66" font-size="13" fill="var(--muted)">□ box it can push</text>
+  <text x="185" y="90" font-size="13" fill="var(--muted)">▯ lockable door</text>
+  <text x="185" y="114" font-size="13" fill="var(--muted)">○ switch that controls doors</text>
+</svg>
+</div>
+<p style="margin-bottom:0">The unusual part is <i>how</i> it answers. The network does not simply
+output a number. Internally it runs a short "imagination": its picture of the situation moves,
+step by step, and <b>the total amount of internal movement is the answer it gives</b>. The
+question of our study: is that imagined journey real reasoning, or meaningless decoration around
+a lookup table?</p>
+</div>
+
+<h2><span class="n">1</span>The answer is the length of an imagined trip, and the trip follows the real route</h2>
+<p>To check the journey is not decoration, we built an identical twin network. Same eyes, same
+brain, one difference: the twin just blurts out a number at the end instead of measuring its own
+internal movement. If the journey were meaningless, both twins' internal movements would look the
+same. They do not.</p>
+<div class="measure">In our network, internal journey length agrees with true distance almost
+perfectly (<b>0.90–0.96</b> on a scale where 1.0 is perfect). In the blurt-a-number twin, the
+internal movement only loosely tracks distance (<b>0.60–0.67</b>), and the twin is also simply
+worse at the task.</div>
+<p>We then trained a small "mind reader": a simple decoder that looks at the network's internal
+state mid-thought and guesses where the network currently pictures the worker. The picture it
+paints: the imagined worker starts at the true start, travels along the actual best route through
+the building (its imagined position lands on real route squares about <b>3× more</b> than on
+random reachable squares), passes through exactly the doorways the real route uses (<b>27× more</b>
+than the building's other doorways), and drifts toward the goal.</p>
+<div class="analogy">Like being asked "how far is the bakery?" and answering by mentally walking
+there while counting your steps, rather than just guessing a number.</div>
+<p>A charming detail: the imagination keeps an internal price list. An ordinary step of the worker
+costs a small, remarkably constant amount of imagined effort; pushing the box costs about
+<b>5×</b> that; flipping a switch costs <b>10–17×</b>. The actions that entangle the puzzle's
+mechanics are billed as the expensive ones.</p>
+
+<h2><span class="n">2</span>The imagination visits the switch exactly when the puzzle needs one, but as a sketch, not a movie</h2>
+<p>Some puzzles cannot be solved without flipping a switch (the goal is behind a door that is
+currently locked). Others can be walked directly. We know which is which, so we can ask: does the
+imagined worker go near switches only when a switch actually matters?</p>
+<div class="measure">Yes. On puzzles that require a switch, the imagined worker shows up near
+switches <b>2 to 4 times more</b> than on equally long puzzles that need no switch. This holds in
+every difficulty bracket we tested and in every version of the network.</div>
+<div class="fig">
+<svg width="420" height="120" viewBox="0 0 420 120">
+  <circle cx="30" cy="90" r="8" fill="var(--teal)"/>
+  <path d="M 40 86 C 90 40, 130 30, 168 44" fill="none" stroke="var(--teal)" stroke-width="2.5" stroke-dasharray="5 4"/>
+  <circle cx="175" cy="48" r="7" fill="none" stroke="var(--coral)" stroke-width="2.5"/>
+  <text x="175" y="28" font-size="12" fill="var(--coral)" text-anchor="middle">switch</text>
+  <path d="M 183 52 C 240 75, 300 85, 355 82" fill="none" stroke="var(--teal)" stroke-width="2.5" stroke-dasharray="5 4"/>
+  <circle cx="380" cy="82" r="9" fill="none" stroke="var(--gold)" stroke-width="3"/>
+  <text x="380" y="110" font-size="12" fill="var(--muted)" text-anchor="middle">goal</text>
+  <text x="30" y="112" font-size="12" fill="var(--muted)" text-anchor="middle">start</text>
+</svg>
+<figcaption>When the goal is behind a locked door, the imagined journey detours toward the
+switches. When it is not, it goes straight.</figcaption>
+</div>
+<p>But it is a sketch, not a faithful replay. Real solutions flip the switch <i>early</i> (you
+must unlock the door before you reach it); the imagined visit happens late or is smeared over the
+whole journey. And while the imagination knows switches matter, it is only mildly better than
+chance at picking <i>which</i> of the building's switches is the right one. It also completely
+ignores the puzzle's other trick (parking the box on a pressure plate): the sketch covers the
+worker's errand, not every mechanic.</p>
+<div class="analogy">Like planning "I'll have to stop by an ATM somewhere on the way", without
+deciding which ATM or when.</div>
+
+<h2><span class="n">3</span>A weaker sibling was caught navigating by outdated memories</h2>
+<p>Our sharpest test secretly rewires familiar buildings: the rooms look identical, but which
+switch controls which door has been changed. The wiring is invisible in the photos, so a network
+can only discover it by trial across many examples, or fall back on habit.</p>
+<div class="measure">Weaker versions of the network (still scoring a respectable ~0.91) sent their
+imagined worker to the <b>old</b> switches, the ones that used to be correct in training,
+<b>19–41× more</b> than to the switches that are correct now. Their final distance answers stayed
+good anyway. A stronger version (0.96), trained identically except for the random seed, showed no
+such habit: its imagination went to the currently correct switches.</div>
+<div class="fig">
+<svg width="420" height="110" viewBox="0 0 420 110">
+  <circle cx="30" cy="80" r="8" fill="var(--teal)"/>
+  <path d="M 40 76 C 100 30, 150 26, 195 40" fill="none" stroke="var(--coral)" stroke-width="2.5" stroke-dasharray="5 4"/>
+  <circle cx="202" cy="44" r="7" fill="none" stroke="var(--coral)" stroke-width="2.5"/>
+  <text x="202" y="24" font-size="12" fill="var(--coral)" text-anchor="middle">old switch (habit)</text>
+  <circle cx="300" cy="88" r="7" fill="none" stroke="var(--muted)" stroke-width="2" stroke-dasharray="3 3"/>
+  <text x="300" y="70" font-size="12" fill="var(--muted)" text-anchor="middle">correct switch (ignored)</text>
+  <circle cx="390" cy="55" r="9" fill="none" stroke="var(--gold)" stroke-width="3"/>
+  <text x="390" y="84" font-size="12" fill="var(--muted)" text-anchor="middle">goal</text>
+</svg>
+<figcaption>In secretly rewired buildings, the weaker network's imagination heads for the switch
+that used to work.</figcaption>
+</div>
+<div class="analogy">Like reaching for the light switch where it was in your old apartment. You
+still find the light eventually; your hand just tells on you.</div>
+<p>Two lessons. First, a network can produce correct answers while its internal reasoning runs on
+stale habit; the output alone would never reveal this. Second, looking at the imagined journey
+distinguishes two networks that both pass the standard test: one genuinely re-reads the world,
+the other partly replays what it memorized.</p>
+
+<div class="honest">
+<b>What we are NOT claiming.</b>
+<ul>
+<li>The network is not a step-by-step planner. Its journey is a rough spatial sketch: right
+places, wrong order, vague about detail.</li>
+<li>"Where the network pictures the worker" is our decoder's interpretation of its internal
+state, and the decoder is approximate (it identifies the right square 50–80% of the time,
+depending on the network).</li>
+<li>The old-habit result rests on a small set of specially filtered puzzles and two training
+runs of the rewired-building network. It is dramatic where it occurs, but we call it a failure
+mode of weaker networks, not a law.</li>
+</ul>
+</div>
+
+<footer>CognitiveMaps++ · plain-language summary of the interpretability study, 2026-08-22 ·
+technical version: the "Latent Walks" report</footer>
+</div>
