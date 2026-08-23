@@ -611,7 +611,17 @@ def train(a):
         def emb1(s, x, m):
             e = s.proj(s.pool(s.mix(s.enc(x, m))))
             return s.ln(e) if s.ln is not None else e
+        def emb2(s, x, g, m):
+            # jointmix diagnostic: mix over BOTH states' tokens, pool halves separately.
+            # Pair-conditioned embeddings void the quasimetric-over-states property; probe only.
+            tx, tg = s.enc(x, m), s.enc(g, m)
+            z = s.mix(torch.cat([tx, tg], 1))
+            hx = s.proj(s.pool(z[:, :tx.shape[1]])); hg = s.proj(s.pool(z[:, tx.shape[1]:]))
+            if s.ln is not None: hx, hg = s.ln(hx), s.ln(hg)
+            return hx, hg
         def forward(s, x, g, m):
+            if a.jointmix:
+                return s.head(*s.emb2(x, g, m))
             return s.head(s.emb1(x, m), s.emb1(g, m))
 
     class Scalar(nn.Module):
@@ -918,6 +928,7 @@ def main():
     ap.add_argument("--save", default="", help="prefix: save final weights+args to <prefix>_<model>.pt")
     ap.add_argument("--dumppred", default="", help="prefix: save held-out (d_true, d_pred) to <prefix>_<model>.npz")
     ap.add_argument("--loadckpt", default="", help="load weights from a --save checkpoint and skip training (analysis)")
+    ap.add_argument("--jointmix", type=int, default=0, help="qmet diagnostic: mix over both states' tokens jointly before the metric head")
     ap.add_argument("--dumptraj", type=int, default=0, help="dump per-pass slot trajectories for the first N held-out pairs")
     a = ap.parse_args()
     if a.probe: probe(a)
