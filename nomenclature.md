@@ -33,7 +33,7 @@ truth; the editor page is a view of it. `Status`: `proposed` until confirmed, th
 |---|---|---|---|---|
 | IQE | — | Interval Quasimetric Embedding head (long form once at first use). | iqe head, quasimetric baseline | proposed |
 | MRN | — | Metric Residual Network head (long form once at first use). | mrn head | proposed |
-| sym | — | Symmetric metric-embedding head; L1 distance between the two state encodings. | symmetric baseline, L1 embedding | proposed |
+| metric embedding | ME | Symmetric metric baseline; L1 distance between the two state encodings (long form "symmetric L1 metric embedding" at first use). | sym, symmetric baseline, L1 embedding | fixed |
 | scalar | — | MLP on the concatenated state encodings; the no-inductive-bias control. | concat_mlp, scalar MLP, monolithic head | proposed |
 | unconstrained best | — | A head's best variant over the full encoder/hyperparameter search. | big baseline | proposed |
 | parameter-matched | M | A head's best variant capped near the small integrator's parameter count. | param-matched, matched | proposed |
