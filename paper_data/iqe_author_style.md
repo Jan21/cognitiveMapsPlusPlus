@@ -33,3 +33,26 @@ authors' own grid on the two best variants + one 3x-budget run) pending; will be
 
 Caveats: seed 0 only so far; 16k steps (sample count above ours, wall-clock below); the
 discounted loss underweights far pairs by design (gamma^28 = 0.05), visible in the MAE.
+
+## Round 2 (lr over the authors' grid + 3x budget)
+
+| variant | corr | MAE |
+|---|---|---|
+| cnn, discounted, lr 3e-4 | 0.718 | 4.32 |
+| cnn, discounted, lr 1e-3 | **0.720** | 4.26 |
+| cnn, discounted, lr 3e-3 | 0.219 (diverged) | 6.42 |
+| cnn, raw MSE, lr 3e-4 | 0.707 | 4.48 |
+| cnn, raw MSE, lr 1e-3 | 0.714 | 4.57 |
+| mlp, raw MSE, lr 3e-4 | 0.716 | 4.61 |
+| mlp, raw MSE, lr 3e-3 | 0.702 | 4.69 |
+| cnn, raw MSE, lr 1e-3, 48k steps (3x budget) | 0.713 | 4.70 |
+
+## Final verdict
+
+Author-faithful IQE plateaus at ~0.72 on this bed regardless of reduction, component split,
+encoder family, loss convention, learning rate (their own grid), or 3x training budget. Our
+structured-encoder wrapper lifts the same head to 0.861-0.891, and the integrator sits at
+0.944. The benchmark did not under-use IQE; it over-served it. The limiting factor for plain
+author-style pipelines here is binding the image into entities, exactly the thing the
+structured encoder (and the integrator) provide. One seed; the 0.15+ gap dwarfs the 0.02-0.03
+noise floor.
