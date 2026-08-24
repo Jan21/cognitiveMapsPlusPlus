@@ -11,6 +11,8 @@ https://claude.ai/code/artifact/26db2624-bbb2-4c30-993a-2299152ea8b3
 2. [running 128482] norecall at inference: is goal re-injection load-bearing for the walk.
 3. [running 128483] wire-split checkpoint (683/167k, seed 1) + all three probes; wiring is
    pixel-invisible, so lever visitation under resampled wiring is the sharpest routing test.
+   [CORRECTED 2026-08-24: wrong premise, the render DOES draw the wiring: each lever plane
+   marks the gate cells it toggles. The wire split resamples a VISIBLE wiring diagram.]
 4. [todo] crate/plate/gate visitation (P3 analogues for the other enabling mechanics),
    pure analysis on existing dumps.
 5. [todo] walk geometry: per-slot straightness (net vs gross displacement), where curvature
@@ -65,9 +67,11 @@ Wire checkpoint: nw_wire_s1 corr 0.909 / MAE 1.89 (recorded wire seeds ~0.94, cr
   charged 5-17x the worker move. Image analogue of "internal factors charged extra unlock moves".
 - **Wire-split divergence (single seed, preliminary)**: nw_wire_s1 keeps walk=distance
   (P1 0.907) but LOSES the decomposition (P2 residual lever 0.135 vs ~0.5 map-split) and lever
-  visitation REVERSES (free > need in all matched bins; within-pair 0.50). Hypothesis: wiring is
-  pixel-invisible and resampled at test, so the wire model cannot know which lever matters and
-  stops routing; map-split models on novel layouts use generic route-through-levers behavior.
+  visitation REVERSES (free > need in all matched bins; within-pair 0.50). Hypothesis at the time: the model
+  cannot tell which lever matters and stops routing. [CORRECTED 2026-08-24: the wiring IS
+  rendered (lever planes mark their gates), so the model could in principle read the new
+  wiring; the stale-routing result below therefore shows habit overriding visible evidence,
+  a stronger statement than the original phrasing.]
   Cross-eval (batch 4, running): wire ckpt on unseen-maps pool, map ckpt on rewired pool.
 
 ### 00:45 batch 4: cross-eval = clean DOUBLE DISSOCIATION
