@@ -151,3 +151,21 @@ sidesteps binding entirely (never commits to per-entity tokens), our slot read d
 with grid size. Mechanism ranking (factored integ > coat > image integ > iqe > scalar >
 crtr) is consistent with the joint-ladder binding-tax finding, now shown to bite with
 grid SIZE alone, not just entity density.
+
+## Binding fixes at S9 (2026-09-05, ciirc 131806; image integ, tuned config, 160k)
+
+| arm | corr (s0/s1) | mae |
+|---|---|---|
+| gcurr7 (grid-size curriculum, 25% on padded G7 yards) | **.936 / .942** | 1.92 / 1.81 |
+| reinject (coat-style raw re-concat into convs + slot read) | .937 / .925 | 1.77 / 1.95 |
+| fgmask2 (learned objectness bias on slot attention) | .921 / .933 | 1.84 / 1.74 |
+| image integ baseline | .894 | |
+| coat64 / factored ceiling | .935-.942 / .938-.952 | |
+
+All three independently close most of the binding gap (+.03-.05 over baseline); the
+GRID-SIZE CURRICULUM wins (.936/.942 = exactly coat64's level) and is the cheapest: no
+architecture change, just 25% of steps on small yards padded into the big canvas
+(pad_yard: border walls, cross corridor aligned). Reading: slot binding at 9x9 is not
+broken, it is hard to LEARN from scratch at scale; learned small then transferred, it
+works. Combining curriculum + reinject is the obvious next probe if more is needed;
+remaining gap to factored (~.01-.02) is the residual binding cost.
