@@ -207,6 +207,24 @@ def probe(a):
         cfg_dist_std=round(float(np.mean(cfg_sense)), 2) if cfg_sense else None)))
 
 # ---------------------------------------------------------------- train mode
+def pad_yard(y, Gbig):
+    """Embed a small-G yard into a Gbig canvas (border walls, coords shifted to center).
+    The small cross corridor lands exactly on the big grid's cross ((G//2)+off = Gbig//2
+    for the G-2 step), so padded yards look like small-arena versions of the big bed."""
+    off = (Gbig - y.G) // 2
+    W = np.ones((Gbig, Gbig), bool)
+    W[off:off + y.G, off:off + y.G] = y.wall
+    sh = lambda rc: (rc[0] + off, rc[1] + off)
+    y.wall = W
+    y.gates = [sh(g) for g in y.gates]
+    y.levers = [sh(l) for l in y.levers]
+    y.plate = sh(y.plate)
+    y.chutes = {sh(c): d for c, d in y.chutes.items()}
+    y.cells = [sh(c) for c in y.cells]
+    y.cid = {rc: i for i, rc in enumerate(y.cells)}
+    y.G = Gbig
+    return y
+
 def make_yards(a, wire1=None, noplate=None):
     """Returns (yards, train_ids, test_ids). split=map: held-out layouts+wirings. split=wire: SAME
     layouts in train and test, wiring resampled for test (the combo-split analogue)."""
@@ -265,6 +283,15 @@ def train(a):
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.manual_seed(a.seed); rng = np.random.default_rng(a.seed)
     yards, tr_ids, te_ids = make_yards(a)
+    gcurr_ids = []
+    if a.gcurr:                                                   # grid-size curriculum: small yards padded into the big canvas
+        assert a.gcurr < a.G and (a.G - a.gcurr) % 2 == 0, "--gcurr must be smaller with even margin"
+        assert not (a.lencurr or a.curriculum), "--gcurr: incompatible with other curricula"
+        import argparse as _ap
+        small, s_tr, _ = make_yards(_ap.Namespace(**{**vars(a), "G": a.gcurr}))
+        base = len(yards)
+        yards = yards + [pad_yard(small[m], a.G) for m in s_tr]
+        gcurr_ids = list(range(base, len(yards)))
     ncell = a.G * a.G; NW = max(len([1 for r in range(a.G) for c in range(a.G) if y.wall[r, c]]) for y in yards)
     cell = lambda y, rc: rc[0] * a.G + rc[1]
     # per-map structural index tensors (walls padded to NW with a count for mean-pooling)
@@ -342,13 +369,21 @@ def train(a):
             if a.enc == "pureimage":                              # everything in pixels -> CNN -> K slots (or pixel tokens)
                 kk, pd_ = a.cnnk, a.cnnk // 2                          # --cnnk 1 = per-pixel MLP (no spatial mixing)
                 k2, p2 = (3, 1) if a.cnnmix else (kk, pd_)              # --cnnmix: 1x1 first (keep identity), 3x3 after (context)
-                convs = [nn.Conv2d(PIMGC + (2 if a.coordconv else 0) + (1 if a.objch else 0), a.cnnw, kk, padding=pd_), nn.ReLU()]
+                CIN = PIMGC + (2 if a.coordconv else 0) + (1 if a.objch else 0)
                 if a.readout == "fgpix": s.emptytok = nn.Parameter(torch.randn(d) * 0.02)   # pad token for unlit slots
-                for _ in range(max(0, a.cnndepth - 2)):
-                    convs += [nn.Conv2d(a.cnnw, a.cnnw, k2, padding=p2), nn.ReLU()]
-                convs += [nn.Conv2d(a.cnnw, d, k2, padding=p2), nn.ReLU()]
+                if a.reinject:                                    # coat-style: raw input re-concat into every conv + the slot read
+                    s.pconvs = nn.ModuleList(
+                        [nn.Conv2d(CIN, a.cnnw, kk, padding=pd_)] +
+                        [nn.Conv2d(a.cnnw + CIN, a.cnnw, k2, padding=p2) for _ in range(max(0, a.cnndepth - 2))] +
+                        [nn.Conv2d(a.cnnw + CIN, d, k2, padding=p2)])
+                    s.rawproj = nn.Linear(CIN, d)
+                else:
+                    convs = [nn.Conv2d(CIN, a.cnnw, kk, padding=pd_), nn.ReLU()]
+                    for _ in range(max(0, a.cnndepth - 2)):
+                        convs += [nn.Conv2d(a.cnnw, a.cnnw, k2, padding=p2), nn.ReLU()]
+                    convs += [nn.Conv2d(a.cnnw, d, k2, padding=p2), nn.ReLU()]
+                    s.pcnn = nn.Sequential(*convs)
                 if a.slotln: s.slotln = nn.LayerNorm(d)
-                s.pcnn = nn.Sequential(*convs)
                 s.pimgpos = nn.Parameter(torch.randn(ncell, d) * 0.02)
                 if a.readout == "slotattn":                       # COMPETITIVE ITERATIVE SLOT ATTENTION (Locatello et al.)
                     s.smu = nn.Parameter(torch.randn(a.slots, d) * 0.02)          # learned slot init (per-slot identity)
@@ -491,8 +526,16 @@ def train(a):
                 cin = torch.cat([cin, yy[None, None].expand(B, 1, -1, -1), xx[None, None].expand(B, 1, -1, -1)], 1)
             if a.objch:                                            # objectness FEATURE channel: 1 where any entity channel is lit
                 cin = torch.cat([cin, (img[:, 1:] > 0.75).any(1, keepdim=True).float()], 1)
-            feat = s.pcnn(cin)                                     # (B,d,G,G)
+            if a.reinject:                                         # raw input available at every conv stage
+                h = None
+                for i, cv in enumerate(s.pconvs):
+                    h = F.relu(cv(cin if i == 0 else torch.cat([h, cin], 1)))
+                feat = h
+            else:
+                feat = s.pcnn(cin)                                 # (B,d,G,G)
             fmap = feat.flatten(2).transpose(1, 2) + s.pimgpos[None]   # (B,ncell,d)
+            if a.reinject:                                         # raw pixels visible to the slot queries directly
+                fmap = fmap + s.rawproj(cin.flatten(2).transpose(1, 2))
             if a.readout == "fgpix":                               # FOREGROUND pixels as tokens: cells lit in any entity channel
                 fg = (img.flatten(2)[:, 1:] > 0.75).any(1).float()  # (B,ncell) non-wall, non-wirepath
                 order = torch.argsort(fg + 1e-3 * torch.rand_like(fg), dim=1, descending=True)[:, :NTOK]   # lit cells first
@@ -779,6 +822,10 @@ def train(a):
     else:
         S1, S2, D, C = build_pool(a, rng, yards, tr_ids, Rcap)
     phases = [(len(S1) and 1.0, (S1, S2, D, C))]                  # single phase by default
+    if a.gcurr:                                                    # grid-size curriculum: 25% on padded small yards first
+        pg = build_pool(a, np.random.default_rng(a.seed + 77), yards, gcurr_ids, Rcap)
+        print(f"gcurr pool: {len(pg[0])} pairs from {len(gcurr_ids)} padded G{a.gcurr} yards", flush=True)
+        phases = [(0.25, pg), (0.75, (S1, S2, D, C))]
     if a.lencurr and a.Rtrain > 8:                                # length curriculum: growing training range
         caps = sorted({8, min(12, a.Rtrain), a.Rtrain})
         pools = [build_pool(a, np.random.default_rng(a.seed + 40 + i), yards, tr_ids, cap)
@@ -1070,6 +1117,8 @@ def main():
                     help="external-architecture transplant: crtr = CRTR LNConvNet (embed+L2), coat = Chrestien CoAt (pair-concat scalar)")
     ap.add_argument("--extw", type=int, default=64, help="--extonly width: published size = 64; smaller variants scale all widths")
     ap.add_argument("--extdepth", type=int, default=8, help="--extonly crtr: residual trunk depth (published 8)")
+    ap.add_argument("--reinject", type=int, default=0, help="--enc pureimage: coat-style raw-input re-concat into every conv layer + a raw projection added to the slot-attention tokens")
+    ap.add_argument("--gcurr", type=int, default=0, help="grid-size curriculum: first 25%% of steps on G<this> yards padded into the full canvas (border walls), then the full bed")
     ap.add_argument("--evalevery", type=int, default=0, help="eval on the held-out pool every N steps; RESULT gains best_mae/best_corr")
     ap.add_argument("--lencurr", type=int, default=0, help="length curriculum: train range grows 8 -> 12 -> Rtrain")
     ap.add_argument("--heads", type=int, default=4, help="attention heads for every transformer block (d must be divisible)")
