@@ -1,0 +1,102 @@
+{
+  "banks": {
+    "test": {
+      "distance_max": 74.0,
+      "distance_min": 0.0,
+      "metadata": {},
+      "path": "/home/hulajan1/swbench/sokoban_ar_20260905/banks/test.npz",
+      "require_solved_goal": true,
+      "rows": 20000,
+      "sha256": "360a2ae5867c7d482b6b22b347adcb9179641edcc47a08c0b0c79e0f225ccca2"
+    },
+    "validation": {
+      "distance_max": 82.0,
+      "distance_min": 0.0,
+      "metadata": {},
+      "path": "/home/hulajan1/swbench/sokoban_ar_20260905/banks/val.npz",
+      "require_solved_goal": true,
+      "rows": 20000,
+      "sha256": "864c30509bca4412d452eea016477f3cc9bf6b1b3f699ff5210494b4233b63f7"
+    }
+  },
+  "checkpoint_sha256": "d5609b51f627255d5eedc65767885ccb401298f2a083eb760241808f0281d7d7",
+  "config": {
+    "baseline": true,
+    "depth": 8,
+    "hidden_size": 64,
+    "input_size": 14,
+    "repr_dim": 150
+  },
+  "final_checkpoint": "/home/hulajan1/swbench/sokoban_ar_20260905/crtr/example_checkpoints/sokoban/supervised.pt",
+  "model": "supervised",
+  "nskip": 0,
+  "params": 336955,
+  "sample_trace_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "seconds": 1.3078901767730713,
+  "source_sha256": {
+    "autoresearch_joint.py": "f66145911450e3e19a8340cc1ac49d1bd6e45b16b9ce90a672740a969245bfec",
+    "networks.py": "fa943bf2b0283fab8a7e53e59b381bf70d661fd250980954d5a42f1284152ada",
+    "sokoban_joint.py": "8f466e07678d1dc3088e18d5605327be987fdf8cbd5c3dce85515bed66a04872"
+  },
+  "test": {
+    "argmax": {
+      "bias": 2.6582,
+      "mae": 3.4808,
+      "n": 20000,
+      "pearson": 0.9633360712197067,
+      "rmse": 5.1727845499305305,
+      "spearman": 0.9742095584360896
+    },
+    "expectation": {
+      "bias": 6.074845786417639,
+      "mae": 6.3045107552897095,
+      "n": 20000,
+      "pearson": 0.9574502171485352,
+      "rmse": 9.000537009005386,
+      "spearman": 0.9687106874245885
+    }
+  },
+  "training": {
+    "T": 8,
+    "attention_heads": 2,
+    "augment": 1,
+    "bs": 128,
+    "checkpoint": "/home/hulajan1/swbench/sokoban_ar_20260905/crtr/example_checkpoints/sokoban/supervised.pt",
+    "crtr_root": "/home/hulajan1/swbench/sokoban_ar_20260905/crtr",
+    "device": "cuda",
+    "eval_bs": 128,
+    "eval_only": true,
+    "evalevery": 10000,
+    "gradclip": 1.0,
+    "lr": 0.001,
+    "model": "supervised",
+    "out": "/home/hulajan1/swbench/sokoban_ar_20260905/artifacts/supervised_shipped",
+    "seed": 0,
+    "steps": 0,
+    "targets": "bfs",
+    "test_bank": "/home/hulajan1/swbench/sokoban_ar_20260905/banks/test.npz",
+    "torch_threads": 2,
+    "train_bank": null,
+    "val_bank": "/home/hulajan1/swbench/sokoban_ar_20260905/banks/val.npz",
+    "warmup": 2000,
+    "width": 64
+  },
+  "validation": {
+    "argmax": {
+      "bias": 2.568,
+      "mae": 3.4777,
+      "n": 20000,
+      "pearson": 0.9603831065045701,
+      "rmse": 5.13081864813014,
+      "spearman": 0.9715611081506478
+    },
+    "expectation": {
+      "bias": 5.856416467662502,
+      "mae": 6.109414282508541,
+      "n": 20000,
+      "pearson": 0.9558905208773217,
+      "rmse": 8.649002131391038,
+      "spearman": 0.9672673274566258
+    }
+  }
+}
