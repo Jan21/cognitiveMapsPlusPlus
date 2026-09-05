@@ -115,7 +115,9 @@ S9 bed (160k, map split, test_corr s0/s1):
 | coat64 | 1.79M  | .935 / .942 | 1.81 / 1.70 |
 | coat32 | 555k   | .900 / .899 | 2.24 / 2.21 |
 | coat16 | 170k   | .885 / .947 | 2.50 / 1.73 |
-| crtr64 | 307k   | ~.81-.82 at 120k+ (finals pending) |
+| crtr64 | 307k   | .808 / .820 | 3.59 / 3.43 |
+| crtr32 | 79k    | .797 / .801 | 3.64 / 3.60 |
+| crtr16 | 21k    | .792 / .793 | 3.67 / 3.65 |
 | refs: integ .894 (ciirc same-site) / .921 (leo); iqe .864; scalar .830 |
 
 7x7 headline bed, top rungs (80k, best_corr s0/s1 vs 3-seed campaign means):
