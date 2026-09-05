@@ -1,0 +1,80 @@
+{
+  "counts": {
+    "running": 9,
+    "completed": 5,
+    "pending": 4
+  },
+  "results": [
+    {
+      "id": "dgx-discovery-joint64T4-s0",
+      "G": 11,
+      "status": "completed",
+      "metrics": {
+        "nskip": 0,
+        "test_corr": 0.912667,
+        "test_mae": 2.767
+      },
+      "error": null
+    },
+    {
+      "id": "dgx-discovery-joint96T4untied-s0",
+      "G": 11,
+      "status": "completed",
+      "metrics": {
+        "nskip": 0,
+        "test_corr": 0.916668,
+        "test_mae": 2.734
+      },
+      "error": null
+    },
+    {
+      "id": "a40-discovery-joint64T4-s0",
+      "G": 13,
+      "status": "completed",
+      "metrics": {
+        "nskip": 0,
+        "test_corr": 0.925451,
+        "test_mae": 3.174
+      },
+      "error": null
+    },
+    {
+      "id": "a40-discovery-joint64T8-s0",
+      "G": 13,
+      "status": "completed",
+      "metrics": {
+        "nskip": 0,
+        "test_corr": 0.929814,
+        "test_mae": 2.919
+      },
+      "error": null
+    },
+    {
+      "id": "a40-discovery-joint96T4untied-s0",
+      "G": 13,
+      "status": "completed",
+      "metrics": {
+        "nskip": 0,
+        "test_corr": 0.92721,
+        "test_mae": 3.072
+      },
+      "error": null
+    }
+  ],
+  "groups": {
+    "a40": {
+      "G": 13,
+      "phase": "discovery"
+    },
+    "dgx": {
+      "G": 11,
+      "phase": "discovery"
+    }
+  },
+  "now": 1788625150.6470325,
+  "recorded_at": "2026-09-05T16:19:10.647Z",
+  "remote_root": "/home/hulajan1/swbench/ar_20260905_direct",
+  "eval_bank": "validation",
+  "steps": 80000,
+  "note": "Interim campaign snapshot. Matched coat64 anchors were still running; no promotion verdict from this snapshot."
+}

@@ -846,7 +846,33 @@ def train(a):
     def dec_t(pp, px): return (pp + px) if a.resprox else pp
     print(f"pool train={len(S1)} test={len(E1)} split={a.split} Rcap={Rcap} maxd_tr={int(D.max())} maxd_te={int(ED.max())}", flush=True)
     out = {}
-    if a.symonly:
+    if a.research_model:
+        assert a.enc == "pureimage", "research models consume pureimage pairs"
+        assert not (a.decodehead or a.globalbase or a.resprox or a.bellman or a.cotsup or a.arrive), "research candidates require the unmodified motion readout"
+        if a.research_model == "joint":
+            if __package__:
+                from .autoresearch_joint import JointPixelInteg
+            else:
+                from autoresearch_joint import JointPixelInteg
+            core = JointPixelInteg(PIMGC, width=a.cnnw, T=a.T, kernel_size=a.cnnk,
+                                  tied=bool(a.rtied), stride=a.rstride, blocks=a.rblocks,
+                                  attention_heads=a.rattn)
+        else:
+            if __package__:
+                from .autoresearch_context import ContextInteg
+            else:
+                from autoresearch_context import ContextInteg
+            core = ContextInteg(in_channels=PIMGC, d=a.d, heads=a.heads,
+                                layers=a.layers, T=a.T, cnnw=a.cnnw,
+                                cnndepth=a.cnndepth, ngate=a.ngate)
+        class RenderPair(nn.Module):
+            def __init__(self, core):
+                super().__init__()
+                self.core = core
+            def forward(self, x, g, m):
+                return self.core(Enc._render_pure(None, x, m), Enc._render_pure(None, g, m))
+        models = [(a.research_model, RenderPair(core).to(dev))]
+    elif a.symonly:
         models = [("sym", Sym().to(dev))]
     elif a.iqeonly:
         models = [("iqe", Qmet("iqe").to(dev))]
@@ -880,6 +906,9 @@ def train(a):
         UCt = torch.as_tensor(np.array(UC), device=dev)
         print(f"bellman pool {len(U0)} nmax {nmax}", flush=True)
     for name, model in models:
+        def predict_pool(sa, sb, maps):
+            return torch.cat([model(sa[i:i + a.evalbs], sb[i:i + a.evalbs], maps[i:i + a.evalbs])
+                              for i in range(0, len(sa), a.evalbs)])
         NPARAM = sum(p.numel() for p in model.parameters() if p.requires_grad)
         print(f"{name} params {NPARAM}", flush=True)
         if a.loadckpt:  # analysis mode: restore saved weights, skip training (steps=0 leaves loop bodies empty)
@@ -962,10 +991,13 @@ def train(a):
                 if step % max(1, a.steps // 4) == 0:
                     print(f"{name} step {step} loss {loss.item():.3f}", flush=True)
                 if a.evalevery > 0 and step > 0 and step % a.evalevery == 0:   # held-out eval curve (best-checkpoint diagnostic)
+                    was_training = model.training
+                    model.eval()
                     with torch.no_grad():
-                        prv = torch.cat([model(E1t[i:i + 4000], E2t[i:i + 4000], ECt[i:i + 4000]) for i in range(0, len(E1t), 4000)])
+                        prv = predict_pool(E1t, E2t, ECt)
                         if a.resprox: prv = dec_t(prv, PXte)
                         vm = float((prv - EDt).abs().mean().item()); vc = float(np.corrcoef(prv.cpu(), ED)[0, 1])
+                    model.train(was_training)
                     if vm < best_m: best_m = vm
                     if vc > best_c: best_c = vc
                     print(f"{name} step {step} evalmae {vm:.3f} evalcorr {vc:.3f}", flush=True)
@@ -973,8 +1005,8 @@ def train(a):
         if name == "integ" and a.Ttest > 0: model.T = a.Ttest
         model.eval()
         with torch.no_grad():
-            pr_tr = model(S1t[:4000], S2t[:4000], Ct[:4000])
-            pr = torch.cat([model(E1t[i:i + 4000], E2t[i:i + 4000], ECt[i:i + 4000]) for i in range(0, len(E1t), 4000)])
+            pr_tr = predict_pool(S1t[:4000], S2t[:4000], Ct[:4000])
+            pr = predict_pool(E1t, E2t, ECt)
             if a.resprox:
                 pr_tr = dec_t(pr_tr, PXtr[:4000]); pr = dec_t(pr, PXte)
         if a.recon == "slot" and a.enc == "image" and hasattr(model, "enc"):     # unsupervised slot identity consistency
@@ -985,7 +1017,9 @@ def train(a):
             slot0w = None
         r = dict(train_mae=round((pr_tr - Dt[:4000]).abs().mean().item(), 3), slot0_is_worker=slot0w, params=NPARAM,
                  test_mae=round((pr - EDt).abs().mean().item(), 3),
-                 test_corr=round(float(np.corrcoef(pr.cpu(), ED)[0, 1]), 3), nskip=nskip)
+                 test_corr=round(float(np.corrcoef(pr.cpu(), ED)[0, 1]), 6),
+                 test_bias=round((pr - EDt).mean().item(), 6),
+                 test_rmse=round((pr - EDt).square().mean().sqrt().item(), 6), nskip=nskip)
         if a.evalevery > 0:                                        # best point on the held-out eval curve (incl. final eval)
             r["best_mae"] = round(min(best_m, r["test_mae"]), 3)
             r["best_corr"] = round(max(best_c, r["test_corr"]), 3)
@@ -1016,7 +1050,7 @@ def train(a):
                        f"{a.save}_{name}.pt")
         if a.dumppred:  # held-out pool: true BFS distance + prediction per pair (calibration plots)
             np.savez(f"{a.dumppred}_{name}.npz", d_true=ED.astype(np.float32),
-                     d_pred=pr.cpu().numpy().astype(np.float32))
+                     d_pred=pr.cpu().numpy().astype(np.float32), mapid=EC)
         if a.dumptraj > 0 and name == "integ" and a.readout in ("xattn", "slotattn"):
             # per-pass slot trajectories on the first N held-out pairs (interpretability: latent-walk analysis)
             Nd = min(a.dumptraj, len(E1t)); Zs, As, Ag, Im = [], [], [], []
@@ -1048,7 +1082,10 @@ def train(a):
                                       heads=a.heads, T=a.T, lr=a.lr, latentnorm=a.latentnorm, gradclip=a.gradclip, seewalls=a.seewalls,
                                       recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath, supbind=a.supbind, coordconv=a.coordconv, cnnk=a.cnnk, slotiters=a.slotiters, slotnoise=a.slotnoise, warmup=a.warmup, attnent=a.attnent, attnovl=a.attnovl, slotln=a.slotln, cnnmix=a.cnnmix, cosine=a.cosine, bs=a.bs, curriculum=int(a.curriculum), basepool=a.basepool, fgmask=a.fgmask, objch=a.objch, cotsup=a.cotsup, ncot=a.ncot,
                                       gatesopen=int(a.gatesopen), nopush=int(a.nopush), wire1=int(a.wire1), noplate=int(a.noplate),
-                                      tag=a.tag, poolq=a.poolq, evalevery=a.evalevery, **out)), flush=True)
+                                      tag=a.tag, poolq=a.poolq, evalevery=a.evalevery,
+                                      research_model=a.research_model, rtied=a.rtied, rstride=a.rstride,
+                                      rblocks=a.rblocks, rattn=a.rattn, evalbs=a.evalbs,
+                                      eval_bank=getattr(a, "eval_bank", "historical"), **out)), flush=True)
 
 def main():
     ap = argparse.ArgumentParser()
@@ -1140,6 +1177,13 @@ def main():
     ap.add_argument("--cotsup", type=float, default=0.0, help="integ: checkpoint-CoT waypoint supervision weight; after pass t the slots must reconstruct enabling state t (effective-gate-mask change point) on the BFS shortest path")
     ap.add_argument("--ncot", type=int, default=0, help="max waypoints supervised per pair (0 = T)")
     ap.add_argument("--dumptraj", type=int, default=0, help="dump per-pass slot trajectories for the first N held-out pairs")
+    ap.add_argument("--research-model", choices=["", "joint", "context"], default="",
+                    help="direct-distance candidate with strict latent-motion readout")
+    ap.add_argument("--rtied", type=int, choices=[0, 1], default=1)
+    ap.add_argument("--rstride", type=int, default=1)
+    ap.add_argument("--rblocks", type=int, default=1)
+    ap.add_argument("--rattn", type=int, default=0)
+    ap.add_argument("--evalbs", type=int, default=4000, help="inference batch size, lower for pixel models")
     a = ap.parse_args()
     if a.probe: probe(a)
     if a.train: train(a)

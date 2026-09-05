@@ -169,3 +169,45 @@ architecture change, just 25% of steps on small yards padded into the big canvas
 broken, it is hard to LEARN from scratch at scale; learned small then transferred, it
 works. Combining curriculum + reinject is the obvious next probe if more is needed;
 remaining gap to factored (~.01-.02) is the residual binding cost.
+
+## Direct-distance autoresearch (2026-09-05, CIIRC)
+
+User priority is now direct prediction MAE/correlation before any search evaluation.
+The live-log audit corrects the handoff's best/final metric labeling:
+
+| rung/model | final corr s0/s1 | final MAE s0/s1 | best-seen corr s0/s1 |
+|---|---|---|---|
+| S11 coat64 | .946 / .949 | 2.195 / 2.040 | .947 / .951 |
+| S13 coat64 | .960 / .963 | 2.324 / 2.181 | .961 / .964 |
+| S13 gcurr | .938 / .973 | 2.761 / 1.741 | .939 / .973 |
+
+Verified directly from ciirc-old-cluster /home/hulajan1/swbench/scaleupA_{3,12,4,13,1,10}.out
+in the row/seed order above. These are existing 160k runs, not new autoresearch
+results. The S13 curriculum has a strong individual seed but is not a stable win.
+Earlier handoff values called test_corr were best_corr, so compare semantics explicitly.
+
+New campaign: /home/hulajan1/swbench/ar_20260905_direct (shared NFS).
+Eight direct DGX V100 workers plus eight Slurm A40 workers on amd-2; initial
+Slurm array 131959 failed before training because PyTorch omitted the GPU- UUID
+prefix; corrected launcher resubmitted as 131967. Existing scale/T8 runs untouched.
+First round: 18 fixed-80k validation trials (coat64 + eight candidates per group).
+The candidate families are joint spatial integration, static-context dynamic-token
+integration, full-pixel transformer integration, and G-2 grid curriculum; recurrence,
+width, untied updates and attention are probed in the joint family.
+
+Validation uses a separate layout/wiring seed bank (+1,000,000), while preserving
+historical training maps and pool RNG exactly. Final validation endpoints select
+candidates: correlation > matched coat64 + .005 OR MAE < .97 * coat64. At most two
+survivors get BOTH S11/S13, seeds0/1, 160k with matched coat on the SAME hardware
+group. A near miss can receive one two-trial learning-rate/schedule mutation round.
+Historical held-out results never trigger more adaptation. All final predictions,
+bias, RMSE, map IDs, checkpoints, full commands and source hashes are retained.
+This historical test bank has informed prior research, so it is not an untouched
+new test set. Independent future locked testing would strengthen a publication claim.
+
+Strict latent-motion readout is tested by reconstruction from the actual trajectory.
+The optional Numba BFS reproduces ordered traversals/cap behavior and the exact
+sampled arrays/RNG state; it accelerates labels, not prediction-time inference.
+The controller is bounded to 24 hours, ends around 2026-09-06 17:55 Europe/Prague,
+and records decisions in state.json. No new full-budget win is claimed at launch.
+See agent-progress/2026-09-05-autoresearch-no-search.md for operations and status.
