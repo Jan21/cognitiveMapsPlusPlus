@@ -132,3 +132,22 @@ same-site) and even coat16's lucky seed does (.947), with 0.06 seed spread at sm
 width. CRTR transplant plateaus at scalar level; symmetric L2 + global pooling cost it
 the detour structure. Open question: whether integ's S9 gap closes with a bigger trunk,
 or CoAt's pair-conditioned attention genuinely scales better with grid size.
+
+## Binding probe at S9 (2026-09-05, ciirc 131644)
+
+Hypothesis (user): the image integ's S9 deficit vs CoAt is slot-attention binding
+degrading with grid size, not the distance mechanism. Test: same integ trunk fed clean
+per-factor tokens (--enc factored), same bed/budget/site as the image finals.
+
+| input | corr (s0/s1) | mae |
+|---|---|---|
+| integ factored | **.952 / .938** | 1.59 / 1.82 |
+| coat64 (image, pair-concat) | .935 / .942 | 1.81 / 1.70 |
+| integ image (slots) | .894 (same site) | |
+
+CONFIRMED. With binding removed, integ tops the S9 bed including coat64; it passed the
+image model's 160k final by step 32k. So the S9 ranking is a perception effect: CoAt
+sidesteps binding entirely (never commits to per-entity tokens), our slot read degrades
+with grid size. Mechanism ranking (factored integ > coat > image integ > iqe > scalar >
+crtr) is consistent with the joint-ladder binding-tax finding, now shown to bite with
+grid SIZE alone, not just entity density.
