@@ -211,3 +211,26 @@ sampled arrays/RNG state; it accelerates labels, not prediction-time inference.
 The controller is bounded to 24 hours, ends around 2026-09-06 17:55 Europe/Prague,
 and records decisions in state.json. No new full-budget win is claimed at launch.
 See agent-progress/2026-09-05-autoresearch-no-search.md for operations and status.
+
+## Scaling continuation complete: S9-S19, four lines (2026-09-06, ciirc 131813-15)
+
+best_corr s0/s1, 160k, 2 seeds, map split, all same-site (ciirc):
+
+| rung | coat64 | gcurr integ | factored integ | image integ |
+|------|--------------|-------------|----------------|-------------|
+| S9   | .935 / .942  | .936 / .942 | .952 / .938    | .894        |
+| S11  | .947 / .951  | .918 / .848 | .944 / .936    | .912 (leo)  |
+| S13  | .961 / .964  | .939 / .973 | .936 / .933    | .911 (leo)  |
+| S15  | .951 / .959  | .936 / .969 | .923 / .927    | .929 (leo)  |
+| S17  | .959 / .962  | .912 / .890 | .942 / .937    | .829 / .851 |
+| S19  | .958 / .965  | .815 / .900 | .931 / .928    | .896 / .936 |
+
+VERDICT at scale: coat64 wins S11-S19 on seed means AND stability (spread <=.01
+everywhere; every other line has spreads up to .12 at the top rungs). Factored integ is
+roughly scale-flat (.92-.95, no collapse) but sits ~.02-.03 below coat from S13 up:
+pair-conditioned joint processing beats the per-entity mechanism at scale even with
+perfect binding. gcurr is a high-variance lottery: its best seeds top the whole table
+at S13/S15 (.973/.969) but it is unreliable (S11 .848, S19 .815) and fades at S17+.
+Plain image integ degrades with huge seed noise. The open engineering direction (see
+agent-progress/2026-09-05-beat-conv-baselines-handoff.md): keep the integration
+readout, steal the joint pair front (H4), stabilize the curriculum (H6).
