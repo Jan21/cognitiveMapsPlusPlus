@@ -109,6 +109,21 @@ class Yard:
                 if v not in dist: dist[v] = dist[u] + 1; dq.append(v)
         return dist
 
+    def bfs_par(self, src, maxnodes=200000):
+        """bfs + parent pointers (for shortest-path reconstruction; --cotsup waypoints)."""
+        dist = {src: 0}; par = {src: None}; dq = collections.deque([src])
+        while dq and len(dist) < maxnodes:
+            u = dq.popleft()
+            for v in self.neighbours(u):
+                if v not in dist: dist[v] = dist[u] + 1; par[v] = u; dq.append(v)
+        return dist, par
+
+    def eff_mask(self, s):
+        """EFFECTIVE open-gate mask of a state (bits | plate override): the enabling vector.
+        A path state where this changes is an ENABLING state (lever pull / plate press or
+        release) -- the checkpoint-CoT waypoint definition ported to the switchyard."""
+        return self.open_gates(s[2], self.cells[s[1]])
+
     def rand_state(self, rng):
         while True:
             wr_, cr_ = int(rng.integers(len(self.cells))), int(rng.integers(len(self.cells)))
@@ -205,18 +220,44 @@ def make_yards(a, wire1=None, noplate=None):
     yards = [mk(m, m) for m in range(a.nmaps)]
     return yards, [m for m in range(a.nmaps) if m % 4], [m for m in range(a.nmaps) if not m % 4]
 
-def build_pool(a, rng, yards, mapids, Rcap):
-    S1, S2, D, C = [], [], [], []
+def build_pool(a, rng, yards, mapids, Rcap, cot=False):
+    """cot=True additionally returns, per pair, the ENABLING states on one BFS shortest path
+    (states where the effective open-gate mask changes), in path order, capped at ncot
+    (default T), padded with zeros + a length array. Waypoint k is supervised after
+    integrator pass k (--cotsup)."""
+    ncot = (getattr(a, "ncot", 0) or a.T) if cot else 0
+    S1, S2, D, C, WP, WL = [], [], [], [], [], []
     for _ in range(a.poolq):
         m = int(mapids[rng.integers(len(mapids))]); yard = yards[m]
-        src = yard.rand_state(rng); dist = yard.bfs(src)
+        src = yard.rand_state(rng)
+        if cot:
+            dist, par = yard.bfs_par(src, getattr(a, "bfsmax", 200000))
+        else:
+            dist = yard.bfs(src, getattr(a, "bfsmax", 200000))
         byd = collections.defaultdict(list)
         for tv, dv in dist.items():
             if 0 < dv <= Rcap: byd[dv].append(tv)
         per = max(1, 40 // max(1, len(byd)))
         for dv, lst in byd.items():
             for j in rng.choice(len(lst), min(per, len(lst)), replace=False):
-                S1.append(yard.vec(src)); S2.append(yard.vec(lst[j])); D.append(dv); C.append(m)
+                tv = lst[j]
+                S1.append(yard.vec(src)); S2.append(yard.vec(tv)); D.append(dv); C.append(m)
+                if cot:
+                    path = [tv]
+                    while path[-1] != src: path.append(par[path[-1]])
+                    path.reverse()
+                    ways, pe = [], yard.eff_mask(path[0])
+                    for st in path[1:]:
+                        e = yard.eff_mask(st)
+                        if e != pe: ways.append(yard.vec(st))
+                        pe = e
+                    ways = ways[:ncot]
+                    pad = np.zeros((ncot, 3), np.int64)
+                    for k, wv in enumerate(ways): pad[k] = wv
+                    WP.append(pad); WL.append(len(ways))
+    if cot:
+        return (np.array(S1), np.array(S2), np.array(D, np.float32), np.array(C),
+                np.array(WP), np.array(WL, np.int64))
     return np.array(S1), np.array(S2), np.array(D, np.float32), np.array(C)
 
 def train(a):
@@ -562,12 +603,16 @@ def train(a):
             s.block = Block(d, h, l); s.scale = nn.Parameter(torch.zeros(()))
             s.gbase = nn.Parameter(torch.zeros(())) if a.globalbase else None
             s.head = nn.Sequential(nn.Linear(d, 2 * d), nn.GELU(), nn.Linear(2 * d, 1)) if a.decodehead else None
-        def forward(s, x, g, m, Trun=None, ret_arr=False):
+            if a.cotsup > 0:                                       # waypoint decoder: pass-t slots -> enabling-state image t
+                s.cdec = nn.Linear(d, d); s.cch = nn.Linear(d, PIMGC - 1)
+        def forward(s, x, g, m, Trun=None, ret_arr=False, ret_states=False):
             zs = s.enc(x, m) + s.role.weight[0]; zg = s.enc(g, m) + s.role.weight[1]
             base = torch.cat([zg, s.enc(x, m) + s.role.weight[2]], 1)
             tok = torch.cat([zs, base], 1); cost = torch.zeros(x.shape[0], device=x.device)
+            states = []
             for _ in range(Trun or s.T):
                 z = s.block(tok); cost = cost + (z[:, :NTOK] - tok[:, :NTOK]).norm(dim=-1).sum(-1)
+                if ret_states: states.append(z[:, :NTOK])
                 tok = z if a.norecall else torch.cat([z[:, :NTOK], base], 1)
             if s.head is not None:                                 # decode-head ablation: same recurrence, no accumulation
                 out = F.softplus(s.head(tok[:, :NTOK].mean(1)).squeeze(-1))   # softplus matches reference scalar_mlp
@@ -576,6 +621,8 @@ def train(a):
                 out = out + F.softplus(s.gbase) if s.gbase is not None else out
             if ret_arr:
                 return out, (tok[:, :NTOK] - (s.enc(g, m) + s.role.weight[0])).norm(dim=-1).mean(-1)
+            if ret_states:
+                return out, states
             return out
 
     BL = a.baselayers if a.baselayers >= 0 else a.layers           # baseline mix-block depth (tunable, fair; 0 = no transformer)
@@ -636,6 +683,79 @@ def train(a):
             out = s.head(torch.cat([hs, hg], 1)).squeeze(-1)
             return F.softplus(out) if a.scalarsp else out          # softplus matches reference concat_mlp
 
+    class CrtrNet(nn.Module):
+        """CRTR (Princeton-RL) LNConvNet transplant: BatchNorm residual conv trunk, GAP ->
+        linear embedding per state, distance = L2 between the two embeddings (their metric
+        form). Faithful to their networks.py sokoban config (hidden 64 / depth 8 / repr =
+        hidden = --extw 64); input is the pureimage render instead of their tile one-hots.
+        Their custom init never fires (isinstance check over parameters()), so default
+        torch init IS the faithful choice."""
+        def __init__(s, w=a.extw):
+            super().__init__()
+            nblk = a.extdepth // 2
+            s.inp = nn.Conv2d(PIMGC, w, 3, padding=1); s.bn0 = nn.BatchNorm2d(w)
+            s.mods = nn.ModuleList(nn.Conv2d(w, w, 3, padding=1) for _ in range(nblk))
+            s.res = nn.ModuleList(nn.Conv2d(w, w, 3, padding=1) for _ in range(nblk))
+            s.bns = nn.ModuleList(nn.BatchNorm2d(w) for _ in range(nblk))
+            s.bnr = nn.ModuleList(nn.BatchNorm2d(w) for _ in range(nblk))
+            s.out = nn.Sequential(nn.AdaptiveAvgPool2d(1), nn.Flatten(), nn.Linear(w, w))
+        def emb(s, x, m):
+            h = F.relu(s.bn0(s.inp(Enc._render_pure(None, x, m))))
+            for mo, re_, ln, lr in zip(s.mods, s.res, s.bns, s.bnr):
+                h = lr(re_(F.relu(ln(mo(h))))) + h
+            return s.out(h)
+        def forward(s, x, g, m):
+            return ((s.emb(x, m) - s.emb(g, m)) ** 2).sum(-1).clamp(min=1e-12).sqrt()
+
+    def posenc2d(C, G_):
+        """Chrestien posencode2d port: 2D sincos, first half height, second half width."""
+        assert C % 4 == 0
+        pe = torch.zeros(C, G_, G_)
+        c2 = C // 2
+        div = torch.exp(torch.arange(0., c2, 2) * (-np.log(10000.0) / c2))
+        pos = torch.arange(0., G_)[:, None]                        # (G,1)
+        sh, ch_ = torch.sin(pos * div).T, torch.cos(pos * div).T   # (c2/2, G)
+        pe[0:c2:2] = sh[:, :, None]; pe[1:c2:2] = ch_[:, :, None]  # height signal
+        pe[c2::2] = sh[:, None, :]; pe[c2 + 1::2] = ch_[:, None, :]   # width signal
+        return pe
+
+    class CoatNet(nn.Module):
+        """Chrestien et al. (2310.19463) CoAt net transplant: state+goal channel concat, 7
+        conv3x3 blocks each re-concatenating the raw input, then 4 attention-augmented
+        blocks (conv -> channels split directly into q/k/v, 2 heads, no projections, plus
+        2D sincos posenc on the conv output), GAP -> dense -> scalar. Published size =
+        --extw 64 (conv 64 / att-conv 180 = 3x60 / dense 256); variants scale all widths."""
+        def __init__(s, w=a.extw):
+            super().__init__()
+            CI = 2 * PIMGC
+            ad = max(4, int(round(60 * w / 64 / 4)) * 4)           # per-stream attn channels (q=k=v)
+            s.ad = ad; s.nh = 2
+            s.convs = nn.ModuleList([nn.Conv2d(CI, w, 3, padding=1)] +
+                                    [nn.Conv2d(w + CI, w, 3, padding=1) for _ in range(6)])
+            aci = [w + CI] + [ad + 3 * ad + CI] * 3                # attn-block inputs: [att, p+pos, inp]
+            s.aconvs = nn.ModuleList(nn.Conv2d(c, 3 * ad, 3, padding=1) for c in aci)
+            s.register_buffer("pe", posenc2d(3 * ad, a.G))
+            s.dense = nn.Linear(ad + 3 * ad + CI, 4 * w)
+            s.op = nn.Linear(4 * w, 1)
+        def attend(s, p):
+            B, _, G_, _ = p.shape
+            q, k, v = p.split(s.ad, dim=1)                          # their AA2D: raw channel split, no projections
+            def hsplit(t): return t.reshape(B, s.nh, s.ad // s.nh, G_ * G_).transpose(2, 3)
+            q, k, v = hsplit(q) * (s.ad / s.nh) ** -0.5, hsplit(k), hsplit(v)
+            att = (q @ k.transpose(2, 3)).softmax(-1) @ v           # (B,nh,GG,ad/nh)
+            return att.transpose(2, 3).reshape(B, s.ad, G_, G_)
+        def forward(s, x, g, m):
+            inp = torch.cat([Enc._render_pure(None, x, m), Enc._render_pure(None, g, m)], 1)
+            h = inp
+            for cv in s.convs:
+                h = torch.cat([F.relu(cv(h)), inp], 1)
+            for acv in s.aconvs:
+                p = F.relu(acv(h))
+                h = torch.cat([s.attend(p), p + s.pe[None], inp], 1)
+            z = F.relu(s.dense(h.mean((2, 3))))
+            out = s.op(z).squeeze(-1)
+            return F.softplus(out) if a.scalarsp else out           # same output treatment as Scalar
+
     def proxy_pairs(SA, SB, CM):
         out = np.zeros(len(SA), np.float32)
         for i in range(len(SA)):
@@ -648,7 +768,16 @@ def train(a):
         return out
 
     Rcap = a.Rtrain if a.Rtrain else a.Rmax
-    S1, S2, D, C = build_pool(a, rng, yards, tr_ids, Rcap)
+    WPt = WLt = None
+    if a.cotsup > 0:
+        assert a.enc == "pureimage" and a.readout == "xattn", "--cotsup: pureimage/xattn only"
+        assert not (a.lencurr or a.curriculum), "--cotsup: incompatible with curricula"
+        S1, S2, D, C, WP, WL = build_pool(a, rng, yards, tr_ids, Rcap, cot=True)
+        WPt = torch.as_tensor(WP, device=dev); WLt = torch.as_tensor(WL, device=dev)
+        print(f"cotsup pool: mean waypoints {WL.mean():.2f}  frac>=1 {float((WL > 0).mean()):.2f} "
+              f"frac at cap {float((WL >= (a.ncot or a.T)).mean()):.2f}", flush=True)
+    else:
+        S1, S2, D, C = build_pool(a, rng, yards, tr_ids, Rcap)
     phases = [(len(S1) and 1.0, (S1, S2, D, C))]                  # single phase by default
     if a.lencurr and a.Rtrain > 8:                                # length curriculum: growing training range
         caps = sorted({8, min(12, a.Rtrain), a.Rtrain})
@@ -678,6 +807,10 @@ def train(a):
         models = [("mrn", Qmet("mrn").to(dev))]
     elif a.scalaronly:
         models = [("scalar", Scalar().to(dev))]
+    elif a.extonly == "crtr":
+        models = [("crtr", CrtrNet().to(dev))]
+    elif a.extonly == "coat":
+        models = [("coat", CoatNet().to(dev))]
     else:
         models = [("integ", Integ().to(dev))] + ([] if a.nobaseline else [("scalar", Scalar().to(dev))])
         if a.symbaseline: models.append(("sym", Sym().to(dev)))
@@ -728,6 +861,27 @@ def train(a):
                     Trun = int(torch.randint(max(1, a.Tmin), a.T + 1, (1,)).item()) if a.Tmin >= 0 else None
                     cost, arr = model(P1t[b], P2t[b], PCt[b], Trun=Trun, ret_arr=True)
                     loss = F.smooth_l1_loss(cost, tgt) + a.arrive * arr.mean()
+                elif a.cotsup > 0 and name == "integ":
+                    # checkpoint-CoT supervision: after pass t the evolved slots must reconstruct
+                    # enabling state t on the shortest path (image CE, recon-slot decoder form).
+                    pred, sts = model(P1t[b], P2t[b], PCt[b], ret_states=True)
+                    loss = F.smooth_l1_loss(pred, tgt)
+                    closs = torch.zeros((), device=dev); nsup = 0
+                    d_ = sts[0].shape[-1]
+                    for t_ in range(min(len(sts), WPt.shape[1])):
+                        valid = WLt[b] > t_
+                        if not valid.any(): break
+                        tokt = sts[t_][valid]
+                        wimg = model.enc._render_pure(WPt[b][valid, t_], PCt[b][valid]).flatten(2)[:, 1:]
+                        wtgt = (wimg > 0.75).float()
+                        p_ = (torch.einsum("bkd,nd->bkn", model.cdec(tokt), model.enc.pimgpos) / d_ ** 0.5).softmax(-1)
+                        ch_ = model.cch(tokt).softmax(-1)
+                        wpred = torch.einsum("bkc,bkn->bcn", ch_, p_)
+                        nent = wtgt.sum((1, 2)).clamp(min=1)
+                        closs = closs - ((wtgt * (wpred + 1e-9).log()).sum((1, 2)) / nent).mean()
+                        nsup += 1
+                    if nsup:
+                        loss = loss + a.cotsup * closs / nsup
                 else:
                     loss = F.smooth_l1_loss(model(P1t[b], P2t[b], PCt[b]), tgt)
                 if a.bellman > 0 and name == "integ" and step >= a.bellstart * a.steps:
@@ -845,7 +999,7 @@ def train(a):
                                       markerheads=a.markerheads, bindmode=a.bindmode, readout=a.readout, cnnw=a.cnnw, cnndepth=a.cnndepth, steps=a.steps, seed=a.seed,
                                       d=a.d, layers=a.layers, baselayers=(a.baselayers if a.baselayers >= 0 else a.layers),
                                       heads=a.heads, T=a.T, lr=a.lr, latentnorm=a.latentnorm, gradclip=a.gradclip, seewalls=a.seewalls,
-                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath, supbind=a.supbind, coordconv=a.coordconv, cnnk=a.cnnk, slotiters=a.slotiters, slotnoise=a.slotnoise, warmup=a.warmup, attnent=a.attnent, attnovl=a.attnovl, slotln=a.slotln, cnnmix=a.cnnmix, cosine=a.cosine, bs=a.bs, curriculum=int(a.curriculum), basepool=a.basepool, fgmask=a.fgmask, objch=a.objch,
+                                      recon=a.recon, reconw=a.reconw, hardattn=a.hardattn, slots=a.slots, norecall=a.norecall, wirepath=a.wirepath, supbind=a.supbind, coordconv=a.coordconv, cnnk=a.cnnk, slotiters=a.slotiters, slotnoise=a.slotnoise, warmup=a.warmup, attnent=a.attnent, attnovl=a.attnovl, slotln=a.slotln, cnnmix=a.cnnmix, cosine=a.cosine, bs=a.bs, curriculum=int(a.curriculum), basepool=a.basepool, fgmask=a.fgmask, objch=a.objch, cotsup=a.cotsup, ncot=a.ncot,
                                       gatesopen=int(a.gatesopen), nopush=int(a.nopush), wire1=int(a.wire1), noplate=int(a.noplate),
                                       tag=a.tag, poolq=a.poolq, evalevery=a.evalevery, **out)), flush=True)
 
@@ -857,6 +1011,7 @@ def main():
     ap.add_argument("--nwire", type=int, default=6); ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--probe", action="store_true"); ap.add_argument("--train", action="store_true")
     ap.add_argument("--poolq", type=int, default=300); ap.add_argument("--Rmax", type=int, default=24)
+    ap.add_argument("--bfsmax", type=int, default=200000, help="BFS node cap per pool query (raise for G > 11 so the reachable set is not truncated)")
     ap.add_argument("--steps", type=int, default=4000); ap.add_argument("--bs", type=int, default=128)
     ap.add_argument("--lr", type=float, default=2e-3); ap.add_argument("--d", type=int, default=64)
     ap.add_argument("--layers", type=int, default=3); ap.add_argument("--T", type=int, default=10)
@@ -911,6 +1066,10 @@ def main():
     ap.add_argument("--mrnonly", action="store_true", help="train ONLY the torchqmet MRNFixed baseline")
     ap.add_argument("--scalaronly", action="store_true", help="train ONLY the scalar-head baseline")
     ap.add_argument("--scalarsp", type=int, default=0, help="softplus on the scalar-head output (matches reference concat_mlp)")
+    ap.add_argument("--extonly", choices=["", "crtr", "coat"], default="",
+                    help="external-architecture transplant: crtr = CRTR LNConvNet (embed+L2), coat = Chrestien CoAt (pair-concat scalar)")
+    ap.add_argument("--extw", type=int, default=64, help="--extonly width: published size = 64; smaller variants scale all widths")
+    ap.add_argument("--extdepth", type=int, default=8, help="--extonly crtr: residual trunk depth (published 8)")
     ap.add_argument("--evalevery", type=int, default=0, help="eval on the held-out pool every N steps; RESULT gains best_mae/best_corr")
     ap.add_argument("--lencurr", type=int, default=0, help="length curriculum: train range grows 8 -> 12 -> Rtrain")
     ap.add_argument("--heads", type=int, default=4, help="attention heads for every transformer block (d must be divisible)")
@@ -929,6 +1088,8 @@ def main():
     ap.add_argument("--dumppred", default="", help="prefix: save held-out (d_true, d_pred) to <prefix>_<model>.npz")
     ap.add_argument("--loadckpt", default="", help="load weights from a --save checkpoint and skip training (analysis)")
     ap.add_argument("--jointmix", type=int, default=0, help="qmet diagnostic: mix over both states' tokens jointly before the metric head")
+    ap.add_argument("--cotsup", type=float, default=0.0, help="integ: checkpoint-CoT waypoint supervision weight; after pass t the slots must reconstruct enabling state t (effective-gate-mask change point) on the BFS shortest path")
+    ap.add_argument("--ncot", type=int, default=0, help="max waypoints supervised per pair (0 = T)")
     ap.add_argument("--dumptraj", type=int, default=0, help="dump per-pass slot trajectories for the first N held-out pairs")
     a = ap.parse_args()
     if a.probe: probe(a)
