@@ -99,6 +99,10 @@ def main():
     ap.add_argument("--gradclip", type=float, default=1.0)
     ap.add_argument("--evalevery", type=int, default=4000)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--tcurr", type=int, default=0,
+                    help="coupled curriculum: train in 4 stages with growing distance cap "
+                         "(train-D quartiles -> all) and growing iteration count "
+                         "(T/4, T/2, 3T/4, T); eval always at full T")
     ap.add_argument("--tag", default="")
     a = ap.parse_args()
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -137,6 +141,7 @@ def main():
             if a.arch == "frozenenc":
                 s.enc1 = Block(d, a.heads); s.enc2 = Block(d, a.heads)
             s.scale = nn.Parameter(torch.zeros(()))
+            s.Trun = None                                  # runtime iteration override (curriculum)
         def maze_tokens(s, m):
             wt = s.wemb((WALL[m] > 0.5).long())            # (B,ncell,d)
             return wt + s.pos.weight[None]
@@ -147,15 +152,16 @@ def main():
                 mz = s.enc2(mz, mz); mz = s.enc1(mz, mz)
             dyn = torch.stack([s.pos(x1) + s.role.weight[0], s.pos(x2) + s.role.weight[1]], 1)
             acc = torch.zeros(B, device=x1.device)
+            Tn = s.Trun or a.T
             if a.arch in ("frozen", "frozenenc"):
-                for _ in range(a.T):
+                for _ in range(Tn):
                     kv = torch.cat([mz, dyn], 1)
                     prev = dyn
                     dyn = s.b2(s.b1(dyn, kv), torch.cat([mz, dyn], 1))
                     acc = acc + (dyn - prev).norm(dim=-1).mean(1)
             else:
                 tok = torch.cat([mz, dyn], 1)
-                for _ in range(a.T):
+                for _ in range(Tn):
                     prev = tok
                     tok = s.b2(s.b1(tok, tok), tok)
                     acc = acc + (tok[:, -2:] - prev[:, -2:]).norm(dim=-1).mean(1)
@@ -168,10 +174,24 @@ def main():
     print(f"{a.arch} params {sum(p.numel() for p in model.parameters())}", flush=True)
     opt = torch.optim.Adam(model.parameters(), a.lr)
     best_c, best_m = float("-inf"), float("inf")
+    if a.tcurr:                                            # stage schedule: (frac, dist cap, T)
+        caps = [np.percentile(D, q) for q in (25, 50, 75)] + [1e9]
+        Ts = [max(1, a.T // 4), max(1, a.T // 2), max(1, 3 * a.T // 4), a.T]
+        fr = [0.15, 0.2, 0.25, 0.4]
+        stage_idx = [torch.as_tensor(np.where(D <= c)[0], device=dev) for c in caps]
+        bounds = np.cumsum([int(f * a.steps) for f in fr])
+        print(f"tcurr stages: caps {[round(float(c),1) for c in caps[:3]]}+inf Ts {Ts} sizes {[len(i) for i in stage_idx]}", flush=True)
     for step in range(a.steps):
         for gp in opt.param_groups:
             gp["lr"] = a.lr * min(1.0, (step + 1) / a.warmup)
-        b = torch.randint(0, len(S1t), (a.bs,), device=dev)
+        if a.tcurr:
+            st = int(np.searchsorted(bounds, step, side="right"))
+            st = min(st, 3)
+            model.Trun = Ts[st]
+            pool = stage_idx[st]
+            b = pool[torch.randint(0, len(pool), (a.bs,), device=dev)]
+        else:
+            b = torch.randint(0, len(S1t), (a.bs,), device=dev)
         loss = F.smooth_l1_loss(model(S1t[b], S2t[b], Mt[b]), Dt[b])
         opt.zero_grad(); loss.backward()
         if a.gradclip > 0: torch.nn.utils.clip_grad_norm_(model.parameters(), a.gradclip)
@@ -179,6 +199,7 @@ def main():
         if step % max(1, a.steps // 8) == 0:
             print(f"step {step} loss {loss.item():.3f}", flush=True)
         if a.evalevery and step > 0 and step % a.evalevery == 0:
+            model.Trun = None                              # eval at full T
             model.eval()
             with torch.no_grad():
                 pr = torch.cat([model(E1t[i:i + 2048], E2t[i:i + 2048], EMt[i:i + 2048])
@@ -187,6 +208,7 @@ def main():
             c = float(np.corrcoef(pr.cpu().numpy(), ED)[0, 1]); mm = float((pr - EDt).abs().mean())
             best_c, best_m = max(best_c, c), min(best_m, mm)
             print(f"step {step} evalcorr {c:.3f} evalmae {mm:.3f}", flush=True)
+    model.Trun = None
     model.eval()
     with torch.no_grad():
         pr = torch.cat([model(E1t[i:i + 2048], E2t[i:i + 2048], EMt[i:i + 2048])
